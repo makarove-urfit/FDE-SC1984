@@ -1,11 +1,15 @@
-name: Deploy to Staging
+name: Deploy Admin to Staging
 
 on:
   push:
     branches: [ main ]
+    paths:
+      - 'admin/**'
+      - '.github/workflows/deploy-admin.yml'
+      - 'docker-compose.staging.yml'
 
 jobs:
-  deploy:
+  deploy-admin:
     runs-on: ubuntu-latest
     steps:
     - name: SSH and Build on Server
@@ -18,4 +22,4 @@ jobs:
           cd /opt/apps/fde-apps
           git fetch origin main
           git reset --hard FETCH_HEAD
-          docker compose -f docker-compose.staging.yml up -d --build
+          docker compose -f docker-compose.staging.yml up -d --build admin

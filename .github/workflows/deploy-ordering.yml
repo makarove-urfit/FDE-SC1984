@@ -1,0 +1,25 @@
+name: Deploy Ordering to Staging
+
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - 'ordering/**'
+      - '.github/workflows/deploy-ordering.yml'
+      - 'docker-compose.staging.yml'
+
+jobs:
+  deploy-ordering:
+    runs-on: ubuntu-latest
+    steps:
+    - name: SSH and Build on Server
+      uses: appleboy/ssh-action@v1.0.3
+      with:
+        host: ${{ secrets.STAGING_HOST }}
+        username: deploy
+        key: ${{ secrets.STAGING_SSH_KEY }}
+        script: |
+          cd /opt/apps/fde-apps
+          git fetch origin main
+          git reset --hard FETCH_HEAD
+          docker compose -f docker-compose.staging.yml up -d --build ordering
