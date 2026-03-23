@@ -22,4 +22,4 @@ jobs:
           cd /opt/apps/fde-apps
           git fetch origin main
           git reset --hard FETCH_HEAD
-          docker compose -f docker-compose.staging.yml up -d --build ordering
+          docker-compose -f docker-compose.staging.yml up -d --build ordering
