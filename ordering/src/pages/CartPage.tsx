@@ -12,9 +12,6 @@ export default function CartPage() {
   const navigate = useNavigate()
   const { cart, updateCartQty, updateCartNote, removeFromCart, submitOrderAsync, liveProducts } = useStore()
   const { logout } = useAuthStore()
-  const [deliveryDate, setDeliveryDate] = useState(
-    new Date(Date.now() + 86400000).toISOString().slice(0, 10)
-  )
   const [orderNote, setOrderNote] = useState('')
   const [submitted, setSubmitted] = useState(false)
   const [showConfirm, setShowConfirm] = useState(false)
@@ -34,7 +31,7 @@ export default function CartPage() {
     setSubmitting(true)
     setError(null)
     try {
-      await submitOrderAsync(deliveryDate, orderNote)
+      await submitOrderAsync(orderNote)
       setSubmitted(true)
       setShowConfirm(false)
     } catch (err) {
@@ -99,8 +96,11 @@ export default function CartPage() {
             </div>
             <div className="flex items-center gap-3">
               <label className="text-sm text-gray-500 w-10">數量</label>
-              <input type="number" value={qty} min={0.01} step={0.5}
-                onChange={(e) => updateCartQty(productId, parseFloat(e.target.value) || 0)}
+              <input type="number" value={qty} min={0} step={0.1}
+                onChange={(e) => {
+                  const val = parseFloat(e.target.value)
+                  if (!isNaN(val)) updateCartQty(productId, val)
+                }}
                 className="w-24 text-center px-2 py-1 border border-gray-200 rounded-lg bg-gray-50 font-medium" />
               <span className="text-sm text-gray-400">{product?.unit || ''}</span>
             </div>
@@ -111,14 +111,8 @@ export default function CartPage() {
         ))}
 
         <div className="bg-white rounded-xl border border-gray-100 p-4 space-y-3 mt-4">
-          <h3 className="font-medium text-gray-900">📍 送貨資訊</h3>
+          <h3 className="font-medium text-gray-900">📍 訂單備註</h3>
           <div>
-            <label className="text-sm text-gray-500 block mb-1">期望到貨日</label>
-            <input type="date" value={deliveryDate} onChange={(e) => setDeliveryDate(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-200 rounded-lg bg-gray-50 text-sm" />
-          </div>
-          <div>
-            <label className="text-sm text-gray-500 block mb-1">整單備註</label>
             <textarea placeholder="如：下周二吃、需要保冰配送" value={orderNote}
               onChange={(e) => setOrderNote(e.target.value)}
               className="w-full px-3 py-2 border border-gray-200 rounded-lg bg-gray-50 text-sm placeholder:text-gray-300" rows={2} />

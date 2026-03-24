@@ -153,7 +153,6 @@ export async function createSaleOrderLine(data: {
   name: string
   product_uom_qty: number
   price_unit?: number
-  delivery_date?: string
 }): Promise<{ id: string; data: Record<string, unknown> }> {
   return fetchProxy('sale_order_lines', 'POST', data as Record<string, unknown>)
 }
@@ -216,7 +215,7 @@ export function mapProducts(raw: RawProductTemplate[], categories: Category[]): 
     id: p.id,
     name: p.name,
     categoryId: p.categ_id || (categories.length > 0 ? categories[0].id : 'unknown'),
-    unit: p.uom_id || '單位',
+    unit: (p.uom_id && p.uom_id.length === 36 && p.uom_id.includes('-')) ? (p.default_code || '') : (p.uom_id || '單位'),
     defaultCode: p.default_code || '',
     supplierId: '',
   }))

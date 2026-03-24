@@ -11,7 +11,7 @@ import { useAuthStore } from '../store/useAuthStore'
 
 export default function OrderPage() {
   const navigate = useNavigate()
-  const { cart, addToCart, removeFromCart, loadProducts, liveProducts, liveCategories, productsLoading } = useStore()
+  const { cart, addToCart, removeFromCart, updateCartQty, loadProducts, liveProducts, liveCategories, productsLoading } = useStore()
   const { logout } = useAuthStore()
   const [activeCat, setActiveCat] = useState<string>('')
   const [error, setError] = useState<string | null>(null)
@@ -100,7 +100,14 @@ export default function OrderPage() {
                 <div className="flex items-center justify-between">
                   <button onClick={() => removeFromCart(product.id)}
                     className="w-7 h-7 bg-gray-100 rounded-lg flex items-center justify-center text-gray-500 hover:bg-gray-200 font-bold text-lg">−</button>
-                  <span className="font-bold text-primary">{inCart.qty}</span>
+                  <input type="number" step="0.1" min="0"
+                    className="w-12 text-center font-bold text-primary bg-transparent border-b border-gray-200 focus:outline-none focus:border-primary p-0"
+                    value={inCart.qty}
+                    onChange={(e) => {
+                      const val = parseFloat(e.target.value)
+                      if (!isNaN(val)) updateCartQty(product.id, val)
+                    }}
+                  />
                   <button onClick={() => addToCart(product.id)}
                     className="w-7 h-7 bg-primary rounded-lg flex items-center justify-center text-white hover:bg-green-700 font-bold text-lg">+</button>
                 </div>
