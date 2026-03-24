@@ -122,7 +122,7 @@ async function fetchProxy<T>(
 
 export async function fetchProductTemplates(): Promise<RawProductTemplate[]> {
   const data = await fetchProxy<RawProductTemplate[]>('product_templates')
-  return data.filter(p => p.active && p.sale_ok)
+  return data.filter(p => p.active !== false && p.sale_ok !== false)
 }
 
 export async function fetchProductCategories(): Promise<RawProductCategory[]> {
