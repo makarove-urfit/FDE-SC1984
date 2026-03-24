@@ -9,6 +9,10 @@ on:
       - '.github/workflows/deploy-admin.yml'
       - 'docker-compose.staging.yml'
 
+concurrency:
+  group: staging-deploy
+  cancel-in-progress: false
+
 jobs:
   deploy-admin:
     runs-on: ubuntu-latest

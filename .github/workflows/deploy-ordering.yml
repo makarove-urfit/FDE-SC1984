@@ -9,6 +9,10 @@ on:
       - '.github/workflows/deploy-ordering.yml'
       - 'docker-compose.staging.yml'
 
+concurrency:
+  group: staging-deploy
+  cancel-in-progress: false
+
 jobs:
   deploy-ordering:
     runs-on: ubuntu-latest
