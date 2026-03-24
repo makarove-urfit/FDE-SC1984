@@ -14,7 +14,7 @@ test.describe('Edge Cases & Robustness', () => {
     const body = await page.textContent('body')
     expect(body).toBeTruthy()
     // 應仍顯示 Dashboard 標題
-    await expect(page.getByText('Admin Dashboard')).toBeVisible()
+    await expect(page.getByText('管理總覽')).toBeVisible()
   })
 
   test('8.2 Token 過期 → 頁面不崩潰', async ({ page }) => {

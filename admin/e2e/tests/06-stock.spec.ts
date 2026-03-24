@@ -13,17 +13,17 @@ test.describe('Stock Report', () => {
   // --- 正常流 ---
 
   test('6.1 載入後顯示 Stock Report 標題', async ({ authedPage }) => {
-    await expect(authedPage.getByText('Stock Report')).toBeVisible()
+    await expect(authedPage.getByText('庫存報表')).toBeVisible()
   })
 
   test('6.2 統計卡片呈現', async ({ authedPage }) => {
     // 確認頁面載入完成且不崩潰
     const body = await authedPage.textContent('body')
-    expect(body).toContain('Stock Report')
+    expect(body).toContain('庫存報表')
     // 若有資料，確認有統計面板
-    const hasItems = body?.includes('Items')
+    const hasItems = body?.includes('品項數')
     if (hasItems) {
-      expect(body).toContain('Items')
+      expect(body).toContain('品項數')
     }
   })
 
@@ -31,14 +31,14 @@ test.describe('Stock Report', () => {
     const table = authedPage.locator('table')
     if (await table.isVisible()) {
       const body = await authedPage.textContent('body')
-      expect(body).toContain('Product')
+      expect(body).toContain('品名')
     }
   })
 
   // --- 搜尋 ---
 
   test('6.4 搜尋欄篩選產品名稱', async ({ authedPage }) => {
-    const searchInput = authedPage.getByPlaceholder('Search product...')
+    const searchInput = authedPage.getByPlaceholder('搜尋商品...')
     if (await searchInput.isVisible()) {
       await searchInput.fill('__nonexistent__')
       await authedPage.waitForTimeout(300)
@@ -48,7 +48,7 @@ test.describe('Stock Report', () => {
   })
 
   test('6.5 搜尋清空後恢復全部', async ({ authedPage }) => {
-    const searchInput = authedPage.getByPlaceholder('Search product...')
+    const searchInput = authedPage.getByPlaceholder('搜尋商品...')
     if (await searchInput.isVisible()) {
       await searchInput.fill('test')
       await authedPage.waitForTimeout(200)
@@ -64,14 +64,14 @@ test.describe('Stock Report', () => {
   test('6.6 Footer 合計列顯示 Total', async ({ authedPage }) => {
     const footer = authedPage.locator('tfoot')
     if (await footer.isVisible()) {
-      await expect(footer.getByText('Total')).toBeVisible()
+      await expect(footer.getByText('合計')).toBeVisible()
     }
   })
 
   // --- Print ---
 
   test('6.7 Print Stock Report 按鈕存在', async ({ authedPage }) => {
-    const printBtn = authedPage.getByRole('button', { name: 'Print Stock Report' })
+    const printBtn = authedPage.getByRole('button', { name: '列印庫存報表' })
     if (await printBtn.isVisible()) {
       await expect(printBtn).toBeEnabled()
     }
@@ -88,7 +88,7 @@ test.describe('Stock Report', () => {
     // 確認頁面正常渲染
     const body = await authedPage.textContent('body')
     expect(body).toBeTruthy()
-    expect(body).toContain('Stock Report')
+    expect(body).toContain('庫存報表')
   })
 
   test('6.10 返回 Dashboard', async ({ authedPage }) => {

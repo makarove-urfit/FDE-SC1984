@@ -7,7 +7,7 @@ interface Props {
   label?: string
 }
 
-export default function BackButton({ label = '← 返回 Dashboard' }: Props) {
+export default function BackButton({ label = '← 返回總覽' }: Props) {
   const navigate = useNavigate()
   return (
     <button

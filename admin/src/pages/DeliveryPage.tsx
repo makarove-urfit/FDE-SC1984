@@ -10,20 +10,20 @@ import { usePrint, PrintArea } from '../components/PrintProvider'
 import DeliverySlipPrint from '../templates/DeliverySlipPrint'
 
 const stateOptions = [
-  { value: 'all', label: 'All' },
-  { value: 'confirm', label: 'Pending' },
-  { value: 'shipped', label: 'In Transit' },
-  { value: 'done', label: 'Delivered' },
+  { value: 'all', label: '全部' },
+  { value: 'confirm', label: '待出貨' },
+  { value: 'shipped', label: '運送中' },
+  { value: 'done', label: '已送達' },
 ]
 
 const stateConfig: Record<string, { label: string; color: string }> = {
-  confirm: { label: 'Pending',    color: 'bg-orange-100 text-orange-700' },
-  shipped: { label: 'In Transit', color: 'bg-blue-100 text-blue-700' },
-  delivered: { label: 'Delivered',  color: 'bg-green-100 text-green-700' },
-  done:    { label: 'Delivered',  color: 'bg-green-100 text-green-700' },
+  confirm: { label: '待出貨',    color: 'bg-orange-100 text-orange-700' },
+  shipped: { label: '運送中', color: 'bg-blue-100 text-blue-700' },
+  delivered: { label: '已送達',  color: 'bg-green-100 text-green-700' },
+  done:    { label: '已送達',  color: 'bg-green-100 text-green-700' },
 }
 
-const drivers = ['Driver A', 'Driver B', 'Driver C']
+const drivers = ['司機 A', '司機 B', '司機 C']
 const PAGE_SIZE = 10
 
 type DeliveryAction = { type: 'ship' | 'deliver'; orderId: string }
@@ -53,7 +53,7 @@ export default function DeliveryPage() {
     })
   }, [])
 
-  const getProductName = (productId: string) => products.find(p => p.id === productId)?.name || 'Unknown'
+  const getProductName = (productId: string) => products.find(p => p.id === productId)?.name || '未知'
 
   const deliverableOrders = useMemo(() => {
     let list = salesOrders.filter(o => ['confirm', 'shipped', 'delivered', 'done'].includes(o.status))
@@ -106,7 +106,7 @@ export default function DeliveryPage() {
   const singlePrintOrder = singlePrintId ? salesOrders.filter(o => o.id === singlePrintId) : []
   const actionOrder = confirmAction ? salesOrders.find(o => o.id === confirmAction.orderId) : null
 
-  if (loading) return <div className="min-h-screen bg-gray-50 flex items-center justify-center">Loading delivery orders...</div>
+  if (loading) return <div className="min-h-screen bg-gray-50 flex items-center justify-center">載入中...</div>
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -114,20 +114,20 @@ export default function DeliveryPage() {
         <div className="flex justify-between items-center mb-3">
           <div className="flex items-center gap-3">
             <BackButton />
-            <h1 className="text-xl font-bold text-gray-900">Delivery Management</h1>
+            <h1 className="text-xl font-bold text-gray-900">出貨管理</h1>
           </div>
           <div className="flex gap-2">
             <button onClick={selectAllOrders} className="px-3 py-1.5 text-sm border border-gray-200 rounded-lg bg-white text-gray-600 hover:bg-gray-50">
-              {selectedOrders.size === deliverableOrders.length && deliverableOrders.length > 0 ? 'Deselect' : 'Select All'}
+              {selectedOrders.size === deliverableOrders.length && deliverableOrders.length > 0 ? '取消全選' : '全選'}
             </button>
             <button onClick={printBatch} disabled={selectedOrders.size === 0}
               className={`px-3 py-1.5 text-sm rounded-lg ${selectedOrders.size > 0 ? 'bg-gray-600 text-white hover:bg-gray-700' : 'bg-gray-100 text-gray-400 cursor-not-allowed'}`}>
-              Print ({selectedOrders.size})
+              列印 ({selectedOrders.size})
             </button>
           </div>
         </div>
         <div className="flex gap-3">
-          <SearchInput value={search} onChange={(v) => { setSearch(v); setPage(1) }} placeholder="Search..." className="flex-1 max-w-xs" />
+          <SearchInput value={search} onChange={(v) => { setSearch(v); setPage(1) }} placeholder="搜尋..." className="flex-1 max-w-xs" />
           <StatusDropdown value={filter} onChange={(v) => { setFilter(v); setPage(1) }} options={stateOptions} />
         </div>
       </header>
@@ -135,7 +135,7 @@ export default function DeliveryPage() {
       <div className="p-6 max-w-5xl mx-auto">
         {customerGroups.size === 0 ? (
           <div className="text-center text-gray-400 py-12">
-            <p>{search || filter !== 'all' ? 'No matching orders' : 'No delivery orders'}</p>
+            <p>{search || filter !== 'all' ? '無符合的訂單' : '無出貨訂單'}</p>
           </div>
         ) : (
           <div className="space-y-3">
@@ -146,10 +146,10 @@ export default function DeliveryPage() {
                   <button onClick={() => setExpanded(isExpanded ? null : custId)} className="w-full px-4 py-4 flex justify-between items-center hover:bg-gray-50">
                     <div className="text-left">
                       <p className="font-bold text-gray-900">{custId}</p>
-                      <p className="text-sm text-gray-400">Loading Address...</p>
+                      <p className="text-sm text-gray-400">載入地址中...</p>
                     </div>
                     <div className="flex items-center gap-2">
-                      <span className="text-sm text-gray-400">{custOrders.length} orders</span>
+                      <span className="text-sm text-gray-400">{custOrders.length} 筆訂單</span>
                       <span className="text-gray-400 text-xl">{isExpanded ? '\u25BE' : '\u25B8'}</span>
                     </div>
                   </button>
@@ -162,20 +162,20 @@ export default function DeliveryPage() {
                             <input type="checkbox" checked={selectedOrders.has(order.id)} onChange={() => toggleOrderSelect(order.id)} className="w-4 h-4 accent-primary bg-white" />
                             <div>
                               <p className="text-sm font-medium">{order.id}</p>
-                              <p className="text-xs text-gray-400">{order.lines.length} items</p>
+                              <p className="text-xs text-gray-400">{order.lines.length} 個品項</p>
                             </div>
                           </div>
                           <div className="flex items-center gap-2">
                             <select value={driverMap[order.id] || ''} onChange={(e) => setDriverMap(prev => ({ ...prev, [order.id]: e.target.value }))}
                               className="text-xs border border-gray-200 rounded px-2 py-1 bg-white text-gray-600">
-                              <option value="">Driver</option>
+                              <option value="">司機</option>
                               {drivers.map(d => <option key={d} value={d}>{d}</option>)}
                             </select>
                             <span className={`px-2.5 py-0.5 rounded-full text-xs font-medium ${config.color}`}>{config.label}</span>
-                            <button onClick={() => setPreviewId(previewId === order.id ? null : order.id)} className="px-3 py-1 bg-gray-200 text-gray-600 rounded text-xs hover:bg-gray-300">{previewId === order.id ? 'Close' : 'Preview'}</button>
-                            <button onClick={() => handleSinglePrint(order.id)} className="px-3 py-1 bg-gray-200 text-gray-600 rounded text-xs hover:bg-gray-300">Print</button>
-                            {order.status === 'confirm' && <button onClick={() => setConfirmAction({ type: 'ship', orderId: order.id })} className="px-3 py-1 bg-blue-600 text-white rounded text-xs hover:bg-blue-700">Ship</button>}
-                            {order.status === 'shipped' && <button onClick={() => setConfirmAction({ type: 'deliver', orderId: order.id })} className="px-3 py-1 bg-primary text-white rounded text-xs hover:bg-green-700">Delivered</button>}
+                            <button onClick={() => setPreviewId(previewId === order.id ? null : order.id)} className="px-3 py-1 bg-gray-200 text-gray-600 rounded text-xs hover:bg-gray-300">{previewId === order.id ? '關閉' : '預覽'}</button>
+                            <button onClick={() => handleSinglePrint(order.id)} className="px-3 py-1 bg-gray-200 text-gray-600 rounded text-xs hover:bg-gray-300">列印</button>
+                            {order.status === 'confirm' && <button onClick={() => setConfirmAction({ type: 'ship', orderId: order.id })} className="px-3 py-1 bg-blue-600 text-white rounded text-xs hover:bg-blue-700">出貨</button>}
+                            {order.status === 'shipped' && <button onClick={() => setConfirmAction({ type: 'deliver', orderId: order.id })} className="px-3 py-1 bg-primary text-white rounded text-xs hover:bg-green-700">已送達</button>}
                           </div>
                         </div>
                         <div className="px-4 py-2">
@@ -203,9 +203,9 @@ export default function DeliveryPage() {
 
       <ConfirmDialog
         open={!!confirmAction}
-        title={confirmAction?.type === 'ship' ? 'Confirm shipment?' : 'Confirm delivery?'}
-        message={`Order ${actionOrder?.erp_id} for ${actionOrder?.customer_id}`}
-        confirmText={confirmAction?.type === 'ship' ? 'Ship' : 'Delivered'}
+        title={confirmAction?.type === 'ship' ? '確認出貨？' : '確認送達？'}
+        message={`訂單 ${actionOrder?.erp_id}，客戶：${actionOrder?.customer_id}`}
+        confirmText={confirmAction?.type === 'ship' ? '出貨' : '已送達'}
         variant={confirmAction?.type === 'deliver' ? 'info' : 'warning'}
         onConfirm={handleConfirm}
         onCancel={() => setConfirmAction(null)}

@@ -13,12 +13,12 @@ test.describe('Dashboard', () => {
   // --- 正常流 ---
 
   test('1.1 載入完成後不再顯示 Loading', async ({ authedPage }) => {
-    await expect(authedPage.getByText('Loading dashboard')).not.toBeVisible()
-    await expect(authedPage.getByText('Admin Dashboard')).toBeVisible()
+    await expect(authedPage.getByText('載入中')).not.toBeVisible()
+    await expect(authedPage.getByText('管理總覽')).toBeVisible()
   })
 
-  test('1.2 統計卡片顯示正確數值 (Total Sales Orders >= 0)', async ({ authedPage }) => {
-    const card = authedPage.getByText('Total Sales Orders').locator('..')
+  test('1.2 統計卡片顯示正確數值 (銷售訂單總數 >= 0)', async ({ authedPage }) => {
+    const card = authedPage.getByText('銷售訂單總數').locator('..')
     await expect(card).toBeVisible()
     // 卡片數值應為數字
     const value = await card.locator('p.text-3xl').textContent()
@@ -26,7 +26,7 @@ test.describe('Dashboard', () => {
   })
 
   test('1.3 Workflow Actions 全 5 張卡片呈現', async ({ authedPage }) => {
-    const labels = ['Sales Orders', 'Procurement', 'Pending Shipments', 'Pending Receives', 'Stock']
+    const labels = ['銷售訂單', '採購定價', '待出貨', '待收貨', '庫存']
     for (const label of labels) {
       await expect(authedPage.getByRole('button', { name: new RegExp(label) })).toBeVisible()
     }
@@ -35,38 +35,38 @@ test.describe('Dashboard', () => {
   // --- 導航 ---
 
   test('1.4 點擊 Sales Orders 卡片跳轉 /sales-orders', async ({ authedPage }) => {
-    await authedPage.getByRole('button', { name: /Sales Orders/ }).click()
+    await authedPage.getByRole('button', { name: /銷售訂單/ }).click()
     await expect(authedPage).toHaveURL(/\/sales-orders/)
   })
 
   test('1.5 點擊 Procurement 卡片跳轉 /procurement', async ({ authedPage }) => {
-    await authedPage.getByRole('button', { name: /Procurement/ }).click()
+    await authedPage.getByRole('button', { name: /採購定價/ }).click()
     await expect(authedPage).toHaveURL(/\/procurement/)
   })
 
   test('1.6 點擊 Pending Shipments 卡片跳轉 /delivery', async ({ authedPage }) => {
-    await authedPage.getByRole('button', { name: /Pending Shipments/ }).click()
+    await authedPage.getByRole('button', { name: /待出貨/ }).click()
     await expect(authedPage).toHaveURL(/\/delivery/)
   })
 
   test('1.7 點擊 Pending Receives 卡片跳轉 /purchase-list', async ({ authedPage }) => {
-    await authedPage.getByRole('button', { name: /Pending Receives/ }).click()
+    await authedPage.getByRole('button', { name: /待收貨/ }).click()
     await expect(authedPage).toHaveURL(/\/purchase-list/)
   })
 
   test('1.8 點擊 Stock 卡片跳轉 /stock', async ({ authedPage }) => {
-    await authedPage.getByRole('button', { name: /Stock/ }).click()
+    await authedPage.getByRole('button', { name: /庫存/ }).click()
     await expect(authedPage).toHaveURL(/\/stock/)
   })
 
   test('1.9 Badge 數字與統計卡數值一致', async ({ authedPage }) => {
     // Sales Orders badge
-    const salesBtn = authedPage.getByRole('button', { name: /Sales Orders/ })
+    const salesBtn = authedPage.getByRole('button', { name: /銷售訂單/ })
     const salesDesc = await salesBtn.locator('p.text-xs').textContent()
     const salesCountFromDesc = parseInt(salesDesc?.match(/\d+/)?.[0] || '0')
 
     // 統計卡片中的 Total Sales Orders
-    const totalCard = authedPage.getByText('Total Sales Orders').locator('..')
+    const totalCard = authedPage.getByText('銷售訂單總數').locator('..')
     const totalVal = await totalCard.locator('p.text-3xl').textContent()
     expect(salesCountFromDesc).toBe(Number(totalVal))
   })

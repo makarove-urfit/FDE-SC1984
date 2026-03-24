@@ -14,21 +14,21 @@ import { usePrint, PrintArea } from '../components/PrintProvider'
 import SalesInvoicePrint from '../templates/SalesInvoicePrint'
 
 const stateOptions = [
-  { value: 'all', label: 'All' },
-  { value: 'draft', label: 'Draft' },
-  { value: 'confirmed', label: 'Confirmed' },
-  { value: 'shipped', label: 'Shipped' },
-  { value: 'delivered', label: 'Delivered' },
+  { value: 'all', label: '全部' },
+  { value: 'draft', label: '草稿' },
+  { value: 'confirmed', label: '已確認' },
+  { value: 'shipped', label: '已出貨' },
+  { value: 'delivered', label: '已送達' },
 ]
 
 const stateConfig: Record<string, { label: string; color: string }> = {
-  draft:     { label: 'Pending',   color: 'bg-orange-100 text-orange-700' },
-  pending:   { label: 'Pending',   color: 'bg-orange-100 text-orange-700' },
-  confirm:   { label: 'Confirmed', color: 'bg-green-100 text-green-700' },
-  allocated: { label: 'Allocated', color: 'bg-green-100 text-green-700' },
-  shipped:   { label: 'Shipped',   color: 'bg-blue-100 text-blue-700' },
-  delivered: { label: 'Delivered', color: 'bg-gray-100 text-gray-600' },
-  done:      { label: 'Delivered', color: 'bg-gray-100 text-gray-600' },
+  draft:     { label: '待處理',   color: 'bg-orange-100 text-orange-700' },
+  pending:   { label: '待處理',   color: 'bg-orange-100 text-orange-700' },
+  confirm:   { label: '已確認', color: 'bg-green-100 text-green-700' },
+  allocated: { label: '已分配', color: 'bg-green-100 text-green-700' },
+  shipped:   { label: '已出貨',   color: 'bg-blue-100 text-blue-700' },
+  delivered: { label: '已送達', color: 'bg-gray-100 text-gray-600' },
+  done:      { label: '已送達', color: 'bg-gray-100 text-gray-600' },
 }
 
 const PAGE_SIZE = 10
@@ -130,7 +130,7 @@ export default function SalesOrdersPage() {
   const printableOrders = salesOrders.filter(o => selectedOrders.has(o.id))
   const batchableCount = [...selectedOrders].filter(id => { const o = salesOrders.find(ord => ord.id === id); return o?.status === 'draft' || o?.status === 'pending' }).length
 
-  if (loading) return <div className="min-h-screen bg-gray-50 flex items-center justify-center">Loading sales orders...</div>
+  if (loading) return <div className="min-h-screen bg-gray-50 flex items-center justify-center">載入中...</div>
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -139,27 +139,27 @@ export default function SalesOrdersPage() {
           <div className="flex items-center gap-3">
             <BackButton />
             <div>
-              <h1 className="text-xl font-bold text-gray-900">Sales Orders</h1>
-              <p className="text-sm text-gray-400">{filtered.length} orders | {products.length} registered products</p>
+              <h1 className="text-xl font-bold text-gray-900">銷售訂單</h1>
+              <p className="text-sm text-gray-400">{filtered.length} 筆訂單 | {products.length} 個註冊商品</p>
             </div>
           </div>
           <div className="flex gap-2">
             <button onClick={selectAll} className="px-3 py-1.5 text-sm border border-gray-200 rounded-lg bg-white text-gray-600 hover:bg-gray-50">
-              {selectedOrders.size === filtered.length && filtered.length > 0 ? 'Deselect' : `Select All (${filtered.length})`}
+              {selectedOrders.size === filtered.length && filtered.length > 0 ? '取消全選' : `全選 (${filtered.length})`}
             </button>
             {batchableCount > 0 && (
               <button onClick={() => setConfirmAction({ type: 'batch' })} className="px-3 py-1.5 text-sm bg-primary text-white rounded-lg hover:opacity-90">
-                Batch Confirm ({batchableCount})
+                批次確認 ({batchableCount})
               </button>
             )}
             <button onClick={handlePrint} disabled={selectedOrders.size === 0}
               className={`px-3 py-1.5 text-sm rounded-lg ${selectedOrders.size > 0 ? 'bg-gray-600 text-white hover:bg-gray-700' : 'bg-gray-100 text-gray-400 cursor-not-allowed'}`}>
-              Print ({selectedOrders.size})
+              列印 ({selectedOrders.size})
             </button>
           </div>
         </div>
         <div className="flex gap-3">
-          <SearchInput value={search} onChange={(v) => { setSearch(v); setPage(1) }} placeholder="Search customer, order..." className="flex-1 max-w-xs" />
+          <SearchInput value={search} onChange={(v) => { setSearch(v); setPage(1) }} placeholder="搜尋客戶、訂單..." className="flex-1 max-w-xs" />
           <StatusDropdown value={filter} onChange={(v) => { setFilter(v); setPage(1) }} options={stateOptions} />
         </div>
       </header>
@@ -167,8 +167,8 @@ export default function SalesOrdersPage() {
       {products.length > 0 && (
         <div className="px-6 pt-4">
           <div className="bg-blue-50 border border-blue-200 rounded-xl px-4 py-3 text-sm">
-            <span className="font-medium text-blue-700">Products tracking count:</span>
-            <span className="text-blue-600 ml-2">{products.length} items</span>
+            <span className="font-medium text-blue-700">商品追蹤數量：</span>
+            <span className="text-blue-600 ml-2">{products.length} 個品項</span>
           </div>
         </div>
       )}
@@ -176,9 +176,9 @@ export default function SalesOrdersPage() {
       <div className="p-6 max-w-6xl mx-auto space-y-3">
         {paged.length === 0 ? (
           <div className="text-center text-gray-400 py-12 space-y-2">
-            <p>{search || filter !== 'all' ? 'No matching orders' : 'No orders yet'}</p>
+            <p>{search || filter !== 'all' ? '無符合的訂單' : '尚無訂單'}</p>
             {!search && filter === 'all' && (
-              <button onClick={() => navigate('/purchase-list')} className="text-primary hover:underline text-sm">Go to Purchase List</button>
+              <button onClick={() => navigate('/purchase-list')} className="text-primary hover:underline text-sm">前往進貨清單</button>
             )}
           </div>
         ) : (
@@ -195,8 +195,8 @@ export default function SalesOrdersPage() {
                     <input type="checkbox" checked={selectedOrders.has(order.id)} onChange={() => toggleOrder(order.id)}
                       className="w-4 h-4 accent-primary rounded border-gray-300 bg-white" />
                     <button onClick={() => setExpanded(isExpanded ? null : order.id)} className="text-left">
-                      <p className="font-bold text-gray-900">{order.customer_id || 'Walk-in Customer'}</p>
-                      <p className="text-xs text-gray-400">{order.erp_id} | {order.date} | {order.lines.length} items</p>
+                      <p className="font-bold text-gray-900">{order.customer_id || '現場客戶'}</p>
+                      <p className="text-xs text-gray-400">{order.erp_id} | {order.date} | {order.lines.length} 個品項</p>
                     </button>
                   </div>
                   <div className="flex items-center gap-3">
@@ -205,7 +205,7 @@ export default function SalesOrdersPage() {
                     {(order.status === 'draft' || order.status === 'pending') && (
                       <button onClick={() => setConfirmAction({ type: 'single', orderId: order.id })}
                         className={`px-3 py-1 rounded text-xs text-white ${hasOversell ? 'bg-red-500 hover:bg-red-600' : 'bg-primary hover:bg-green-700'}`}>
-                        {hasOversell ? 'Oversell!' : 'Confirm'}
+                        {hasOversell ? '超賣！' : '確認'}
                       </button>
                     )}
                     <button onClick={() => setExpanded(isExpanded ? null : order.id)} className="text-gray-400 text-xl">{isExpanded ? '\u25BE' : '\u25B8'}</button>
@@ -217,14 +217,14 @@ export default function SalesOrdersPage() {
                     <table className="w-full text-sm">
                       <thead>
                         <tr className="text-gray-400 text-xs border-b border-gray-100">
-                          <th className="py-2 px-4 text-left">Product</th>
-                          <th className="py-2 px-4 text-right">Request</th>
-                          <th className="py-2 px-4 text-right">Allocated</th>
-                          <th className="py-2 px-4 text-left">Unit</th>
-                          <th className="py-2 px-4 text-right">Stock</th>
-                          <th className="py-2 px-4 text-right">Price</th>
-                          <th className="py-2 px-4 text-right">Amount</th>
-                          <th className="py-2 px-4 text-left">Note</th>
+                          <th className="py-2 px-4 text-left">品名</th>
+                          <th className="py-2 px-4 text-right">需求</th>
+                          <th className="py-2 px-4 text-right">分配</th>
+                          <th className="py-2 px-4 text-left">單位</th>
+                          <th className="py-2 px-4 text-right">庫存</th>
+                          <th className="py-2 px-4 text-right">單價</th>
+                          <th className="py-2 px-4 text-right">金額</th>
+                          <th className="py-2 px-4 text-left">備註</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -237,7 +237,7 @@ export default function SalesOrdersPage() {
                           const oversell = stockQty > 0 && allocated > stockQty
                           return (
                             <tr key={idx} className={`border-b border-gray-50 ${oversell ? 'bg-red-50/50' : stockQty === 0 ? 'bg-yellow-50/50' : ''}`}>
-                              <td className="py-2 px-4 font-medium">{prod?.name || 'Unknown'}</td>
+                              <td className="py-2 px-4 font-medium">{prod?.name || '未知'}</td>
                               <td className="py-2 px-4 text-right text-gray-400">{line.quantity.toFixed(2)}</td>
                               <td className="py-2 px-4 text-right">
                                 <input type="number" value={allocated} step="0.01" min="0"
@@ -245,11 +245,11 @@ export default function SalesOrdersPage() {
                                   className="w-20 text-right px-1.5 py-1 border border-gray-200 rounded-lg bg-white font-medium text-sm"
                                   disabled={order.status === 'confirm'} />
                               </td>
-                              <td className="py-2 px-4 text-gray-400">{prod?.uom_id || 'unit'}</td>
+                              <td className="py-2 px-4 text-gray-400">{prod?.uom_id || '單位'}</td>
                               <td className={`py-2 px-4 text-right text-xs ${stockQty > 0 ? (oversell ? 'text-red-600 font-bold' : 'text-green-600') : 'text-orange-500'}`}>
                                 {stockQty > 0 ? stockQty.toFixed(2) : 'N/A'}
                               </td>
-                              <td className="py-2 px-4 text-right">{price > 0 ? `$${price}` : <span className="text-orange-500 text-xs">TBD</span>}</td>
+                              <td className="py-2 px-4 text-right">{price > 0 ? `$${price}` : <span className="text-orange-500 text-xs">待定</span>}</td>
                               <td className="py-2 px-4 text-right font-bold text-primary">{price > 0 ? `$${amount.toLocaleString()}` : '-'}</td>
                               <td className="py-2 px-4 text-gray-400 text-xs">{line.metadata?.note || ''}</td>
                             </tr>
@@ -258,10 +258,10 @@ export default function SalesOrdersPage() {
                       </tbody>
                     </table>
                     <div className="px-4 py-2 bg-gray-50 text-right text-sm">
-                      <span className="text-gray-400">Subtotal: </span>
+                      <span className="text-gray-400">小計：</span>
                       <strong className="text-primary text-lg">${Math.round(total).toLocaleString()}</strong>
                     </div>
-                    {order.metadata?.note && <p className="px-4 py-1.5 text-xs text-gray-400 border-t border-gray-50">Note: {order.metadata.note}</p>}
+                    {order.metadata?.note && <p className="px-4 py-1.5 text-xs text-gray-400 border-t border-gray-50">備註：{order.metadata.note}</p>}
                   </div>
                 )}
               </div>
@@ -278,11 +278,11 @@ export default function SalesOrdersPage() {
 
       <ConfirmDialog
         open={!!confirmAction}
-        title={confirmAction?.type === 'batch' ? `Batch confirm ${batchableCount} orders?` : 'Confirm shipment?'}
+        title={confirmAction?.type === 'batch' ? `批次確認 ${batchableCount} 筆訂單？` : '確認出貨？'}
         message={confirmAction?.type === 'batch'
-          ? `${batchableCount} pending orders will be confirmed.`
-          : 'Once confirmed, allocations cannot be modified.'}
-        confirmText="Confirm"
+          ? `將確認 ${batchableCount} 筆待處理訂單。`
+          : '確認後分配數量將無法修改。'}
+        confirmText="確認"
         variant="warning"
         onConfirm={handleConfirm}
         onCancel={() => setConfirmAction(null)}

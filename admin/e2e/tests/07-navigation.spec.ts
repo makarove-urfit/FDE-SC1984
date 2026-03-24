@@ -28,6 +28,6 @@ test.describe('Navigation', () => {
       await authedPage.waitForLoadState('domcontentloaded')
     }
     // 最後應在 Dashboard
-    await expect(authedPage.getByText('Admin Dashboard')).toBeVisible()
+    await expect(authedPage.getByText('管理總覽')).toBeVisible()
   })
 })

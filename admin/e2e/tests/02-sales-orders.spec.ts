@@ -14,14 +14,14 @@ test.describe('Sales Orders', () => {
   // --- 正常流 ---
 
   test('2.1 頁面載入後顯示訂單列表', async ({ authedPage }) => {
-    await expect(authedPage.getByText('Loading sales orders')).not.toBeVisible()
-    await expect(authedPage.getByText('Sales Orders')).toBeVisible()
+    await expect(authedPage.getByText('載入中')).not.toBeVisible()
+    await expect(authedPage.getByText('銷售訂單')).toBeVisible()
   })
 
   test('2.2 標題顯示訂單與產品數量', async ({ authedPage }) => {
     const subtitle = await authedPage.locator('header p.text-sm').textContent()
-    expect(subtitle).toMatch(/\d+ orders/)
-    expect(subtitle).toMatch(/\d+ registered products/)
+    expect(subtitle).toMatch(/\d+ 筆訂單/)
+    expect(subtitle).toMatch(/\d+ 個註冊商品/)
   })
 
   test('2.3 展開訂單顯示明細表格', async ({ authedPage }) => {
@@ -29,9 +29,9 @@ test.describe('Sales Orders', () => {
     const expandBtn = authedPage.locator('button:has-text("▸")').first()
     if (await expandBtn.isVisible()) {
       await expandBtn.click()
-      await expect(authedPage.getByText('Product')).toBeVisible()
-      await expect(authedPage.getByText('Request')).toBeVisible()
-      await expect(authedPage.getByText('Allocated')).toBeVisible()
+      await expect(authedPage.getByText('品名')).toBeVisible()
+      await expect(authedPage.getByText('需求')).toBeVisible()
+      await expect(authedPage.getByText('分配')).toBeVisible()
     }
   })
 
@@ -39,22 +39,22 @@ test.describe('Sales Orders', () => {
     const expandBtn = authedPage.locator('button:has-text("▸")').first()
     if (await expandBtn.isVisible()) {
       await expandBtn.click()
-      await expect(authedPage.getByText('Product')).toBeVisible()
+      await expect(authedPage.getByText('品名')).toBeVisible()
       // 點擊收合
       const collapseBtn = authedPage.locator('button:has-text("▾")').first()
       await collapseBtn.click()
       // Product 表頭應消失
-      await expect(authedPage.locator('th:has-text("Product")')).not.toBeVisible()
+      await expect(authedPage.locator('th:has-text("品名")')).not.toBeVisible()
     }
   })
 
   // --- 篩選 ---
 
   test('2.5 搜尋欄輸入客戶名稱篩選結果', async ({ authedPage }) => {
-    const searchInput = authedPage.getByPlaceholder('Search customer, order...')
+    const searchInput = authedPage.getByPlaceholder('搜尋客戶、訂單...')
     await searchInput.fill('zzz_nonexistent_999')
     await authedPage.waitForTimeout(300)
-    await expect(authedPage.getByText('No matching orders')).toBeVisible()
+    await expect(authedPage.getByText('無符合的訂單')).toBeVisible()
   })
 
   test('2.6 狀態篩選：選擇 Delivered', async ({ authedPage }) => {
@@ -66,7 +66,7 @@ test.describe('Sales Orders', () => {
     for (let i = 0; i < count; i++) {
       const text = await badges.nth(i).textContent()
       if (text?.trim()) {
-        expect(['Delivered', '']).toContain(text?.trim())
+        expect(['已送達', '']).toContain(text?.trim())
       }
     }
   })
@@ -75,14 +75,14 @@ test.describe('Sales Orders', () => {
     await authedPage.locator('select').selectOption('all')
     await authedPage.waitForTimeout(300)
     const subtitle = await authedPage.locator('header p.text-sm').textContent()
-    const count = parseInt(subtitle?.match(/(\d+) orders/)?.[1] || '0')
+    const count = parseInt(subtitle?.match(/(\d+) 筆訂單/)?.[1] || '0')
     expect(count).toBeGreaterThanOrEqual(0)
   })
 
   // --- 勾選與批次 ---
 
   test('2.8 勾選單筆訂單 + Confirm 按鈕', async ({ authedPage }) => {
-    const confirmBtn = authedPage.locator('button:has-text("Confirm")').first()
+    const confirmBtn = authedPage.locator('button:has-text("確認")').first()
     if (await confirmBtn.isVisible()) {
       await confirmBtn.click()
       // Dialog 應彈出
@@ -91,26 +91,26 @@ test.describe('Sales Orders', () => {
   })
 
   test('2.9 Select All / Deselect 切換', async ({ authedPage }) => {
-    const selectAllBtn = authedPage.getByRole('button', { name: /Select All/ })
+    const selectAllBtn = authedPage.getByRole('button', { name: /全選/ })
     if (await selectAllBtn.isVisible()) {
       await selectAllBtn.click()
-      await expect(authedPage.getByRole('button', { name: /Deselect/ })).toBeVisible()
+      await expect(authedPage.getByRole('button', { name: /取消全選/ })).toBeVisible()
       // 再次點擊取消全選
-      await authedPage.getByRole('button', { name: /Deselect/ }).click()
-      await expect(authedPage.getByRole('button', { name: /Select All/ })).toBeVisible()
+      await authedPage.getByRole('button', { name: /取消全選/ }).click()
+      await expect(authedPage.getByRole('button', { name: /全選/ })).toBeVisible()
     }
   })
 
   test('2.10 批次確認按鈕顯示正確計數', async ({ authedPage }) => {
     // 勾選全部
-    const selectAllBtn = authedPage.getByRole('button', { name: /Select All/ })
+    const selectAllBtn = authedPage.getByRole('button', { name: /全選/ })
     if (await selectAllBtn.isVisible()) {
       await selectAllBtn.click()
       // 若有 batchable orders，Batch Confirm 按鈕應出現
-      const batchBtn = authedPage.locator('button:has-text("Batch Confirm")')
+      const batchBtn = authedPage.locator('button:has-text("批次確認")')
       if (await batchBtn.isVisible()) {
         const text = await batchBtn.textContent()
-        expect(text).toMatch(/Batch Confirm \(\d+\)/)
+        expect(text).toMatch(/批次確認 \(\d+\)/)
       }
     }
   })
@@ -129,7 +129,7 @@ test.describe('Sales Orders', () => {
   // --- 確認 Dialog ---
 
   test('2.12 確認 Dialog 確認後狀態更新', async ({ authedPage }) => {
-    const confirmBtn = authedPage.locator('button:has-text("Confirm")').first()
+    const confirmBtn = authedPage.locator('button:has-text("確認")').first()
     if (await confirmBtn.isVisible()) {
       await confirmBtn.click()
       await expect(authedPage.getByText('此操作無法復原')).toBeVisible()
@@ -140,7 +140,7 @@ test.describe('Sales Orders', () => {
   })
 
   test('2.13 確認 Dialog 按 ESC 關閉', async ({ authedPage }) => {
-    const confirmBtn = authedPage.locator('button:has-text("Confirm")').first()
+    const confirmBtn = authedPage.locator('button:has-text("確認")').first()
     if (await confirmBtn.isVisible()) {
       await confirmBtn.click()
       await expect(authedPage.getByText('此操作無法復原')).toBeVisible()
@@ -167,7 +167,7 @@ test.describe('Sales Orders', () => {
   // --- Print ---
 
   test('2.15 Print 按鈕：未選取時 disabled', async ({ authedPage }) => {
-    const printBtn = authedPage.getByRole('button', { name: /Print \(0\)/ })
+    const printBtn = authedPage.getByRole('button', { name: /列印 \(0\)/ })
     if (await printBtn.isVisible()) {
       await expect(printBtn).toBeDisabled()
     }
@@ -177,7 +177,7 @@ test.describe('Sales Orders', () => {
     const checkbox = authedPage.locator('input[type="checkbox"]').first()
     if (await checkbox.isVisible()) {
       await checkbox.check()
-      const printBtn = authedPage.locator('button:has-text("Print")')
+      const printBtn = authedPage.locator('button:has-text("列印")')
       if (await printBtn.isVisible()) {
         await expect(printBtn).toBeEnabled()
       }
@@ -186,17 +186,17 @@ test.describe('Sales Orders', () => {
 
   // --- 邊界案例 ---
 
-  test('2.17 搜尋無結果顯示 "No matching orders"', async ({ authedPage }) => {
-    await authedPage.getByPlaceholder('Search customer, order...').fill('__no_match_xyzzy__')
+  test('2.17 搜尋無結果顯示 "無符合的訂單"', async ({ authedPage }) => {
+    await authedPage.getByPlaceholder('搜尋客戶、訂單...').fill('__no_match_xyzzy__')
     await authedPage.waitForTimeout(300)
-    await expect(authedPage.getByText('No matching orders')).toBeVisible()
+    await expect(authedPage.getByText('無符合的訂單')).toBeVisible()
   })
 
   test('2.18 Products tracking count 資訊列', async ({ authedPage }) => {
-    const infoBar = authedPage.getByText('Products tracking count')
+    const infoBar = authedPage.getByText('商品追蹤數量')
     if (await infoBar.isVisible()) {
       const text = await infoBar.locator('..').textContent()
-      expect(text).toMatch(/\d+ items/)
+      expect(text).toMatch(/\d+ 個品項/)
     }
   })
 

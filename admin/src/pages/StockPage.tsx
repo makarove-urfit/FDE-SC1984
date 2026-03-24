@@ -36,42 +36,42 @@ export default function StockPage() {
           <div className="flex items-center gap-3">
             <BackButton />
             <div>
-              <h1 className="text-xl font-bold text-gray-900">Stock Report</h1>
-              <p className="text-sm text-gray-400">{products.length} registered products</p>
+              <h1 className="text-xl font-bold text-gray-900">庫存報表</h1>
+              <p className="text-sm text-gray-400">{products.length} 個註冊商品</p>
             </div>
           </div>
           {products.length > 0 && (
             <button onClick={handlePrint} className="px-4 py-2 bg-gray-600 text-white rounded-lg text-sm font-medium hover:bg-gray-700">
-              Print Stock Report
+              列印庫存報表
             </button>
           )}
         </div>
         {products.length > 0 && (
-          <SearchInput value={search} onChange={setSearch} placeholder="Search product..." className="max-w-xs" />
+          <SearchInput value={search} onChange={setSearch} placeholder="搜尋商品..." className="max-w-xs" />
         )}
       </header>
 
       <div className="p-6 max-w-5xl mx-auto">
         {loading ? (
-          <div className="text-center text-gray-400 py-12">Loading stock data...</div>
+          <div className="text-center text-gray-400 py-12">載入中...</div>
         ) : products.length === 0 ? (
           <div className="text-center text-gray-400 py-12 space-y-2">
-            <p>No products available</p>
-            <button onClick={() => navigate('/procurement')} className="text-primary hover:underline text-sm">Go to Procurement</button>
+            <p>無可用商品</p>
+            <button onClick={() => navigate('/procurement')} className="text-primary hover:underline text-sm">前往採購定價</button>
           </div>
         ) : (
           <>
             <div className="grid grid-cols-3 gap-4 mb-6">
               <div className="bg-white rounded-xl border border-gray-100 p-4">
-                <p className="text-sm text-gray-400">Items</p>
+                <p className="text-sm text-gray-400">品項數</p>
                 <p className="text-2xl font-bold text-gray-900">{filtered.length}</p>
               </div>
               <div className="bg-white rounded-xl border border-gray-100 p-4">
-                <p className="text-sm text-gray-400">Purchase Cost</p>
+                <p className="text-sm text-gray-400">進貨成本</p>
                 <p className="text-2xl font-bold text-orange-600">${Math.round(totalValue).toLocaleString()}</p>
               </div>
               <div className="bg-white rounded-xl border border-gray-100 p-4">
-                <p className="text-sm text-gray-400">Est. Revenue</p>
+                <p className="text-sm text-gray-400">預估營收</p>
                 <p className="text-2xl font-bold text-primary">${Math.round(totalSellValue).toLocaleString()}</p>
               </div>
             </div>
@@ -81,14 +81,14 @@ export default function StockPage() {
                 <thead>
                   <tr className="bg-gray-50 border-b border-gray-100 text-gray-500">
                     <th className="py-3 px-4 text-left font-medium">#</th>
-                    <th className="py-3 px-4 text-left font-medium">Product</th>
-                    <th className="py-3 px-4 text-right font-medium">Qty</th>
-                    <th className="py-3 px-4 text-left font-medium">Unit</th>
-                    <th className="py-3 px-4 text-right font-medium">Buy Price</th>
-                    <th className="py-3 px-4 text-right font-medium">Sell Price</th>
-                    <th className="py-3 px-4 text-right font-medium">Cost</th>
-                    <th className="py-3 px-4 text-right font-medium">Revenue</th>
-                    <th className="py-3 px-4 text-right font-medium">Margin</th>
+                    <th className="py-3 px-4 text-left font-medium">品名</th>
+                    <th className="py-3 px-4 text-right font-medium">數量</th>
+                    <th className="py-3 px-4 text-left font-medium">單位</th>
+                    <th className="py-3 px-4 text-right font-medium">進價</th>
+                    <th className="py-3 px-4 text-right font-medium">售價</th>
+                    <th className="py-3 px-4 text-right font-medium">成本</th>
+                    <th className="py-3 px-4 text-right font-medium">營收</th>
+                    <th className="py-3 px-4 text-right font-medium">利潤</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -119,7 +119,7 @@ export default function StockPage() {
                 </tbody>
                 <tfoot>
                   <tr className="bg-gray-50 font-bold">
-                    <td colSpan={6} className="py-3 px-4 text-right">Total</td>
+                    <td colSpan={6} className="py-3 px-4 text-right">合計</td>
                     <td className="py-3 px-4 text-right text-orange-600">${Math.round(totalValue).toLocaleString()}</td>
                     <td className="py-3 px-4 text-right text-primary">${Math.round(totalSellValue).toLocaleString()}</td>
                     <td className="py-3 px-4 text-right text-green-600">${Math.round(totalSellValue - totalValue).toLocaleString()}</td>
