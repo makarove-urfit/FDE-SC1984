@@ -35,18 +35,21 @@ async function authFetch(endpoint: string, body: Record<string, string>): Promis
     body: JSON.stringify(body),
   })
 
-  const data = await res.json()
-
   if (!res.ok) {
-    const msg = typeof data.detail === 'string'
-      ? data.detail
-      : Array.isArray(data.detail)
-        ? data.detail.map((d: { msg: string }) => d.msg).join(', ')
-        : 'Unknown error'
+    // 先嘗試解析錯誤訊息，若 body 為空則使用 HTTP 狀態碼
+    let msg = `伺服器錯誤 (${res.status})`
+    try {
+      const data = await res.json()
+      msg = typeof data.detail === 'string'
+        ? data.detail
+        : Array.isArray(data.detail)
+          ? data.detail.map((d: { msg: string }) => d.msg).join(', ')
+          : msg
+    } catch { /* JSON 解析失敗時使用預設訊息 */ }
     throw new Error(msg)
   }
 
-  return data as AuthResponse
+  return await res.json() as AuthResponse
 }
 
 export async function register(email: string, password: string, displayName: string): Promise<AuthResponse> {
