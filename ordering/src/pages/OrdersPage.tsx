@@ -5,6 +5,7 @@
 import { useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useStore } from '../store/useStore'
+import { useAuthStore } from '../store/useAuthStore'
 
 const stateMap: Record<string, { label: string; color: string }> = {
   draft: { label: '待處理', color: 'bg-gray-100 text-gray-600' },
@@ -17,6 +18,7 @@ const stateMap: Record<string, { label: string; color: string }> = {
 export default function OrdersPage() {
   const navigate = useNavigate()
   const { apiOrders, ordersLoading, loadOrders, liveProducts } = useStore()
+  const { logout } = useAuthStore()
 
   useEffect(() => {
     loadOrders()
@@ -30,10 +32,15 @@ export default function OrdersPage() {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <header className="sticky top-0 z-10 bg-white border-b border-gray-200 px-4 py-3 flex items-center gap-3">
-        <button onClick={() => navigate('/order')} className="text-gray-400 hover:text-gray-600">←</button>
-        <h1 className="text-lg font-bold">我的訂單</h1>
-        {ordersLoading && <span className="text-xs text-gray-400 animate-pulse">載入中...</span>}
+      <header className="sticky top-0 z-10 bg-white border-b border-gray-200 px-4 py-3 flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <button onClick={() => navigate('/order')} className="text-gray-400 hover:text-gray-600">←</button>
+          <h1 className="text-lg font-bold">我的訂單</h1>
+          {ordersLoading && <span className="text-xs text-gray-400 animate-pulse">載入中...</span>}
+        </div>
+        <button onClick={() => { logout(); navigate('/login') }} className="text-sm text-gray-400 hover:text-red-500 transition-colors">
+          登出
+        </button>
       </header>
 
       {ordersLoading && apiOrders.length === 0 ? (

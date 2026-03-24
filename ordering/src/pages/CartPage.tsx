@@ -5,11 +5,13 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useStore } from '../store/useStore'
+import { useAuthStore } from '../store/useAuthStore'
 import ConfirmDialog from '../components/ConfirmDialog'
 
 export default function CartPage() {
   const navigate = useNavigate()
   const { cart, updateCartQty, updateCartNote, removeFromCart, submitOrderAsync, liveProducts } = useStore()
+  const { logout } = useAuthStore()
   const [deliveryDate, setDeliveryDate] = useState(
     new Date(Date.now() + 86400000).toISOString().slice(0, 10)
   )
@@ -75,9 +77,14 @@ export default function CartPage() {
   return (
     <div className="min-h-screen bg-gray-50 pb-28">
       <header className="sticky top-0 z-10 bg-white border-b border-gray-200 px-4 py-3 flex items-center gap-3">
-        <button onClick={() => navigate('/order')} className="text-gray-400 hover:text-gray-600">←</button>
-        <h1 className="text-lg font-bold">確認訂單</h1>
-        <span className="text-sm text-gray-400">({cart.length} 項)</span>
+        <div className="flex items-center gap-2">
+          <button onClick={() => navigate('/order')} className="text-gray-400 hover:text-gray-600">←</button>
+          <h1 className="text-lg font-bold">確認訂單</h1>
+          <span className="text-sm text-gray-400">({cart.length} 項)</span>
+        </div>
+        <button onClick={() => { logout(); navigate('/login') }} className="text-sm text-gray-400 hover:text-red-500 transition-colors">
+          登出
+        </button>
       </header>
 
       <div className="px-4 py-4 space-y-3">

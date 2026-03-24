@@ -7,10 +7,12 @@ import { useNavigate } from 'react-router-dom'
 import type { Category, Product } from '../data/mockData'
 import SkeletonCard from '../components/SkeletonCard'
 import { useStore } from '../store/useStore'
+import { useAuthStore } from '../store/useAuthStore'
 
 export default function OrderPage() {
   const navigate = useNavigate()
   const { cart, addToCart, removeFromCart, loadProducts, liveProducts, liveCategories, productsLoading } = useStore()
+  const { logout } = useAuthStore()
   const [activeCat, setActiveCat] = useState<string>('')
   const [error, setError] = useState<string | null>(null)
 
@@ -49,6 +51,9 @@ export default function OrderPage() {
                 {cart.length}
               </span>
             )}
+          </button>
+          <button onClick={() => { logout(); navigate('/login') }} className="text-sm text-gray-400 hover:text-red-500 transition-colors ml-2">
+            登出
           </button>
         </div>
       </header>
