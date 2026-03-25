@@ -4,8 +4,8 @@
 import { useState, useMemo, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import BackButton from '../components/BackButton'
-import { getSalesInvoices, updateSalesInvoiceStatus, type SalesInvoice } from '../api/sales'
-import { getProducts, type Product } from '../api/stock'
+import { updateSalesInvoiceStatus } from '../api/sales'
+import { useAdminStore } from '../store/useAdminStore'
 import ConfirmDialog from '../components/ConfirmDialog'
 import SearchInput from '../components/SearchInput'
 import StatusDropdown from '../components/StatusDropdown'
@@ -35,8 +35,7 @@ const PAGE_SIZE = 10
 
 export default function SalesOrdersPage() {
   const navigate = useNavigate()
-  const [salesOrders, setSalesOrders] = useState<SalesInvoice[]>([])
-  const [products, setProducts] = useState<Product[]>([])
+  const { salesOrders, products, loadSales, loadProducts } = useAdminStore()
   const [loading, setLoading] = useState(true)
 
   const [search, setSearch] = useState('')
@@ -49,11 +48,7 @@ export default function SalesOrdersPage() {
   const { contentRef, print: handlePrint } = usePrint()
 
   useEffect(() => {
-    Promise.all([getSalesInvoices(), getProducts()]).then(([invoices, prods]) => {
-      setSalesOrders(invoices)
-      setProducts(prods)
-      setLoading(false)
-    })
+    Promise.all([loadSales(), loadProducts()]).then(() => setLoading(false))
   }, [])
 
   const getProduct = (productId: string) => products.find(s => s.id === productId)
@@ -109,8 +104,8 @@ export default function SalesOrdersPage() {
         await Promise.all(promises)
       }
       
-      const updated = await getSalesInvoices()
-      setSalesOrders(updated)
+      // 強制刷新 store 快取
+      await loadSales(true)
     } finally {
       setConfirmAction(null)
       setSelectedOrders(new Set())

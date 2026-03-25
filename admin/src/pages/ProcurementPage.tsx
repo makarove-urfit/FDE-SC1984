@@ -3,8 +3,8 @@
  */
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { getPurchaseOrders, updatePurchaseOrderStatus, type PurchaseOrder } from '../api/purchase'
-import { getProducts, type Product } from '../api/stock'
+import { updatePurchaseOrderStatus, type PurchaseOrder } from '../api/purchase'
+import { useAdminStore } from '../store/useAdminStore'
 import ConfirmDialog from '../components/ConfirmDialog'
 
 const stateLabel: Record<string, { text: string; color: string }> = {
@@ -20,17 +20,12 @@ type ConfirmAction = { type: 'price'; orderId: string } | { type: 'receive'; ord
 
 export default function ProcurementPage() {
   const navigate = useNavigate()
-  const [procurementOrders, setProcurementOrders] = useState<PurchaseOrder[]>([])
-  const [products, setProducts] = useState<Product[]>([])
+  const { purchaseOrders: procurementOrders, products, loadPurchases, loadProducts } = useAdminStore()
   const [loading, setLoading] = useState(true)
   const [confirmAction, setConfirmAction] = useState<ConfirmAction | null>(null)
 
   useEffect(() => {
-    Promise.all([getPurchaseOrders(), getProducts()]).then(([orders, prods]) => {
-      setProcurementOrders(orders)
-      setProducts(prods)
-      setLoading(false)
-    })
+    Promise.all([loadPurchases(), loadProducts()]).then(() => setLoading(false))
   }, [])
 
   const supplierGroups = new Map<string, PurchaseOrder[]>()
@@ -55,9 +50,8 @@ export default function ProcurementPage() {
         case 'batchStock': 
           await Promise.all(procurementOrders.filter(i => i.status === 'confirm').map(o => updatePurchaseOrderStatus(o.id, 'received'))); break
       }
-      // Reload everything
-      const orders = await getPurchaseOrders()
-      setProcurementOrders(orders)
+      // 強制刷新 store 快取
+      await loadPurchases(true)
     } finally {
       setConfirmAction(null)
     }

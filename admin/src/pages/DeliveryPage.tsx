@@ -1,7 +1,7 @@
 import { useState, useMemo, useEffect } from 'react'
 import BackButton from '../components/BackButton'
-import { getSalesInvoices, updateSalesInvoiceStatus, type SalesInvoice } from '../api/sales'
-import { getProducts, type Product } from '../api/stock'
+import { updateSalesInvoiceStatus } from '../api/sales'
+import { useAdminStore } from '../store/useAdminStore'
 import ConfirmDialog from '../components/ConfirmDialog'
 import SearchInput from '../components/SearchInput'
 import StatusDropdown from '../components/StatusDropdown'
@@ -29,8 +29,7 @@ const PAGE_SIZE = 10
 type DeliveryAction = { type: 'ship' | 'deliver'; orderId: string }
 
 export default function DeliveryPage() {
-  const [salesOrders, setSalesOrders] = useState<SalesInvoice[]>([])
-  const [products, setProducts] = useState<Product[]>([])
+  const { salesOrders, products, loadSales, loadProducts } = useAdminStore()
   const [loading, setLoading] = useState(true)
 
   const [search, setSearch] = useState('')
@@ -46,11 +45,7 @@ export default function DeliveryPage() {
   const [singlePrintId, setSinglePrintId] = useState<string | null>(null)
 
   useEffect(() => {
-    Promise.all([getSalesInvoices(), getProducts()]).then(([invoices, prods]) => {
-      setSalesOrders(invoices)
-      setProducts(prods)
-      setLoading(false)
-    })
+    Promise.all([loadSales(), loadProducts()]).then(() => setLoading(false))
   }, [])
 
   const getProductName = (productId: string) => products.find(p => p.id === productId)?.name || '未知'
@@ -85,8 +80,7 @@ export default function DeliveryPage() {
       if (confirmAction.type === 'ship') await updateSalesInvoiceStatus(confirmAction.orderId, 'shipped')
       else await updateSalesInvoiceStatus(confirmAction.orderId, 'done')
       
-      const updated = await getSalesInvoices()
-      setSalesOrders(updated)
+      await loadSales(true)
     } finally {
       setConfirmAction(null)
     }

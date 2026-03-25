@@ -1,23 +1,20 @@
 import { useState, useMemo, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import BackButton from '../components/BackButton'
-import { getProducts, type Product } from '../api/stock'
+import { useAdminStore } from '../store/useAdminStore'
 import SearchInput from '../components/SearchInput'
 import { usePrint, PrintArea } from '../components/PrintProvider'
 import StockReportPrint from '../templates/StockReportPrint'
 
 export default function StockPage() {
   const navigate = useNavigate()
-  const [products, setProducts] = useState<Product[]>([])
+  const { products, loadProducts } = useAdminStore()
   const [loading, setLoading] = useState(true)
   const { contentRef, print: handlePrint } = usePrint()
   const [search, setSearch] = useState('')
 
   useEffect(() => {
-    getProducts().then(prods => {
-      setProducts(prods)
-      setLoading(false)
-    })
+    loadProducts().then(() => setLoading(false))
   }, [])
 
   const filtered = useMemo(() => {

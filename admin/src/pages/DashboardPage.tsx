@@ -1,18 +1,24 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { getDashboardStats, type DashboardStats } from '../api/dashboard'
+import { useAdminStore } from '../store/useAdminStore'
 
 export default function DashboardPage() {
   const navigate = useNavigate()
-  const [stats, setStats] = useState<DashboardStats | null>(null)
+  const { salesOrders, purchaseOrders, loadAll } = useAdminStore()
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    getDashboardStats().then(data => {
-      setStats(data)
-      setLoading(false)
-    })
+    loadAll().then(() => setLoading(false))
   }, [])
+
+  // 從 store 資料即時計算 stats
+  const totalSalesOrders = salesOrders.length
+  const totalPurchaseOrders = purchaseOrders.length
+  const pendingShipments = salesOrders.filter(s => s.status !== 'posted' && s.status !== 'done').length
+  const pendingReceives = purchaseOrders.filter(p => p.status !== 'received' && p.status !== 'done').length
+  const todaySalesVolume = salesOrders.reduce((sum, inv) => sum + (inv.total_amount || 0), 0)
+
+  const stats = { totalSalesOrders, totalPurchaseOrders, pendingShipments, pendingReceives, todaySalesVolume }
 
   const steps = [
     { step: '1', label: '銷售訂單', desc: `${stats?.totalSalesOrders || 0} 筆訂單`, href: '/sales-orders', count: stats?.totalSalesOrders || 0 },

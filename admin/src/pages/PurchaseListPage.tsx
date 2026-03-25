@@ -4,9 +4,8 @@
  */
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { getSalesInvoices, type SalesInvoice } from '../api/sales'
-import { getProducts, type Product } from '../api/stock'
-import { getPurchaseOrders, type PurchaseOrder } from '../api/purchase'
+import { useAdminStore } from '../store/useAdminStore'
+import type { SalesInvoice } from '../api/sales'
 import { usePrint, PrintArea } from '../components/PrintProvider'
 import PurchaseOrderPrint from '../templates/PurchaseOrderPrint'
 import PurchaseListPrint from '../templates/PurchaseListPrint'
@@ -16,26 +15,19 @@ export default function PurchaseListPage() {
   const [view, setView] = useState<'customer' | 'product'>('customer')
   const [expandedCustomer, setExpandedCustomer] = useState<string | null>(null)
   
-  const [draftOrders, setDraftOrders] = useState<SalesInvoice[]>([])
-  const [products, setProducts] = useState<Product[]>([])
-  const [procurementItems, setProcurementItems] = useState<PurchaseOrder[]>([])
+  const { salesOrders, products, purchaseOrders, loadAll } = useAdminStore()
   const [loading, setLoading] = useState(true)
 
   const { contentRef: poRef, print: printPO } = usePrint()
   const { contentRef: listRef, print: printList } = usePrint()
   const [selectedSuppliers, setSelectedSuppliers] = useState<Set<string>>(new Set())
 
+  // 從 store 衍生資料
+  const draftOrders = salesOrders.filter(i => i.status === 'draft' || i.status === 'pending')
+  const procurementItems = purchaseOrders
+
   useEffect(() => {
-    Promise.all([
-      getSalesInvoices(),
-      getProducts(),
-      getPurchaseOrders()
-    ]).then(([invoices, prods, orders]) => {
-      setDraftOrders(invoices.filter(i => i.status === 'draft' || i.status === 'pending'))
-      setProducts(prods)
-      setProcurementItems(orders)
-      setLoading(false)
-    })
+    loadAll().then(() => setLoading(false))
   }, [])
 
   // 暫時代替假資料中的 customers/suppliers
