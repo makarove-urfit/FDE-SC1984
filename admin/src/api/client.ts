@@ -10,6 +10,7 @@ export const apiClient = axios.create({
   baseURL: AIGO_API_BASE,
   headers: {
     'Content-Type': 'application/json',
+    'X-API-Key': import.meta.env.VITE_API_KEY || '',
   },
 });
 
