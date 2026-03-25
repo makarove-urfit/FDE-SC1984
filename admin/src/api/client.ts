@@ -23,6 +23,7 @@ apiClient.interceptors.request.use((config) => {
 });
 
 // AI GO Custom App Table API helpers
+// 使用 /open/proxy 端點（API Key 認證），與 ordering client 一致
 export const db = {
   async query<T = any>(table: string, opts?: { limit?: number; offset?: number }): Promise<T[]> {
     const params = new URLSearchParams();
@@ -30,19 +31,18 @@ export const db = {
     if (opts?.offset) params.set('offset', String(opts.offset));
     const qs = params.toString() ? '?' + params.toString() : '';
     
-    // URL pattern: /proxy/{app_id}/{table}
-    const res = await apiClient.get(`/proxy/${APP_ID}/${table}${qs}`);
-    // proxy endpoint actually returns the array directly
+    // URL pattern: /open/proxy/{table} — 以 X-API-Key 認證
+    const res = await apiClient.get(`/open/proxy/${table}${qs}`);
     return res.data;
   },
   
   async update<T = any>(table: string, id: string | number, data: Record<string, any>): Promise<T> {
-    const res = await apiClient.patch(`/proxy/${APP_ID}/${table}/${id}`, { data });
+    const res = await apiClient.patch(`/open/proxy/${table}/${id}`, { data });
     return res.data;
   },
 
   async insert<T = any>(table: string, data: Record<string, any>): Promise<T> {
-    const res = await apiClient.post(`/proxy/${APP_ID}/${table}`, { data });
+    const res = await apiClient.post(`/open/proxy/${table}`, { data });
     return res.data;
   }
 };
