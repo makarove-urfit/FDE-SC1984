@@ -120,13 +120,32 @@ async function fetchProxy<T>(
 
 // --- Product / Category / Customer (READ) ---
 
+/**
+ * 自動分頁載入 — 循環取完所有資料，不受 API 預設 100 筆限制
+ */
+async function fetchAllPages<T>(endpoint: string, pageSize = 200): Promise<T[]> {
+  let all: T[] = []
+  let offset = 0
+
+  while (true) {
+    const page = await fetchProxy<T[]>(
+      `${endpoint}?limit=${pageSize}&offset=${offset}`,
+    )
+    all = all.concat(page)
+    if (page.length < pageSize) break // 不足一頁 = 已到最後
+    offset += pageSize
+  }
+
+  return all
+}
+
 export async function fetchProductTemplates(): Promise<RawProductTemplate[]> {
-  const data = await fetchProxy<RawProductTemplate[]>('product_templates')
+  const data = await fetchAllPages<RawProductTemplate>('product_templates')
   return data.filter(p => p.active !== false && p.sale_ok !== false)
 }
 
 export async function fetchProductCategories(): Promise<RawProductCategory[]> {
-  return fetchProxy<RawProductCategory[]>('product_categories')
+  return fetchAllPages<RawProductCategory>('product_categories')
 }
 
 export async function fetchCustomers(): Promise<RawCustomer[]> {
