@@ -4,6 +4,7 @@
  */
 import type { PurchaseOrder } from '../api/purchase'
 import type { Product } from '../api/stock'
+import { displayName } from '../utils/displayHelpers'
 
 interface Props {
   orders: PurchaseOrder[]
@@ -21,7 +22,7 @@ export default function PurchaseListPrint({ orders, products = [] }: Props) {
       const existing = summary.get(key) || {
         name: getProductName(line.product_id),
         totalQty: 0,
-        supplier: order.supplier_id || '-',
+        supplier: displayName(order.supplier_id, '-'),
         orderCount: 0,
       }
       existing.totalQty = Math.round((existing.totalQty + line.quantity) * 100) / 100

@@ -4,6 +4,7 @@
 import { useState, useMemo, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import BackButton from '../components/BackButton'
+import { displayName, shortId } from '../utils/displayHelpers'
 import { updateSalesInvoiceStatus } from '../api/sales'
 import { useAdminStore } from '../store/useAdminStore'
 import ConfirmDialog from '../components/ConfirmDialog'
@@ -66,8 +67,8 @@ export default function SalesOrdersPage() {
     if (search.trim()) {
       const q = search.toLowerCase()
       list = list.filter(o => {
-        const cName = o.customer_id || ''
-        return o.erp_id.toLowerCase().includes(q) || cName.toLowerCase().includes(q)
+        const cName = displayName(o.customer_id, '現場客戶')
+        return shortId(o.erp_id).toLowerCase().includes(q) || cName.toLowerCase().includes(q)
       })
     }
     return [...list].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
@@ -190,8 +191,8 @@ export default function SalesOrdersPage() {
                     <input type="checkbox" checked={selectedOrders.has(order.id)} onChange={() => toggleOrder(order.id)}
                       className="w-4 h-4 accent-primary rounded border-gray-300 bg-white" />
                     <button onClick={() => setExpanded(isExpanded ? null : order.id)} className="text-left">
-                      <p className="font-bold text-gray-900">{order.customer_id || '現場客戶'}</p>
-                      <p className="text-xs text-gray-400">{order.erp_id} | {order.date} | {order.lines.length} 個品項</p>
+                      <p className="font-bold text-gray-900">{displayName(order.customer_id, '現場客戶')}</p>
+                      <p className="text-xs text-gray-400">{shortId(order.erp_id)} | {order.date} | {order.lines.length} 個品項</p>
                     </button>
                   </div>
                   <div className="flex items-center gap-3">

@@ -3,6 +3,7 @@
  * 使用 API 回傳的 SalesInvoice 資料，不依賴 mockData
  */
 import type { SalesInvoice } from '../api/sales'
+import { displayName, shortId } from '../utils/displayHelpers'
 
 const statusLabel: Record<string, string> = {
   draft: '待處理', pending: '待處理', confirm: '已確認',
@@ -29,8 +30,8 @@ export default function SalesInvoicePrint({ orders }: Props) {
             <div className="print-meta">
               <div>
                 <div>銷貨日期: <strong>{order.date}</strong></div>
-                <div>客戶名稱: <strong>{order.customer_id || '-'}</strong></div>
-                <div>單號: <strong>{order.erp_id}</strong></div>
+                <div>客戶名稱: <strong>{displayName(order.customer_id, '現場客戶')}</strong></div>
+                <div>單號: <strong>{shortId(order.erp_id)}</strong></div>
               </div>
               <div style={{ textAlign: 'right' }}>
                 <div>狀態: {statusLabel[order.status] || order.status}</div>

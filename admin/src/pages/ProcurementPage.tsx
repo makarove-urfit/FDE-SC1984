@@ -6,6 +6,7 @@ import { useNavigate } from 'react-router-dom'
 import { updatePurchaseOrderStatus, type PurchaseOrder } from '../api/purchase'
 import { useAdminStore } from '../store/useAdminStore'
 import ConfirmDialog from '../components/ConfirmDialog'
+import { displayName, shortId } from '../utils/displayHelpers'
 
 const stateLabel: Record<string, { text: string; color: string }> = {
   draft: { text: '待採購', color: 'bg-gray-100 text-gray-500' },
@@ -67,7 +68,7 @@ export default function ProcurementPage() {
     }
   }
 
-  const getSupplierName = (id: string) => id || '未指定供應商'
+  const getSupplierName = (id: string) => displayName(id, '未指定供應商')
   
   if (loading) return <div className="min-h-screen bg-gray-50 flex items-center justify-center">Loading procurements...</div>
 
@@ -120,7 +121,7 @@ export default function ProcurementPage() {
                     <div key={order.id} className="border-b border-gray-100 last:border-0 p-4">
                       <div className="flex justify-between items-center mb-3">
                         <div>
-                          <p className="font-medium text-gray-800 text-sm">Order #{order.erp_id}</p>
+                          <p className="font-medium text-gray-800 text-sm">採購單 {shortId(order.erp_id)}</p>
                           <p className="text-xs text-gray-400">{order.date}</p>
                         </div>
                         <div className="flex items-center gap-3">

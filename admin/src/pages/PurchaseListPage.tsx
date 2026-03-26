@@ -6,6 +6,7 @@ import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAdminStore } from '../store/useAdminStore'
 import type { SalesInvoice } from '../api/sales'
+import { displayName, shortId } from '../utils/displayHelpers'
 import { usePrint, PrintArea } from '../components/PrintProvider'
 import PurchaseOrderPrint from '../templates/PurchaseOrderPrint'
 import PurchaseListPrint from '../templates/PurchaseListPrint'
@@ -31,13 +32,13 @@ export default function PurchaseListPage() {
   }, [])
 
   // 暫時代替假資料中的 customers/suppliers
-  const getCustomerName = (id: string) => id || '未知客戶'
-  const getSupplierName = (id: string) => id || '未知供應商'
+  const getCustomerName = (id: string) => displayName(id, '未知客戶')
+  const getSupplierName = (id: string) => displayName(id, '未知供應商')
 
   // 按客戶分群
   const customerGroups = new Map<string, SalesInvoice[]>()
   for (const order of draftOrders) {
-    const cid = order.customer_id || '未知客戶'
+    const cid = displayName(order.customer_id, '未知客戶')
     const list = customerGroups.get(cid) || []
     list.push(order)
     customerGroups.set(cid, list)
@@ -139,7 +140,7 @@ export default function PurchaseListPage() {
                   </button>
                   {expanded && custOrders.map(order => (
                     <div key={order.id} className="border-t border-gray-100 px-4 py-3">
-                      <p className="text-xs text-gray-400 mb-2">訂單 #{order.erp_id} | {order.date} | 期望到貨: {order.metadata?.deliveryDate}</p>
+                      <p className="text-xs text-gray-400 mb-2">訂單 {shortId(order.erp_id)} | {order.date} | 期望到貨: {order.metadata?.deliveryDate}</p>
                       <table className="w-full text-sm">
                         <thead>
                           <tr className="text-gray-400 text-xs">

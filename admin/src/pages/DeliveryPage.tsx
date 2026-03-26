@@ -1,5 +1,6 @@
 import { useState, useMemo, useEffect } from 'react'
 import BackButton from '../components/BackButton'
+import { displayName, shortId } from '../utils/displayHelpers'
 import { updateSalesInvoiceStatus } from '../api/sales'
 import { useAdminStore } from '../store/useAdminStore'
 import ConfirmDialog from '../components/ConfirmDialog'
@@ -56,8 +57,8 @@ export default function DeliveryPage() {
     if (search.trim()) {
       const q = search.toLowerCase()
       list = list.filter(o => {
-        const cName = o.customer_id || ''
-        return o.erp_id.toLowerCase().includes(q) || cName.toLowerCase().includes(q)
+        const cName = displayName(o.customer_id, '')
+        return shortId(o.erp_id).toLowerCase().includes(q) || cName.toLowerCase().includes(q)
       })
     }
     return list
@@ -68,7 +69,7 @@ export default function DeliveryPage() {
 
   const customerGroups = new Map<string, typeof paged>()
   for (const order of paged) {
-    const cid = order.customer_id || '未知客戶'
+    const cid = displayName(order.customer_id, '未知客戶')
     const list = customerGroups.get(cid) || []
     list.push(order)
     customerGroups.set(cid, list)
@@ -155,7 +156,7 @@ export default function DeliveryPage() {
                           <div className="flex items-center gap-2">
                             <input type="checkbox" checked={selectedOrders.has(order.id)} onChange={() => toggleOrderSelect(order.id)} className="w-4 h-4 accent-primary bg-white" />
                             <div>
-                              <p className="text-sm font-medium">訂單 #{order.erp_id}</p>
+                              <p className="text-sm font-medium">訂單 {shortId(order.erp_id)}</p>
                               <p className="text-xs text-gray-400">{order.lines.length} 個品項</p>
                             </div>
                           </div>
@@ -198,7 +199,7 @@ export default function DeliveryPage() {
       <ConfirmDialog
         open={!!confirmAction}
         title={confirmAction?.type === 'ship' ? '確認出貨？' : '確認送達？'}
-        message={`訂單 ${actionOrder?.erp_id}，客戶：${actionOrder?.customer_id}`}
+        message={`訂單 ${shortId(actionOrder?.erp_id)}，客戶：${displayName(actionOrder?.customer_id, '未知客戶')}`}
         confirmText={confirmAction?.type === 'ship' ? '出貨' : '已送達'}
         variant={confirmAction?.type === 'deliver' ? 'info' : 'warning'}
         onConfirm={handleConfirm}

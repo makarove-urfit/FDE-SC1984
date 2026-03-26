@@ -3,6 +3,7 @@
  * 使用 API 回傳的 SalesInvoice 資料，不依賴 mockData
  */
 import type { SalesInvoice } from '../api/sales'
+import { displayName, shortId } from '../utils/displayHelpers'
 
 interface Props {
   orders: SalesInvoice[]
@@ -20,10 +21,10 @@ export default function DeliverySlipPrint({ orders }: Props) {
           <div className="print-meta">
             <div>
               <div>配送日期: <strong>{order.date}</strong></div>
-              <div>客戶: <strong>{order.customer_id || '-'}</strong></div>
+              <div>客戶: <strong>{displayName(order.customer_id, '現場客戶')}</strong></div>
             </div>
             <div style={{ textAlign: 'right' }}>
-              <div>單號: <strong>{order.erp_id}</strong></div>
+              <div>單號: <strong>{shortId(order.erp_id)}</strong></div>
               <div>品項數: {order.lines.length}</div>
             </div>
           </div>

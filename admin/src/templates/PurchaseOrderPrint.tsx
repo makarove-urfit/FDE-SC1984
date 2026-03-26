@@ -4,6 +4,7 @@
  */
 import type { PurchaseOrder } from '../api/purchase'
 import type { Product } from '../api/stock'
+import { displayName, shortId } from '../utils/displayHelpers'
 
 interface Props {
   orders: PurchaseOrder[]
@@ -15,7 +16,7 @@ export default function PurchaseOrderPrint({ orders, products = [] }: Props) {
   // 按供應商分群
   const bySupplier = new Map<string, PurchaseOrder[]>()
   for (const o of orders) {
-    const key = o.supplier_id || '未指定供應商'
+    const key = displayName(o.supplier_id, '未指定供應商')
     if (!bySupplier.has(key)) bySupplier.set(key, [])
     bySupplier.get(key)!.push(o)
   }
@@ -58,7 +59,7 @@ export default function PurchaseOrderPrint({ orders, products = [] }: Props) {
                   o.lines.map((l, li) => (
                     <tr key={`${oi}-${li}`}>
                       <td>{oi * 100 + li + 1}</td>
-                      <td style={{ fontFamily: 'monospace', fontSize: '9pt' }}>{o.erp_id}</td>
+                      <td style={{ fontFamily: 'monospace', fontSize: '9pt' }}>{shortId(o.erp_id)}</td>
                       <td>{getProductName(l.product_id)}</td>
                       <td className="num">{l.quantity.toFixed(2)}</td>
                       <td className="num">{l.unit_price > 0 ? l.unit_price.toFixed(1) : '-'}</td>
