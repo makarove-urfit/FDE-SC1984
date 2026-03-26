@@ -1,5 +1,6 @@
 /**
- * A6 Sales Orders - with search, filter, select, batch, pagination, oversell check
+ * A6 Sales Orders - 銷售訂單管理
+ * 搜尋、篩選、全選、批次確認、分頁、列印
  */
 import { useState, useMemo, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
@@ -26,6 +27,7 @@ const stateConfig: Record<string, { label: string; color: string }> = {
   draft:     { label: '待處理',   color: 'bg-orange-100 text-orange-700' },
   pending:   { label: '待處理',   color: 'bg-orange-100 text-orange-700' },
   confirm:   { label: '已確認', color: 'bg-green-100 text-green-700' },
+  confirmed: { label: '已確認', color: 'bg-green-100 text-green-700' },
   allocated: { label: '已分配', color: 'bg-green-100 text-green-700' },
   shipped:   { label: '已出貨',   color: 'bg-blue-100 text-blue-700' },
   delivered: { label: '已送達', color: 'bg-gray-100 text-gray-600' },
@@ -45,27 +47,20 @@ export default function SalesOrdersPage() {
   const [selectedOrders, setSelectedOrders] = useState<Set<string>>(new Set())
   const [confirmAction, setConfirmAction] = useState<{ type: 'single' | 'batch'; orderId?: string } | null>(null)
   const [page, setPage] = useState(1)
-  const [allocatedMap, setAllocatedMap] = useState<Record<string, number>>({})
   const { contentRef, print: handlePrint } = usePrint()
 
   useEffect(() => {
     Promise.all([loadSales(), loadProducts()]).then(() => setLoading(false))
   }, [])
 
+  // 透過 product_template_id 或 product_id 查找產品資料（取得單位等）
   const getProduct = (line: { product_id: string; product_template_id: string }) =>
     products.find(s => s.id === line.product_template_id) || products.find(s => s.id === line.product_id)
-
-  // 判斷 uom_id 是否為 UUID，是的話就不顯示
-  const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
-  const getUnit = (prod: { uom_id: string } | undefined) => {
-    if (!prod?.uom_id) return ''
-    return UUID_RE.test(prod.uom_id) ? '' : prod.uom_id
-  }
 
   const filtered = useMemo(() => {
     let list = salesOrders
     if (filter !== 'all') {
-      if (filter === 'confirmed') list = list.filter(o => o.status === 'confirm')
+      if (filter === 'confirmed') list = list.filter(o => o.status === 'confirm' || o.status === 'confirmed')
       else list = list.filter(o => o.status === filter)
     }
     if (search.trim()) {
@@ -87,10 +82,6 @@ export default function SalesOrdersPage() {
   const selectAll = () => {
     if (selectedOrders.size === filtered.length) setSelectedOrders(new Set())
     else setSelectedOrders(new Set(filtered.map(o => o.id)))
-  }
-
-  const updateAllocatedQty = (orderId: string, productId: string, qty: number) => {
-    setAllocatedMap(prev => ({ ...prev, [`${orderId}_${productId}`]: qty }))
   }
 
   const handleConfirm = async () => {
@@ -117,10 +108,6 @@ export default function SalesOrdersPage() {
     }
   }
 
-  const checkOversell = (_orderId: string) => {
-    return false
-  }
-
   const printableOrders = salesOrders.filter(o => selectedOrders.has(o.id))
   const batchableCount = [...selectedOrders].filter(id => { const o = salesOrders.find(ord => ord.id === id); return o?.status === 'draft' || o?.status === 'pending' }).length
 
@@ -134,7 +121,7 @@ export default function SalesOrdersPage() {
             <BackButton />
             <div>
               <h1 className="text-xl font-bold text-gray-900">銷售訂單</h1>
-              <p className="text-sm text-gray-400">{filtered.length} 筆訂單 | {products.length} 個註冊商品</p>
+              <p className="text-sm text-gray-400">{filtered.length} 筆訂單</p>
             </div>
           </div>
           <div className="flex gap-2">
@@ -158,15 +145,6 @@ export default function SalesOrdersPage() {
         </div>
       </header>
 
-      {products.length > 0 && (
-        <div className="px-6 pt-4">
-          <div className="bg-blue-50 border border-blue-200 rounded-xl px-4 py-3 text-sm">
-            <span className="font-medium text-blue-700">商品追蹤數量：</span>
-            <span className="text-blue-600 ml-2">{products.length} 個品項</span>
-          </div>
-        </div>
-      )}
-
       <div className="p-6 max-w-6xl mx-auto space-y-3">
         {paged.length === 0 ? (
           <div className="text-center text-gray-400 py-12 space-y-2">
@@ -179,7 +157,6 @@ export default function SalesOrdersPage() {
           paged.map(order => {
             const config = stateConfig[order.status] || stateConfig.draft
             const isExpanded = expanded === order.id
-            const hasOversell = checkOversell(order.id)
             const total = order.total_amount
 
             return (
@@ -198,8 +175,8 @@ export default function SalesOrdersPage() {
                     <span className={`px-2.5 py-0.5 rounded-full text-xs font-medium ${config.color}`}>{config.label}</span>
                     {(order.status === 'draft' || order.status === 'pending') && (
                       <button onClick={() => setConfirmAction({ type: 'single', orderId: order.id })}
-                        className={`px-3 py-1 rounded text-xs text-white ${hasOversell ? 'bg-red-500 hover:bg-red-600' : 'bg-primary hover:bg-green-700'}`}>
-                        {hasOversell ? '超賣！' : '確認'}
+                        className="px-3 py-1 rounded text-xs text-white bg-primary hover:bg-green-700">
+                        確認
                       </button>
                     )}
                     <button onClick={() => setExpanded(isExpanded ? null : order.id)} className="text-gray-400 text-xl">{isExpanded ? '\u25BE' : '\u25B8'}</button>
@@ -212,8 +189,7 @@ export default function SalesOrdersPage() {
                       <thead>
                         <tr className="text-gray-400 text-xs border-b border-gray-100">
                           <th className="py-2 px-4 text-left">品名</th>
-                          <th className="py-2 px-4 text-right">需求</th>
-                          <th className="py-2 px-4 text-right">分配</th>
+                          <th className="py-2 px-4 text-right">數量</th>
                           <th className="py-2 px-4 text-left">單位</th>
                           <th className="py-2 px-4 text-right">單價</th>
                           <th className="py-2 px-4 text-right">金額</th>
@@ -224,20 +200,13 @@ export default function SalesOrdersPage() {
                         {order.lines.map((line, idx) => {
                           const prod = getProduct(line)
                           const price = line.unit_price
-                          const allocated = allocatedMap[`${order.id}_${line.product_id}`] ?? line.quantity
-                          const amount = Math.round(allocated * price)
+                          const amount = Math.round(line.quantity * price)
                           const productName = line.name || prod?.name || '未知'
-                          const unit = getUnit(prod)
+                          const unit = prod?.uom_id || ''
                           return (
                             <tr key={idx} className="border-b border-gray-50">
                               <td className="py-2 px-4 font-medium">{productName}</td>
-                              <td className="py-2 px-4 text-right text-gray-400">{line.quantity.toFixed(2)}</td>
-                              <td className="py-2 px-4 text-right">
-                                <input type="number" value={allocated} step="0.01" min="0"
-                                  onChange={(e) => updateAllocatedQty(order.id, line.product_id, parseFloat(e.target.value) || 0)}
-                                  className="w-20 text-right px-1.5 py-1 border border-gray-200 rounded-lg bg-white font-medium text-sm"
-                                  disabled={order.status === 'confirm'} />
-                              </td>
+                              <td className="py-2 px-4 text-right">{line.quantity.toFixed(2)}</td>
                               <td className="py-2 px-4 text-gray-400">{unit}</td>
                               <td className="py-2 px-4 text-right">{price > 0 ? `$${price}` : <span className="text-orange-500 text-xs">待定</span>}</td>
                               <td className="py-2 px-4 text-right font-bold text-primary">{price > 0 ? `$${amount.toLocaleString()}` : '-'}</td>
@@ -268,10 +237,10 @@ export default function SalesOrdersPage() {
 
       <ConfirmDialog
         open={!!confirmAction}
-        title={confirmAction?.type === 'batch' ? `批次確認 ${batchableCount} 筆訂單？` : '確認出貨？'}
+        title={confirmAction?.type === 'batch' ? `批次確認 ${batchableCount} 筆訂單？` : '確認此訂單？'}
         message={confirmAction?.type === 'batch'
           ? `將確認 ${batchableCount} 筆待處理訂單。`
-          : '確認後分配數量將無法修改。'}
+          : '確認後訂單狀態將更新為已確認。'}
         confirmText="確認"
         variant="warning"
         onConfirm={handleConfirm}

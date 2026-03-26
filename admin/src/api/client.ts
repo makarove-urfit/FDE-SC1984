@@ -51,7 +51,7 @@ export const db = {
   },
   
   async update<T = any>(table: string, id: string | number, data: Record<string, any>): Promise<T> {
-    const res = await apiClient.patch(`/open/proxy/${table}/${id}`, { data });
+    const res = await apiClient.patch(`/open/proxy/${table}/${id}`, data);
     return res.data;
   },
 
