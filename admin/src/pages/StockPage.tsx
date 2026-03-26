@@ -23,8 +23,8 @@ export default function StockPage() {
     return products.filter(s => s.name.toLowerCase().includes(q) || s.sku.toLowerCase().includes(q))
   }, [products, search])
 
-  const totalValue = filtered.reduce((sum, s) => sum + (s.standard_price || 0) * (s.stock || 0), 0)
-  const totalSellValue = filtered.reduce((sum, s) => sum + s.list_price * (s.stock || 0), 0)
+  const totalValue = filtered.reduce((sum, s) => sum + (s.standard_price || 0), 0)
+  const totalSellValue = filtered.reduce((sum, s) => sum + s.list_price, 0)
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -92,7 +92,7 @@ export default function StockPage() {
                   {filtered.map((item, idx) => {
                     const priceBuy = item.standard_price || 0
                     const priceSell = item.list_price || 0
-                    const qty = item.stock || 0
+                    const qty = 0
                     
                     const cost = Math.round(priceBuy * qty)
                     const revenue = Math.round(priceSell * qty)
