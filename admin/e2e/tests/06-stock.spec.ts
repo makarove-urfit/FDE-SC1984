@@ -79,19 +79,25 @@ test.describe('Stock Report', () => {
 
   // --- 邊界案例 ---
 
-  test('6.8 利潤為負的樣式', async ({ authedPage }) => {
-    const redCells = authedPage.locator('td.text-red-600')
-    expect(await redCells.count()).toBeGreaterThanOrEqual(0)
+  test('6.8 庫存頁為純顯示（無編輯元件）', async ({ authedPage }) => {
+    // 不應有 input 元件（庫存為純顯示）
+    const inputs = authedPage.locator('table input')
+    expect(await inputs.count()).toBe(0)
   })
 
   test('6.9 頁面不崩潰 (Items 計數)', async ({ authedPage }) => {
-    // 確認頁面正常渲染
     const body = await authedPage.textContent('body')
     expect(body).toBeTruthy()
     expect(body).toContain('庫存報表')
   })
 
-  test('6.10 返回 Dashboard', async ({ authedPage }) => {
+  test('6.10 返回按鈕不含重複文字箭頭', async ({ authedPage }) => {
+    const backBtn = authedPage.locator('header button').first()
+    const btnText = await backBtn.textContent()
+    expect(btnText).not.toContain('←')
+  })
+
+  test('6.11 返回 Dashboard', async ({ authedPage }) => {
     await authedPage.locator('header button').first().click()
     await expect(authedPage).toHaveURL('/')
   })

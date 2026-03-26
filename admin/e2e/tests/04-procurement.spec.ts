@@ -110,8 +110,18 @@ test.describe('Procurement (採購定價與入庫)', () => {
     }
   })
 
-  test('4.13 返回 Dashboard', async ({ authedPage }) => {
-    await authedPage.locator('button:has-text("←")').click()
+  test('4.13 供應商名稱不應為 UUID', async ({ authedPage }) => {
+    const supplierHeaders = authedPage.locator('h3.font-bold')
+    const count = await supplierHeaders.count()
+    const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+    for (let i = 0; i < count; i++) {
+      const text = await supplierHeaders.nth(i).textContent()
+      expect(UUID_RE.test(text?.trim() || '')).toBe(false)
+    }
+  })
+
+  test('4.14 返回 Dashboard', async ({ authedPage }) => {
+    await authedPage.locator('header button').first().click()
     await expect(authedPage).toHaveURL('/')
   })
 })

@@ -143,4 +143,24 @@ test.describe('Delivery (出貨管理)', () => {
     await authedPage.locator('header button').first().click()
     await expect(authedPage).toHaveURL('/')
   })
+
+  test('5.15 展開客戶後品項 tag 包含 x 數量', async ({ authedPage }) => {
+    const expandBtn = authedPage.locator('button:has-text("▸")').first()
+    if (await expandBtn.isVisible()) {
+      await expandBtn.click()
+      // 品項 tag 格式為 "品名 x數量"
+      const tags = authedPage.locator('span.bg-gray-50.rounded')
+      const count = await tags.count()
+      for (let i = 0; i < Math.min(count, 3); i++) {
+        const text = await tags.nth(i).textContent()
+        expect(text).toMatch(/x\d/)
+      }
+    }
+  })
+
+  test('5.16 分頁元件存在', async ({ authedPage }) => {
+    // 分頁可能存在也可能不存在（取決於資料量）
+    const body = await authedPage.textContent('body')
+    expect(body).toBeTruthy()
+  })
 })

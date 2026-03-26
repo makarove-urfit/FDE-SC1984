@@ -86,4 +86,16 @@ test.describe('Dashboard', () => {
     const dateText = await authedPage.locator('header p.text-sm').textContent()
     expect(dateText).toMatch(/\d{4}-\d{2}-\d{2}/)
   })
+
+  test('1.12 步驟順序：銷售→採購→庫存→出貨→收貨', async ({ authedPage }) => {
+    const buttons = authedPage.locator('.grid button')
+    const count = await buttons.count()
+    expect(count).toBe(5)
+    const labels = []
+    for (let i = 0; i < count; i++) {
+      const text = await buttons.nth(i).locator('p.font-medium').textContent()
+      labels.push(text?.trim())
+    }
+    expect(labels).toEqual(['銷售訂單', '採購定價', '庫存', '待出貨', '待收貨'])
+  })
 })
