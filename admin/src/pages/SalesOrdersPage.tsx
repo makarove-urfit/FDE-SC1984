@@ -52,10 +52,14 @@ export default function SalesOrdersPage() {
     Promise.all([loadSales(), loadProducts()]).then(() => setLoading(false))
   }, [])
 
-  const getProduct = (productId: string) => products.find(s => s.id === productId)
-  const getStockQty = (productId: string) => {
-    const p = getProduct(productId)
-    return p?.stock || 0
+  const getProduct = (line: { product_id: string; product_template_id: string }) =>
+    products.find(s => s.id === line.product_template_id) || products.find(s => s.id === line.product_id)
+
+  // 判斷 uom_id 是否為 UUID，是的話就不顯示
+  const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+  const getUnit = (prod: { uom_id: string } | undefined) => {
+    if (!prod?.uom_id) return ''
+    return UUID_RE.test(prod.uom_id) ? '' : prod.uom_id
   }
 
   const filtered = useMemo(() => {
@@ -113,14 +117,8 @@ export default function SalesOrdersPage() {
     }
   }
 
-  const checkOversell = (orderId: string) => {
-    const order = salesOrders.find(o => o.id === orderId)
-    if (!order) return false
-    return order.lines.some(l => { 
-      const s = getStockQty(l.product_id)
-      const allocated = allocatedMap[`${orderId}_${l.product_id}`] ?? l.quantity
-      return s > 0 && allocated > s 
-    })
+  const checkOversell = (_orderId: string) => {
+    return false
   }
 
   const printableOrders = salesOrders.filter(o => selectedOrders.has(o.id))
@@ -217,7 +215,6 @@ export default function SalesOrdersPage() {
                           <th className="py-2 px-4 text-right">需求</th>
                           <th className="py-2 px-4 text-right">分配</th>
                           <th className="py-2 px-4 text-left">單位</th>
-                          <th className="py-2 px-4 text-right">庫存</th>
                           <th className="py-2 px-4 text-right">單價</th>
                           <th className="py-2 px-4 text-right">金額</th>
                           <th className="py-2 px-4 text-left">備註</th>
@@ -225,15 +222,15 @@ export default function SalesOrdersPage() {
                       </thead>
                       <tbody>
                         {order.lines.map((line, idx) => {
-                          const prod = getProduct(line.product_id)
+                          const prod = getProduct(line)
                           const price = line.unit_price
-                          const stockQty = getStockQty(line.product_id)
                           const allocated = allocatedMap[`${order.id}_${line.product_id}`] ?? line.quantity
                           const amount = Math.round(allocated * price)
-                          const oversell = stockQty > 0 && allocated > stockQty
+                          const productName = line.name || prod?.name || '未知'
+                          const unit = getUnit(prod)
                           return (
-                            <tr key={idx} className={`border-b border-gray-50 ${oversell ? 'bg-red-50/50' : stockQty === 0 ? 'bg-yellow-50/50' : ''}`}>
-                              <td className="py-2 px-4 font-medium">{prod?.name || '未知'}</td>
+                            <tr key={idx} className="border-b border-gray-50">
+                              <td className="py-2 px-4 font-medium">{productName}</td>
                               <td className="py-2 px-4 text-right text-gray-400">{line.quantity.toFixed(2)}</td>
                               <td className="py-2 px-4 text-right">
                                 <input type="number" value={allocated} step="0.01" min="0"
@@ -241,10 +238,7 @@ export default function SalesOrdersPage() {
                                   className="w-20 text-right px-1.5 py-1 border border-gray-200 rounded-lg bg-white font-medium text-sm"
                                   disabled={order.status === 'confirm'} />
                               </td>
-                              <td className="py-2 px-4 text-gray-400">{prod?.uom_id || '單位'}</td>
-                              <td className={`py-2 px-4 text-right text-xs ${stockQty > 0 ? (oversell ? 'text-red-600 font-bold' : 'text-green-600') : 'text-orange-500'}`}>
-                                {stockQty > 0 ? stockQty.toFixed(2) : 'N/A'}
-                              </td>
+                              <td className="py-2 px-4 text-gray-400">{unit}</td>
                               <td className="py-2 px-4 text-right">{price > 0 ? `$${price}` : <span className="text-orange-500 text-xs">待定</span>}</td>
                               <td className="py-2 px-4 text-right font-bold text-primary">{price > 0 ? `$${amount.toLocaleString()}` : '-'}</td>
                               <td className="py-2 px-4 text-gray-400 text-xs">{line.metadata?.note || ''}</td>
