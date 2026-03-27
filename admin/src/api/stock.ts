@@ -13,6 +13,7 @@ export interface Product {
   category_id?: string;
   list_price: number;
   standard_price?: number;
+  qty_available: number;
 }
 
 export const getProducts = async (): Promise<Product[]> => {
@@ -44,6 +45,7 @@ export const getProducts = async (): Promise<Product[]> => {
       category_id: Array.isArray(p.categ_id) ? String(p.categ_id[0]) : p.categ_id,
       list_price: p.list_price || 0,
       standard_price: p.standard_price || 0,
+      qty_available: p.qty_available || 0,
     };
   });
 };

@@ -18,14 +18,19 @@ export default function DashboardPage() {
   const pendingReceives = purchaseOrders.filter(p => p.status !== 'received' && p.status !== 'done').length
   const todaySalesVolume = salesOrders.reduce((sum, inv) => sum + (inv.total_amount || 0), 0)
 
+  // 各階段精確計數
+  const draftCount = salesOrders.filter(s => s.status === 'draft').length
+  const confirmedCount = salesOrders.filter(s => s.status === 'confirm' || s.status === 'confirmed').length
+  const shippingCount = salesOrders.filter(s => s.status === 'confirm' || s.status === 'confirmed' || s.status === 'shipped').length
+
   const stats = { totalSalesOrders, totalPurchaseOrders, pendingShipments, pendingReceives, todaySalesVolume }
 
   const steps = [
-    { step: '1', label: '銷售訂單', desc: `${stats?.totalSalesOrders || 0} 筆訂單`, href: '/sales-orders', count: stats?.totalSalesOrders || 0 },
-    { step: '2', label: '採購定價', desc: `${stats?.totalPurchaseOrders || 0} 個品項`, href: '/procurement', count: stats?.totalPurchaseOrders || 0 },
-    { step: '3', label: '庫存', desc: '查看當日庫存', href: '/stock', count: 0 },
-    { step: '4', label: '待出貨', desc: `${stats?.pendingShipments || 0} 待出貨`, href: '/delivery', count: stats?.pendingShipments || 0 },
-    { step: '5', label: '待收貨', desc: `${stats?.pendingReceives || 0} 待收貨`, href: '/purchase-list', count: stats?.pendingReceives || 0 },
+    { step: '1', label: '確認訂單', desc: `${draftCount} 筆待確認`, href: '/sales-orders', count: draftCount },
+    { step: '2', label: '訂單接收', desc: `${confirmedCount} 筆已確認`, href: '/purchase-list', count: confirmedCount },
+    { step: '3', label: '採購定價', desc: `${stats?.totalPurchaseOrders || 0} 筆採購單`, href: '/procurement', count: stats?.totalPurchaseOrders || 0 },
+    { step: '4', label: '出貨管理', desc: `${shippingCount} 筆待出貨`, href: '/delivery', count: shippingCount },
+    { step: '5', label: '庫存報表', desc: '查看庫存', href: '/stock', count: 0 },
   ]
 
   if (loading) {

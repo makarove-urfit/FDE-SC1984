@@ -1,30 +1,38 @@
 /**
- * 銷售訂單 — 純檢視頁面
- * 搜尋、篩選、展開明細、列印
+ * 銷售訂單 — 檢視 + 確認訂單頁面
+ * 搜尋、篩選、展開明細、確認訂單（單筆/批次）、列印
  */
 import { useState, useMemo, useEffect } from 'react'
 import BackButton from '../components/BackButton'
 import { displayName, shortId } from '../utils/displayHelpers'
 import { useAdminStore } from '../store/useAdminStore'
+import { updateSalesInvoiceStatus } from '../api/sales'
 import SearchInput from '../components/SearchInput'
 import StatusDropdown from '../components/StatusDropdown'
 import Pagination from '../components/Pagination'
+import ConfirmDialog from '../components/ConfirmDialog'
 import { usePrint, PrintArea } from '../components/PrintProvider'
 import SalesInvoicePrint from '../templates/SalesInvoicePrint'
 
 const stateOptions = [
   { value: 'all', label: '全部' },
-  { value: 'draft', label: '草稿' },
+  { value: 'draft', label: '新訂單' },
   { value: 'confirmed', label: '已確認' },
+  { value: 'shipped', label: '已出貨' },
+  { value: 'done', label: '已完成' },
 ]
 
 const stateConfig: Record<string, { label: string; color: string }> = {
   draft:     { label: '新訂單', color: 'bg-blue-100 text-blue-700' },
   confirm:   { label: '已確認', color: 'bg-green-100 text-green-700' },
   confirmed: { label: '已確認', color: 'bg-green-100 text-green-700' },
+  shipped:   { label: '已出貨', color: 'bg-orange-100 text-orange-700' },
+  done:      { label: '已完成', color: 'bg-gray-100 text-gray-500' },
 }
 
 const PAGE_SIZE = 10
+
+type ConfirmAction = { type: 'single'; orderId: string } | { type: 'batch' }
 
 export default function SalesOrdersPage() {
   const { salesOrders, loadSales } = useAdminStore()
@@ -35,6 +43,7 @@ export default function SalesOrdersPage() {
   const [expanded, setExpanded] = useState<string | null>(null)
   const [selectedOrders, setSelectedOrders] = useState<Set<string>>(new Set())
   const [page, setPage] = useState(1)
+  const [confirmAction, setConfirmAction] = useState<ConfirmAction | null>(null)
   const { contentRef, print: handlePrint } = usePrint()
 
   useEffect(() => {
@@ -45,6 +54,8 @@ export default function SalesOrdersPage() {
     let list = salesOrders
     if (filter !== 'all') {
       if (filter === 'confirmed') list = list.filter(o => o.status === 'confirm' || o.status === 'confirmed')
+      else if (filter === 'shipped') list = list.filter(o => o.status === 'shipped')
+      else if (filter === 'done') list = list.filter(o => o.status === 'done')
       else list = list.filter(o => o.status === filter)
     }
     if (search.trim()) {
@@ -57,6 +68,9 @@ export default function SalesOrdersPage() {
     return [...list].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
   }, [salesOrders, filter, search])
 
+  // 待確認訂單數量
+  const draftCount = salesOrders.filter(o => o.status === 'draft').length
+
   const totalPages = Math.ceil(filtered.length / PAGE_SIZE)
   const paged = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
 
@@ -66,6 +80,38 @@ export default function SalesOrdersPage() {
   const selectAll = () => {
     if (selectedOrders.size === filtered.length) setSelectedOrders(new Set())
     else setSelectedOrders(new Set(filtered.map(o => o.id)))
+  }
+
+  // 確認訂單操作
+  const handleConfirm = async () => {
+    if (!confirmAction) return
+    try {
+      if (confirmAction.type === 'single') {
+        await updateSalesInvoiceStatus(confirmAction.orderId, 'confirm')
+      } else {
+        // 批次確認所有 draft 訂單
+        const draftOrders = salesOrders.filter(o => o.status === 'draft')
+        await Promise.all(draftOrders.map(o => updateSalesInvoiceStatus(o.id, 'confirm')))
+      }
+      await loadSales(true)
+    } finally {
+      setConfirmAction(null)
+    }
+  }
+
+  const getDialogProps = () => {
+    if (!confirmAction) return { title: '', message: '' }
+    if (confirmAction.type === 'single') {
+      const order = salesOrders.find(o => o.id === confirmAction.orderId)
+      return {
+        title: '確認此訂單？',
+        message: `訂單 ${shortId(order?.erp_id)} 將標記為「已確認」，可進入採購流程。`,
+      }
+    }
+    return {
+      title: `批次確認 ${draftCount} 筆訂單？`,
+      message: `所有「新訂單」將標記為「已確認」，可進入採購流程。`,
+    }
   }
 
   const printableOrders = salesOrders.filter(o => selectedOrders.has(o.id))
@@ -80,10 +126,16 @@ export default function SalesOrdersPage() {
             <BackButton />
             <div>
               <h1 className="text-xl font-bold text-gray-900">銷售訂單</h1>
-              <p className="text-sm text-gray-400">{filtered.length} 筆訂單</p>
+              <p className="text-sm text-gray-400">{filtered.length} 筆訂單{draftCount > 0 && ` · ${draftCount} 筆待確認`}</p>
             </div>
           </div>
           <div className="flex gap-2">
+            {draftCount > 0 && (
+              <button onClick={() => setConfirmAction({ type: 'batch' })}
+                className="px-3 py-1.5 text-sm bg-green-600 text-white rounded-lg hover:bg-green-700 font-medium">
+                批次確認 ({draftCount})
+              </button>
+            )}
             <button onClick={selectAll} className="px-3 py-1.5 text-sm border border-gray-200 rounded-lg bg-white text-gray-600 hover:bg-gray-50">
               {selectedOrders.size === filtered.length && filtered.length > 0 ? '取消全選' : `全選 (${filtered.length})`}
             </button>
@@ -124,6 +176,12 @@ export default function SalesOrdersPage() {
                   <div className="flex items-center gap-3">
                     {total > 0 && <span className="text-lg font-bold text-primary">${Math.round(total).toLocaleString()}</span>}
                     <span className={`px-2.5 py-0.5 rounded-full text-xs font-medium ${config.color}`}>{config.label}</span>
+                    {order.status === 'draft' && (
+                      <button onClick={() => setConfirmAction({ type: 'single', orderId: order.id })}
+                        className="px-3 py-1 bg-green-600 text-white rounded-lg text-xs font-medium hover:bg-green-700">
+                        確認訂單
+                      </button>
+                    )}
                     <button onClick={() => setExpanded(isExpanded ? null : order.id)} className="text-gray-400 text-xl">{isExpanded ? '\u25BE' : '\u25B8'}</button>
                   </div>
                 </div>
@@ -175,6 +233,16 @@ export default function SalesOrdersPage() {
       <PrintArea printRef={contentRef}>
         <SalesInvoicePrint orders={printableOrders as any} />
       </PrintArea>
+
+      <ConfirmDialog
+        open={!!confirmAction}
+        title={getDialogProps().title}
+        message={getDialogProps().message}
+        confirmText="確認"
+        variant="info"
+        onConfirm={handleConfirm}
+        onCancel={() => setConfirmAction(null)}
+      />
     </div>
   )
 }

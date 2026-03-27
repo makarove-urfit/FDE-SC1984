@@ -6,8 +6,10 @@ import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAdminStore } from '../store/useAdminStore'
 import type { SalesInvoice } from '../api/sales'
+import { generatePurchaseOrders } from '../api/purchase'
 import { displayName, shortId } from '../utils/displayHelpers'
 import { usePrint, PrintArea } from '../components/PrintProvider'
+import ConfirmDialog from '../components/ConfirmDialog'
 import PurchaseOrderPrint from '../templates/PurchaseOrderPrint'
 import PurchaseListPrint from '../templates/PurchaseListPrint'
 
@@ -24,8 +26,12 @@ export default function PurchaseListPage() {
   const [selectedSuppliers, setSelectedSuppliers] = useState<Set<string>>(new Set())
 
   // 從 store 衍生資料
-  const draftOrders = salesOrders.filter(i => i.status === 'draft' || i.status === 'pending')
+  // 已確認的銷售訂單（待採購）+ 草稿訂單
+  const draftOrders = salesOrders.filter(i => i.status === 'draft' || i.status === 'pending' || i.status === 'confirm' || i.status === 'confirmed')
+  const confirmedOrders = salesOrders.filter(i => i.status === 'confirm' || i.status === 'confirmed')
   const procurementItems = purchaseOrders
+  const [generating, setGenerating] = useState(false)
+  const [showGenerateDialog, setShowGenerateDialog] = useState(false)
 
   useEffect(() => {
     loadAll().then(() => setLoading(false))
@@ -86,10 +92,10 @@ export default function PurchaseListPage() {
           </div>
         </div>
         <div className="flex gap-2">
-          {draftOrders.length > 0 && procurementItems.length === 0 && (
-            <button onClick={() => { /* API call to generate procurement */ navigate('/procurement') }}
-              className="px-4 py-2 bg-primary text-white rounded-lg text-sm font-medium hover:bg-green-700">
-              產生採購清單 → 前往定價
+          {confirmedOrders.length > 0 && (
+            <button onClick={() => setShowGenerateDialog(true)} disabled={generating}
+              className={`px-4 py-2 rounded-lg text-sm font-medium ${generating ? 'bg-gray-300 text-gray-500 cursor-not-allowed' : 'bg-primary text-white hover:bg-green-700'}`}>
+              {generating ? '產生中...' : `產生採購清單 (${confirmedOrders.length} 筆) → 前往定價`}
             </button>
           )}
           {procurementItems.length > 0 && (
@@ -251,6 +257,29 @@ export default function PurchaseListPage() {
       <PrintArea printRef={listRef}>
         <PurchaseListPrint orders={draftOrders as any} products={products} />
       </PrintArea>
+
+      <ConfirmDialog
+        open={showGenerateDialog}
+        title={`從 ${confirmedOrders.length} 筆已確認訂單產生採購清單？`}
+        message="系統將彙總所有已確認訂單的品項需求，自動建立採購單。"
+        confirmText="產生採購清單"
+        variant="info"
+        onConfirm={async () => {
+          setShowGenerateDialog(false)
+          setGenerating(true)
+          try {
+            await generatePurchaseOrders(confirmedOrders as any, products as any)
+            await loadAll(true)
+            navigate('/procurement')
+          } catch (err) {
+            console.error('產生採購清單失敗:', err)
+            alert('產生採購清單失敗：' + (err instanceof Error ? err.message : '未知錯誤'))
+          } finally {
+            setGenerating(false)
+          }
+        }}
+        onCancel={() => setShowGenerateDialog(false)}
+      />
     </div>
   )
 }
