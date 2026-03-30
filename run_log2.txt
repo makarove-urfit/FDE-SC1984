@@ -1,0 +1,132 @@
+﻿deploy	Set up job	嚜?026-03-30T06:04:23.4644740Z Current runner version: '2.333.0'
+deploy	Set up job	2026-03-30T06:04:23.4673179Z ##[group]Runner Image Provisioner
+deploy	Set up job	2026-03-30T06:04:23.4674444Z Hosted Compute Agent
+deploy	Set up job	2026-03-30T06:04:23.4675132Z Version: 20260213.493
+deploy	Set up job	2026-03-30T06:04:23.4675931Z Commit: 5c115507f6dd24b8de37d8bbe0bb4509d0cc0fa3
+deploy	Set up job	2026-03-30T06:04:23.4676743Z Build Date: 2026-02-13T00:28:41Z
+deploy	Set up job	2026-03-30T06:04:23.4677505Z Worker ID: {7a6735a2-6009-4ca3-afda-9bdf90d00569}
+deploy	Set up job	2026-03-30T06:04:23.4678324Z Azure Region: northcentralus
+deploy	Set up job	2026-03-30T06:04:23.4679086Z ##[endgroup]
+deploy	Set up job	2026-03-30T06:04:23.4680684Z ##[group]Operating System
+deploy	Set up job	2026-03-30T06:04:23.4681397Z Ubuntu
+deploy	Set up job	2026-03-30T06:04:23.4681972Z 24.04.4
+deploy	Set up job	2026-03-30T06:04:23.4682672Z LTS
+deploy	Set up job	2026-03-30T06:04:23.4683249Z ##[endgroup]
+deploy	Set up job	2026-03-30T06:04:23.4684145Z ##[group]Runner Image
+deploy	Set up job	2026-03-30T06:04:23.4684877Z Image: ubuntu-24.04
+deploy	Set up job	2026-03-30T06:04:23.4685533Z Version: 20260323.65.1
+deploy	Set up job	2026-03-30T06:04:23.4686773Z Included Software: https://github.com/actions/runner-images/blob/ubuntu24/20260323.65/images/ubuntu/Ubuntu2404-Readme.md
+deploy	Set up job	2026-03-30T06:04:23.4688659Z Image Release: https://github.com/actions/runner-images/releases/tag/ubuntu24%2F20260323.65
+deploy	Set up job	2026-03-30T06:04:23.4689670Z ##[endgroup]
+deploy	Set up job	2026-03-30T06:04:23.4691037Z ##[group]GITHUB_TOKEN Permissions
+deploy	Set up job	2026-03-30T06:04:23.4693422Z Contents: read
+deploy	Set up job	2026-03-30T06:04:23.4694698Z Metadata: read
+deploy	Set up job	2026-03-30T06:04:23.4695343Z Packages: read
+deploy	Set up job	2026-03-30T06:04:23.4695955Z ##[endgroup]
+deploy	Set up job	2026-03-30T06:04:23.4698190Z Secret source: Actions
+deploy	Set up job	2026-03-30T06:04:23.4699263Z Prepare workflow directory
+deploy	Set up job	2026-03-30T06:04:23.5086424Z Prepare all required actions
+deploy	Set up job	2026-03-30T06:04:23.5135804Z Getting action download info
+deploy	Set up job	2026-03-30T06:04:23.8093407Z Download action repository 'appleboy/ssh-action@v1.0.3' (SHA:029f5b4aeeeb58fdfe1410a5d17f967dacf36262)
+deploy	Set up job	2026-03-30T06:04:24.2509839Z Complete job name: deploy
+deploy	Build appleboy/ssh-action@v1.0.3	嚜?026-03-30T06:04:24.3078630Z ##[group]Build container for action use: '/home/runner/work/_actions/appleboy/ssh-action/v1.0.3/Dockerfile'.
+deploy	Build appleboy/ssh-action@v1.0.3	2026-03-30T06:04:24.3167524Z ##[command]/usr/bin/docker build -t f68e6f:3de5e8b807d74e5b9547373913c7d524 -f "/home/runner/work/_actions/appleboy/ssh-action/v1.0.3/Dockerfile" "/home/runner/work/_actions/appleboy/ssh-action/v1.0.3"
+deploy	Build appleboy/ssh-action@v1.0.3	2026-03-30T06:04:24.7044452Z #0 building with "default" instance using docker driver
+deploy	Build appleboy/ssh-action@v1.0.3	2026-03-30T06:04:24.7045165Z 
+deploy	Build appleboy/ssh-action@v1.0.3	2026-03-30T06:04:24.7045434Z #1 [internal] load build definition from Dockerfile
+deploy	Build appleboy/ssh-action@v1.0.3	2026-03-30T06:04:24.7046103Z #1 transferring dockerfile: 149B done
+deploy	Build appleboy/ssh-action@v1.0.3	2026-03-30T06:04:24.7046645Z #1 DONE 0.0s
+deploy	Build appleboy/ssh-action@v1.0.3	2026-03-30T06:04:24.7046886Z 
+deploy	Build appleboy/ssh-action@v1.0.3	2026-03-30T06:04:24.7047223Z #2 [internal] load metadata for ghcr.io/appleboy/drone-ssh:1.7.3
+deploy	Build appleboy/ssh-action@v1.0.3	2026-03-30T06:04:24.9021708Z #2 DONE 0.3s
+deploy	Build appleboy/ssh-action@v1.0.3	2026-03-30T06:04:25.0156990Z 
+deploy	Build appleboy/ssh-action@v1.0.3	2026-03-30T06:04:25.0160672Z #3 [internal] load .dockerignore
+deploy	Build appleboy/ssh-action@v1.0.3	2026-03-30T06:04:25.0167265Z #3 transferring context: 2B done
+deploy	Build appleboy/ssh-action@v1.0.3	2026-03-30T06:04:25.0167894Z #3 DONE 0.0s
+deploy	Build appleboy/ssh-action@v1.0.3	2026-03-30T06:04:25.0168292Z 
+deploy	Build appleboy/ssh-action@v1.0.3	2026-03-30T06:04:25.0168520Z #4 [internal] load build context
+deploy	Build appleboy/ssh-action@v1.0.3	2026-03-30T06:04:25.0169065Z #4 transferring context: 108B done
+deploy	Build appleboy/ssh-action@v1.0.3	2026-03-30T06:04:25.0169604Z #4 DONE 0.0s
+deploy	Build appleboy/ssh-action@v1.0.3	2026-03-30T06:04:25.0169858Z 
+deploy	Build appleboy/ssh-action@v1.0.3	2026-03-30T06:04:25.0170529Z #5 [1/2] FROM ghcr.io/appleboy/drone-ssh:1.7.3@sha256:179cbd253771007f2ebcaf7a3860afe059207351de1f3378efafac93bd310158
+deploy	Build appleboy/ssh-action@v1.0.3	2026-03-30T06:04:25.0171934Z #5 resolve ghcr.io/appleboy/drone-ssh:1.7.3@sha256:179cbd253771007f2ebcaf7a3860afe059207351de1f3378efafac93bd310158 done
+deploy	Build appleboy/ssh-action@v1.0.3	2026-03-30T06:04:25.0173197Z #5 extracting sha256:1207c741d8c9b028d98c4006013f9de959da3c55f85b91ed5e4583438a0112ca
+deploy	Build appleboy/ssh-action@v1.0.3	2026-03-30T06:04:25.0176020Z #5 sha256:7e20f48a19643465f486f59127b8f4e0f4114bedc8bd5260fb4f92d5fda95f1c 0B / 1.20kB 0.1s
+deploy	Build appleboy/ssh-action@v1.0.3	2026-03-30T06:04:25.0177647Z #5 sha256:066e5b821e26d8313055e0314c056e6c297847bcf963e5df10e7aa03107f2246 0B / 125B 0.1s
+deploy	Build appleboy/ssh-action@v1.0.3	2026-03-30T06:04:25.0179941Z #5 sha256:179cbd253771007f2ebcaf7a3860afe059207351de1f3378efafac93bd310158 2.38kB / 2.38kB done
+deploy	Build appleboy/ssh-action@v1.0.3	2026-03-30T06:04:25.0181903Z #5 sha256:1a52f94820e830bc9734623deb03bbafa6a248fba19cdc2e5605c70d90d91441 1.24kB / 1.24kB done
+deploy	Build appleboy/ssh-action@v1.0.3	2026-03-30T06:04:25.0185801Z #5 sha256:c4781b8d012b16b6c7468dc9104fad0a63f2a8815b2af8b7176bb544253ea8c7 3.86kB / 3.86kB done
+deploy	Build appleboy/ssh-action@v1.0.3	2026-03-30T06:04:25.0188873Z #5 sha256:1207c741d8c9b028d98c4006013f9de959da3c55f85b91ed5e4583438a0112ca 3.38MB / 3.38MB 0.1s done
+deploy	Build appleboy/ssh-action@v1.0.3	2026-03-30T06:04:25.0191451Z #5 sha256:654aaee5654be60f81172539ecd74485cf8bbe2e9137bab0d429862c31c676f6 0B / 284.83kB 0.1s
+deploy	Build appleboy/ssh-action@v1.0.3	2026-03-30T06:04:25.1439672Z #5 extracting sha256:1207c741d8c9b028d98c4006013f9de959da3c55f85b91ed5e4583438a0112ca 0.1s done
+deploy	Build appleboy/ssh-action@v1.0.3	2026-03-30T06:04:25.1442774Z #5 sha256:7e20f48a19643465f486f59127b8f4e0f4114bedc8bd5260fb4f92d5fda95f1c 1.20kB / 1.20kB 0.1s done
+deploy	Build appleboy/ssh-action@v1.0.3	2026-03-30T06:04:25.1445130Z #5 sha256:066e5b821e26d8313055e0314c056e6c297847bcf963e5df10e7aa03107f2246 125B / 125B 0.1s done
+deploy	Build appleboy/ssh-action@v1.0.3	2026-03-30T06:04:25.1446970Z #5 sha256:654aaee5654be60f81172539ecd74485cf8bbe2e9137bab0d429862c31c676f6 284.83kB / 284.83kB 0.1s done
+deploy	Build appleboy/ssh-action@v1.0.3	2026-03-30T06:04:25.1449744Z #5 extracting sha256:654aaee5654be60f81172539ecd74485cf8bbe2e9137bab0d429862c31c676f6 0.0s done
+deploy	Build appleboy/ssh-action@v1.0.3	2026-03-30T06:04:25.1453277Z #5 sha256:47353a6f9201a145b687290e5ae0278ac269faf4bb61bee3e9246c37a8d74277 2.44MB / 2.44MB 0.2s done
+deploy	Build appleboy/ssh-action@v1.0.3	2026-03-30T06:04:27.7172464Z #5 extracting sha256:7e20f48a19643465f486f59127b8f4e0f4114bedc8bd5260fb4f92d5fda95f1c
+deploy	Build appleboy/ssh-action@v1.0.3	2026-03-30T06:04:27.9554665Z #5 extracting sha256:7e20f48a19643465f486f59127b8f4e0f4114bedc8bd5260fb4f92d5fda95f1c done
+deploy	Build appleboy/ssh-action@v1.0.3	2026-03-30T06:04:27.9555934Z #5 extracting sha256:066e5b821e26d8313055e0314c056e6c297847bcf963e5df10e7aa03107f2246 done
+deploy	Build appleboy/ssh-action@v1.0.3	2026-03-30T06:04:27.9557364Z #5 extracting sha256:47353a6f9201a145b687290e5ae0278ac269faf4bb61bee3e9246c37a8d74277 0.0s done
+deploy	Build appleboy/ssh-action@v1.0.3	2026-03-30T06:04:27.9558316Z #5 DONE 2.9s
+deploy	Build appleboy/ssh-action@v1.0.3	2026-03-30T06:04:27.9558653Z 
+deploy	Build appleboy/ssh-action@v1.0.3	2026-03-30T06:04:27.9558967Z #6 [2/2] COPY entrypoint.sh /bin/entrypoint.sh
+deploy	Build appleboy/ssh-action@v1.0.3	2026-03-30T06:04:27.9561001Z #6 DONE 0.0s
+deploy	Build appleboy/ssh-action@v1.0.3	2026-03-30T06:04:27.9561234Z 
+deploy	Build appleboy/ssh-action@v1.0.3	2026-03-30T06:04:27.9561511Z #7 exporting to image
+deploy	Build appleboy/ssh-action@v1.0.3	2026-03-30T06:04:27.9561870Z #7 exporting layers
+deploy	Build appleboy/ssh-action@v1.0.3	2026-03-30T06:04:28.0035396Z #7 exporting layers 0.2s done
+deploy	Build appleboy/ssh-action@v1.0.3	2026-03-30T06:04:28.0205791Z #7 writing image sha256:76505c6ffa3e1961484a25340b453cd09a84b741f94a7ca7dfb8da4c20d0553c done
+deploy	Build appleboy/ssh-action@v1.0.3	2026-03-30T06:04:28.0206599Z #7 naming to docker.io/library/f68e6f:3de5e8b807d74e5b9547373913c7d524 done
+deploy	Build appleboy/ssh-action@v1.0.3	2026-03-30T06:04:28.0207099Z #7 DONE 0.2s
+deploy	Build appleboy/ssh-action@v1.0.3	2026-03-30T06:04:28.0261570Z ##[endgroup]
+deploy	?函蔡??Staging VM	嚜?026-03-30T06:04:28.0536553Z ##[group]Run appleboy/ssh-action@v1.0.3
+deploy	?函蔡??Staging VM	2026-03-30T06:04:28.0537152Z with:
+deploy	?函蔡??Staging VM	2026-03-30T06:04:28.0537629Z   host: ***
+deploy	?函蔡??Staging VM	2026-03-30T06:04:28.0537852Z   username: deploy
+deploy	?函蔡??Staging VM	2026-03-30T06:04:28.0539673Z   key: ***
+deploy	?函蔡??Staging VM	
+deploy	?函蔡??Staging VM	2026-03-30T06:04:28.0541010Z   script: REPO_NAME="fde-sc1984"
+deploy	?函蔡??Staging VM	APP_DIR="/opt/apps/${REPO_NAME}"
+deploy	?函蔡??Staging VM	
+deploy	?函蔡??Staging VM	# 擐活?函蔡嚗lone嚗?蝥?pull
+deploy	?函蔡??Staging VM	if [ ! -d "$APP_DIR" ]; then
+deploy	?函蔡??Staging VM	  git clone https://github.com/AI-GO-APP/${REPO_NAME}.git "$APP_DIR"
+deploy	?函蔡??Staging VM	fi
+deploy	?函蔡??Staging VM	
+deploy	?函蔡??Staging VM	cd "$APP_DIR"
+deploy	?函蔡??Staging VM	git fetch origin main
+deploy	?函蔡??Staging VM	git reset --hard FETCH_HEAD
+deploy	?函蔡??Staging VM	
+deploy	?函蔡??Staging VM	# 撱箇蔭銝血???ordering + admin ????deploy	?函蔡??Staging VM	docker-compose -f docker-compose.staging.yml up -d --build
+deploy	?函蔡??Staging VM	
+deploy	?函蔡??Staging VM	2026-03-30T06:04:28.0542248Z   port: 22
+deploy	?函蔡??Staging VM	2026-03-30T06:04:28.0542468Z   timeout: 30s
+deploy	?函蔡??Staging VM	2026-03-30T06:04:28.0542681Z   command_timeout: 10m
+deploy	?函蔡??Staging VM	2026-03-30T06:04:28.0542916Z   proxy_port: 22
+deploy	?函蔡??Staging VM	2026-03-30T06:04:28.0543133Z   proxy_timeout: 30s
+deploy	?函蔡??Staging VM	2026-03-30T06:04:28.0543573Z ##[endgroup]
+deploy	?函蔡??Staging VM	2026-03-30T06:04:28.0688027Z ##[command]/usr/bin/docker run --name f68e6f3de5e8b807d74e5b9547373913c7d524_2eacc3 --label f68e6f --workdir /github/workspace --rm -e "INPUT_HOST" -e "INPUT_USERNAME" -e "INPUT_KEY" -e "INPUT_SCRIPT" -e "INPUT_PORT" -e "INPUT_PASSPHRASE" -e "INPUT_PASSWORD" -e "INPUT_SYNC" -e "INPUT_USE_INSECURE_CIPHER" -e "INPUT_CIPHER" -e "INPUT_TIMEOUT" -e "INPUT_COMMAND_TIMEOUT" -e "INPUT_KEY_PATH" -e "INPUT_FINGERPRINT" -e "INPUT_PROXY_HOST" -e "INPUT_PROXY_PORT" -e "INPUT_PROXY_USERNAME" -e "INPUT_PROXY_PASSWORD" -e "INPUT_PROXY_PASSPHRASE" -e "INPUT_PROXY_TIMEOUT" -e "INPUT_PROXY_KEY" -e "INPUT_PROXY_KEY_PATH" -e "INPUT_PROXY_FINGERPRINT" -e "INPUT_PROXY_CIPHER" -e "INPUT_PROXY_USE_INSECURE_CIPHER" -e "INPUT_SCRIPT_STOP" -e "INPUT_ENVS" -e "INPUT_ENVS_FORMAT" -e "INPUT_DEBUG" -e "INPUT_ALLENVS" -e "INPUT_REQUEST_PTY" -e "HOME" -e "GITHUB_JOB" -e "GITHUB_REF" -e "GITHUB_SHA" -e "GITHUB_REPOSITORY" -e "GITHUB_REPOSITORY_OWNER" -e "GITHUB_REPOSITORY_OWNER_ID" -e "GITHUB_RUN_ID" -e "GITHUB_RUN_NUMBER" -e "GITHUB_RETENTION_DAYS" -e "GITHUB_RUN_ATTEMPT" -e "GITHUB_ACTOR_ID" -e "GITHUB_ACTOR" -e "GITHUB_WORKFLOW" -e "GITHUB_HEAD_REF" -e "GITHUB_BASE_REF" -e "GITHUB_EVENT_NAME" -e "GITHUB_SERVER_URL" -e "GITHUB_API_URL" -e "GITHUB_GRAPHQL_URL" -e "GITHUB_REF_NAME" -e "GITHUB_REF_PROTECTED" -e "GITHUB_REF_TYPE" -e "GITHUB_WORKFLOW_REF" -e "GITHUB_WORKFLOW_SHA" -e "GITHUB_REPOSITORY_ID" -e "GITHUB_TRIGGERING_ACTOR" -e "GITHUB_WORKSPACE" -e "GITHUB_ACTION" -e "GITHUB_EVENT_PATH" -e "GITHUB_ACTION_REPOSITORY" -e "GITHUB_ACTION_REF" -e "GITHUB_PATH" -e "GITHUB_ENV" -e "GITHUB_STEP_SUMMARY" -e "GITHUB_STATE" -e "GITHUB_OUTPUT" -e "RUNNER_OS" -e "RUNNER_ARCH" -e "RUNNER_NAME" -e "RUNNER_ENVIRONMENT" -e "RUNNER_TOOL_CACHE" -e "RUNNER_TEMP" -e "RUNNER_WORKSPACE" -e "ACTIONS_RUNTIME_URL" -e "ACTIONS_RUNTIME_TOKEN" -e "ACTIONS_CACHE_URL" -e "ACTIONS_RESULTS_URL" -e "ACTIONS_ORCHESTRATION_ID" -e GITHUB_ACTIONS=true -e CI=true -v "/var/run/docker.sock":"/var/run/docker.sock" -v "/home/runner/work/_temp":"/github/runner_temp" -v "/home/runner/work/_temp/_github_home":"/github/home" -v "/home/runner/work/_temp/_github_workflow":"/github/workflow" -v "/home/runner/work/_temp/_runner_file_commands":"/github/file_commands" -v "/home/runner/work/fde-sc1984/fde-sc1984":"/github/workspace" f68e6f:3de5e8b807d74e5b9547373913c7d524
+deploy	?函蔡??Staging VM	2026-03-30T06:04:28.2353757Z ======CMD======
+deploy	?函蔡??Staging VM	2026-03-30T06:04:28.2354527Z REPO_NAME="fde-sc1984"
+deploy	?函蔡??Staging VM	2026-03-30T06:04:28.2354830Z APP_DIR="/opt/apps/${REPO_NAME}"
+deploy	?函蔡??Staging VM	2026-03-30T06:04:28.2355027Z 
+deploy	?函蔡??Staging VM	2026-03-30T06:04:28.2427788Z # 擐活?函蔡嚗lone嚗?蝥?pull
+deploy	?函蔡??Staging VM	2026-03-30T06:04:28.2428209Z if [ ! -d "$APP_DIR" ]; then
+deploy	?函蔡??Staging VM	2026-03-30T06:04:28.2428662Z   git clone https://github.com/AI-GO-APP/${REPO_NAME}.git "$APP_DIR"
+deploy	?函蔡??Staging VM	2026-03-30T06:04:28.2429049Z fi
+deploy	?函蔡??Staging VM	2026-03-30T06:04:28.2429162Z 
+deploy	?函蔡??Staging VM	2026-03-30T06:04:28.2429266Z cd "$APP_DIR"
+deploy	?函蔡??Staging VM	2026-03-30T06:04:28.2429502Z git fetch origin main
+deploy	?函蔡??Staging VM	2026-03-30T06:04:28.2429774Z git reset --hard FETCH_HEAD
+deploy	?函蔡??Staging VM	2026-03-30T06:04:28.2429961Z 
+deploy	?函蔡??Staging VM	2026-03-30T06:04:28.2430128Z # 撱箇蔭銝血???ordering + admin ????deploy	?函蔡??Staging VM	2026-03-30T06:04:28.2430549Z docker-compose -f docker-compose.staging.yml up -d --build
+deploy	?函蔡??Staging VM	2026-03-30T06:04:28.2430889Z 
+deploy	?函蔡??Staging VM	2026-03-30T06:04:28.2430985Z ======END======
+deploy	?函蔡??Staging VM	2026-03-30T06:04:31.1554267Z err: From https://github.com/AI-GO-APP/fde-sc1984
+deploy	?函蔡??Staging VM	2026-03-30T06:04:31.1555023Z err:  * branch            main       -> FETCH_HEAD
+deploy	?函蔡??Staging VM	2026-03-30T06:04:31.1557455Z err:    1507a1f..0578ef3  main       -> origin/main
+deploy	?函蔡??Staging VM	2026-03-30T06:04:31.1879896Z out: HEAD is now at 0578ef3 靽格迤嚗蝙??docker-compose V1 ?賭誘????version 甈?隞亦摰?VM ?啣?
+deploy	?函蔡??Staging VM	2026-03-30T06:04:31.5662084Z err: Couldn't find env file: /opt/apps/fde-sc1984/ordering/.env
+deploy	?函蔡??Staging VM	2026-03-30T06:04:31.6311853Z 2026/03/30 06:04:31 Process exited with status 1
+deploy	Complete job	嚜?026-03-30T06:04:31.7059667Z Cleaning up orphan processes

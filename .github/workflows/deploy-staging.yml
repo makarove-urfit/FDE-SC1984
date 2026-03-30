@@ -42,5 +42,19 @@ jobs:
           git fetch origin main
           git reset --hard FETCH_HEAD
 
+          # 確保 .env 檔案存在（首次部署時從 .env.example 複製）
+          for f in ordering/.env ordering/backend/.env admin/.env; do
+            if [ ! -f "$f" ]; then
+              example="${f%.env}.env.example"
+              if [ -f "$example" ]; then
+                cp "$example" "$f"
+                echo "已從 $example 建立 $f（請稍後填入正確值）"
+              else
+                touch "$f"
+                echo "已建立空的 $f（請稍後填入正確值）"
+              fi
+            fi
+          done
+
           # 建置並啟動 ordering + admin 雙服務
           docker-compose -f docker-compose.staging.yml up -d --build
