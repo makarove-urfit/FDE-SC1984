@@ -55,6 +55,14 @@ jobs:
               fi
             fi
           done
+          # 停止舊部署的容器（遷移前路徑 /opt/apps/fde-apps）
+          OLD_DIR="/opt/apps/fde-apps"
+          if [ -d "$OLD_DIR" ] && [ -f "$OLD_DIR/docker-compose.staging.yml" ]; then
+            echo "偵測到舊部署，正在停止..."
+            cd "$OLD_DIR"
+            docker-compose -f docker-compose.staging.yml down || true
+            cd "$APP_DIR"
+          fi
 
           # 建置並啟動 ordering + admin 雙服務
-          docker-compose -f docker-compose.staging.yml up -d --build
+          docker-compose -f docker-compose.staging.yml up -d --build --force-recreate
