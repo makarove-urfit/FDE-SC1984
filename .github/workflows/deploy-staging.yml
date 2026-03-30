@@ -43,4 +43,4 @@ jobs:
           git reset --hard FETCH_HEAD
 
           # 建置並啟動 ordering + admin 雙服務
-          docker compose -f docker-compose.staging.yml up -d --build
+          docker-compose -f docker-compose.staging.yml up -d --build
