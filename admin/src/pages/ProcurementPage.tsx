@@ -248,22 +248,28 @@ export default function ProcurementPage() {
               {saving ? '儲存中...' : '💾 儲存修改'}
             </button>
           )}
-          {pendingCount > 0 && (
-            <button
-              onClick={() => setConfirmAction({ type: 'batchPrice' })}
-              className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700"
-            >
-              批次確認訂單
-            </button>
-          )}
-          {pricedCount > 0 && (
-            <button
-              onClick={() => setConfirmAction({ type: 'batchStock' })}
-              className="px-4 py-2 bg-primary text-white rounded-lg text-sm font-medium hover:bg-green-700"
-            >
-              批次入庫
-            </button>
-          )}
+          <button
+            onClick={() => setConfirmAction({ type: 'batchPrice' })}
+            disabled={pendingCount === 0}
+            className={`px-4 py-2 rounded-lg text-sm font-medium ${
+              pendingCount > 0
+                ? 'bg-blue-600 text-white hover:bg-blue-700'
+                : 'bg-gray-200 text-gray-400 cursor-not-allowed'
+            }`}
+          >
+            {pendingCount > 0 ? `批次確認訂單 (${pendingCount})` : '無待確認訂單'}
+          </button>
+          <button
+            onClick={() => setConfirmAction({ type: 'batchStock' })}
+            disabled={pricedCount === 0}
+            className={`px-4 py-2 rounded-lg text-sm font-medium ${
+              pricedCount > 0
+                ? 'bg-primary text-white hover:bg-green-700'
+                : 'bg-gray-200 text-gray-400 cursor-not-allowed'
+            }`}
+          >
+            {pricedCount > 0 ? `批次入庫 (${pricedCount})` : '無可入庫訂單'}
+          </button>
         </div>
       </header>
 

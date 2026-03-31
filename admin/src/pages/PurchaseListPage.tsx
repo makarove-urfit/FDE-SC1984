@@ -96,18 +96,26 @@ export default function PurchaseListPage() {
           </div>
         </div>
         <div className="flex gap-2">
-          {confirmedOrders.length > 0 && (
-            <button onClick={() => setShowGenerateDialog(true)} disabled={generating}
-              className={`px-4 py-2 rounded-lg text-sm font-medium ${generating ? 'bg-gray-300 text-gray-500 cursor-not-allowed' : 'bg-primary text-white hover:bg-green-700'}`}>
-              {generating ? '產生中...' : `產生採購清單 (${confirmedOrders.length} 筆) → 前往定價`}
-            </button>
-          )}
-          {procurementItems.length > 0 && (
-            <button onClick={() => navigate('/procurement')}
-              className="px-4 py-2 bg-primary text-white rounded-lg text-sm font-medium">
-              前往採購定價 →
-            </button>
-          )}
+          <button onClick={() => confirmedOrders.length > 0 && setShowGenerateDialog(true)}
+            disabled={generating || confirmedOrders.length === 0}
+            className={`px-4 py-2 rounded-lg text-sm font-medium ${
+              generating || confirmedOrders.length === 0
+                ? 'bg-gray-200 text-gray-400 cursor-not-allowed'
+                : 'bg-primary text-white hover:bg-green-700'
+            }`}>
+            {generating ? '產生中...' : confirmedOrders.length > 0
+              ? `產生採購清單 (${confirmedOrders.length} 筆) → 前往定價`
+              : '無已確認訂單可產生採購單'}
+          </button>
+          <button onClick={() => navigate('/procurement')}
+            disabled={procurementItems.length === 0}
+            className={`px-4 py-2 rounded-lg text-sm font-medium ${
+              procurementItems.length > 0
+                ? 'bg-primary text-white hover:bg-green-700'
+                : 'bg-gray-200 text-gray-400 cursor-not-allowed'
+            }`}>
+            {procurementItems.length > 0 ? '前往採購定價 →' : '尚無採購單'}
+          </button>
         </div>
       </header>
 

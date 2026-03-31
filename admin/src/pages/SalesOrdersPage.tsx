@@ -130,12 +130,11 @@ export default function SalesOrdersPage() {
             </div>
           </div>
           <div className="flex gap-2">
-            {draftCount > 0 && (
-              <button onClick={() => setConfirmAction({ type: 'batch' })}
-                className="px-3 py-1.5 text-sm bg-green-600 text-white rounded-lg hover:bg-green-700 font-medium">
-                批次確認 ({draftCount})
-              </button>
-            )}
+            <button onClick={() => setConfirmAction({ type: 'batch' })}
+              disabled={draftCount === 0}
+              className={`px-3 py-1.5 text-sm rounded-lg font-medium ${draftCount > 0 ? 'bg-green-600 text-white hover:bg-green-700' : 'bg-gray-100 text-gray-400 cursor-not-allowed'}`}>
+              {draftCount > 0 ? `批次確認 (${draftCount})` : '無待確認訂單'}
+            </button>
             <button onClick={selectAll} className="px-3 py-1.5 text-sm border border-gray-200 rounded-lg bg-white text-gray-600 hover:bg-gray-50">
               {selectedOrders.size === filtered.length && filtered.length > 0 ? '取消全選' : `全選 (${filtered.length})`}
             </button>
