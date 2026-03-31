@@ -120,7 +120,8 @@ export const getPurchaseOrders = async (targetDate: string): Promise<PurchaseOrd
   let lines: any[] = []
   if (orderIds.length > 0) {
     lines = await db.query('purchase_order_lines', { 
-      select_columns: ['id', 'order_id', 'product_id', 'product_template_id', 'name', 'product_qty', 'qty_received', 'price_unit', 'state'],
+      // FIXME: 待 AI GO 後端開放權限後，再將 'product_template_id', 'state' 加回白名單
+      select_columns: ['id', 'order_id', 'product_id', 'name', 'product_qty', 'qty_received', 'price_unit'],
       filters: [{ column: 'order_id', op: 'in', value: orderIds }]
     })
   }

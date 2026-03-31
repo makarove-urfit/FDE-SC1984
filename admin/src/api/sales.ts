@@ -158,7 +158,11 @@ export const updateSaleOrderAllocation = async (
 ) => {
   // 先讀取現有 note，合併後寫回
   try {
-    const records = await db.query('sale_orders', { filters: [{ column: 'id', op: 'eq', value: parseInt(orderId) }], limit: 1 })
+    const records = await db.query('sale_orders', { 
+      select_columns: ['id', 'note'],
+      filters: [{ column: 'id', op: 'eq', value: parseInt(orderId) }], 
+      limit: 1 
+    })
     const existing = parseNote(records[0]?.note)
     
     // 將新的數量分配混入 existing.allocations
