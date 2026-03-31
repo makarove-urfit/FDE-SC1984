@@ -53,32 +53,30 @@ export default function DeliveryPage() {
   return (
     <div className="min-h-screen flex flex-col bg-gray-50">
       <PageHeader title="出貨配送" showBack>
-        <div className="flex flex-col sm:flex-row gap-3 pt-2">
+        <div className="flex items-center gap-3 pt-2">
           {/* 司機篩選 */}
-          <div className="flex gap-2 flex-wrap items-center">
-            <span className="text-sm text-gray-500 mr-2">{pendingCount} 筆待出貨</span>
-            <button onClick={() => setDriverFilter('all')}
+          <span className="text-sm text-gray-500 mr-2">{pendingCount} 筆待出貨</span>
+          <button onClick={() => setDriverFilter('all')}
+            className={`px-3 py-1 rounded-full text-sm font-medium ${
+              driverFilter === 'all' ? 'bg-gray-900 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+            }`}>
+            全部
+          </button>
+          {activeDrivers.map(d => (
+            <button key={d} onClick={() => setDriverFilter(d)}
               className={`px-3 py-1 rounded-full text-sm font-medium ${
-                driverFilter === 'all' ? 'bg-gray-900 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                driverFilter === d ? 'bg-blue-600 text-white' : 'bg-blue-50 text-blue-700 hover:bg-blue-100'
               }`}>
-              全部
+              🚚 {d}
             </button>
-            {activeDrivers.map(d => (
-              <button key={d} onClick={() => setDriverFilter(d)}
-                className={`px-3 py-1 rounded-full text-sm font-medium ${
-                  driverFilter === d ? 'bg-blue-600 text-white' : 'bg-blue-50 text-blue-700 hover:bg-blue-100'
-                }`}>
-                🚚 {d}
-              </button>
-            ))}
-            {activeDrivers.length === 0 && (
-              <span className="text-xs text-gray-400 py-1 ml-2">尚無指派司機的訂單</span>
-            )}
-          </div>
+          ))}
+          {activeDrivers.length === 0 && (
+            <span className="text-xs text-gray-400 py-1 ml-2">尚無指派司機的訂單</span>
+          )}
         </div>
       </PageHeader>
 
-      <div className="p-6 max-w-5xl mx-auto space-y-3">
+      <div className="p-6 max-w-[1600px] mx-auto w-full space-y-3">
         {deliverableOrders.length === 0 ? (
           <div className="text-center text-gray-400 py-12">
             {driverFilter !== 'all' ? '此司機無訂單' : '目前無待出貨訂單（請先完成出庫分配）'}

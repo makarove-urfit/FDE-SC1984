@@ -127,7 +127,7 @@ export default function PurchasePage() {
         </p>
       </PageHeader>
 
-      <div className="p-6 max-w-6xl mx-auto space-y-4">
+      <div className="p-6 max-w-[1600px] mx-auto w-full space-y-4">
         {activePOs.length === 0 ? (
           <div className="text-center text-gray-400 py-12">尚無採購單。請先在「確認訂單」確認訂單。</div>
         ) : activePOs.map(po => {
@@ -164,11 +164,11 @@ export default function PurchasePage() {
                     <thead>
                       <tr className="text-gray-400 text-xs">
                         <th className="py-1 text-left">品名</th>
-                        <th className="py-1 text-right w-24">需求量</th>
-                        <th className="py-1 text-right w-32">實際採購量</th>
-                        <th className="py-1 text-right w-28">單價</th>
-                        <th className="py-1 text-right w-24">小計</th>
-                        <th className="py-1 text-center w-24">狀態</th>
+                        <th className="py-1 text-right w-28">需求量</th>
+                        <th className="py-1 text-right w-36">實際採購量</th>
+                        <th className="py-1 text-right w-32">單價</th>
+                        <th className="py-1 text-right w-28">小計</th>
+                        <th className="py-1 text-center w-28">狀態</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -190,7 +190,7 @@ export default function PurchasePage() {
                                     value={edit?.actualQty ?? (line.actualQty || '')}
                                     onChange={e => updateEdit(line.id, 'actualQty', e.target.value, line)}
                                     placeholder="填入"
-                                    className="w-20 text-right border border-gray-200 rounded px-2 py-1 text-sm focus:border-blue-400 focus:outline-none" />
+                                    className="w-28 text-right border border-gray-200 rounded px-2 py-1 text-sm focus:border-blue-400 focus:outline-none" />
                                   <span className="text-xs text-gray-400">{line.uom}</span>
                                 </div>
                               ) : (
@@ -202,7 +202,7 @@ export default function PurchasePage() {
                                 <input type="number" step="0.01" min="0"
                                   value={edit?.price ?? String(line.unitPrice)}
                                   onChange={e => updateEdit(line.id, 'price', e.target.value, line)}
-                                  className="w-24 text-right border border-gray-200 rounded px-2 py-1 text-sm focus:border-blue-400 focus:outline-none" />
+                                  className="w-32 text-right border border-gray-200 rounded px-2 py-1 text-sm focus:border-blue-400 focus:outline-none" />
                               ) : `$${line.unitPrice}`}
                             </td>
                             <td className="py-2 text-right font-bold">${Math.round(actualQty * price).toLocaleString()}</td>

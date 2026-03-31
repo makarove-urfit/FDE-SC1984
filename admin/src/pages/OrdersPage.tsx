@@ -84,14 +84,14 @@ export default function OrdersPage() {
   return (
     <div className="min-h-screen flex flex-col bg-gray-50">
       <PageHeader title="確認訂單" showBack>
-        <div className="flex flex-col sm:flex-row gap-3 pt-2">
-          <SearchInput value={search} onChange={v => { setSearch(v); setPage(1) }} placeholder="搜尋客戶、訂單..." className="flex-1 max-w-xs" />
+        <div className="flex items-center gap-3 pt-2">
+          <SearchInput value={search} onChange={v => { setSearch(v); setPage(1) }} placeholder="搜尋客戶、訂單..." className="w-80" />
           <StatusDropdown value={filter} onChange={v => { setFilter(v); setPage(1) }} options={stateOptions} />
-          <span className="text-sm text-gray-500 self-center hidden sm:block ml-2">{filtered.length} 筆訂單</span>
+          <span className="text-sm text-gray-500 ml-2">{filtered.length} 筆訂單</span>
         </div>
       </PageHeader>
 
-      <div className="p-6 max-w-5xl mx-auto space-y-3">
+      <div className="p-6 max-w-[1600px] mx-auto w-full space-y-3">
         {paged.length === 0 ? (
           <div className="text-center text-gray-400 py-12">
             {search || filter !== 'all' ? '無符合的訂單' : '尚無訂單'}
@@ -101,8 +101,8 @@ export default function OrdersPage() {
           const isExpanded = expanded === order.id
           return (
             <div key={order.id} className="bg-white rounded-xl border border-gray-100 overflow-hidden">
-              <button onClick={() => setExpanded(isExpanded ? null : order.id)}
-                className="w-full px-4 py-4 flex justify-between items-center hover:bg-gray-50 transition-colors">
+              <div onClick={() => setExpanded(isExpanded ? null : order.id)}
+                className="w-full px-4 py-4 flex justify-between items-center hover:bg-gray-50 transition-colors cursor-pointer">
                 <div className="text-left">
                   <div className="flex items-center gap-2">
                     <p className="font-bold text-gray-900">{order.customerName}</p>
@@ -119,7 +119,7 @@ export default function OrdersPage() {
                   )}
                   <span className="text-gray-400 text-xl">{isExpanded ? '▾' : '▸'}</span>
                 </div>
-              </button>
+              </div>
               {isExpanded && (
                 <div className="border-t border-gray-100 px-4 py-3">
                   <table className="w-full text-sm">

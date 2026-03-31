@@ -27,11 +27,11 @@ export default function DashboardPage() {
     <div className="min-h-screen bg-gray-50 flex flex-col">
       <PageHeader title="管理總覽" />
 
-      <div className="p-6 max-w-4xl mx-auto">
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+      <div className="p-6 max-w-[1600px] mx-auto w-full">
+        <div className="grid grid-cols-4 gap-6">
           {steps.map(s => (
             <button key={s.step} onClick={() => navigate(s.href)}
-              className="rounded-xl border border-gray-100 bg-white hover:bg-gray-50 p-5 text-left transition-all hover:shadow-md">
+              className="rounded-xl border border-gray-100 bg-white hover:bg-gray-50 p-6 text-left transition-all hover:shadow-md">
               <div className="flex items-center justify-between mb-3">
                 <span className={`text-xs text-white font-bold ${s.color} rounded-full w-6 h-6 flex items-center justify-center`}>
                   {s.step}

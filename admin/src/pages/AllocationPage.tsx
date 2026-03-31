@@ -242,7 +242,7 @@ export default function AllocationPage() {
         )}
       </div>
 
-      <div className="p-6 flex-1 max-w-5xl mx-auto space-y-3 w-full">
+      <div className="p-6 flex-1 max-w-[1600px] mx-auto space-y-3 w-full">
         {allocatableOrders.length === 0 ? (
           <div className="text-center text-gray-400 py-12">目前沒有待分配的訂單</div>
         ) : allocatableOrders.map(order => {
