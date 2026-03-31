@@ -82,7 +82,7 @@ export const getSaleOrders = async (targetDate: string): Promise<SaleOrder[]> =>
     db.query('sale_orders', { 
       select_columns: ['id', 'name', 'state', 'date_order', 'customer_id', 'amount_total', 'note'],
       filters: [
-        { column: 'state', op: 'in', value: ['draft', 'sent', 'sale'] }
+        { column: 'state', op: 'in', value: ['draft', 'sent', 'sale', 'done'] }
       ]
     }),
     getCachedCustomerMap(),
