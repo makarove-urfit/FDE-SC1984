@@ -112,7 +112,7 @@ export async function generatePurchaseOrders(
   const linePromises = Array.from(productDemand.entries()).map(([pid, demand]) =>
     db.insert('purchase_order_lines', {
       order_id: poId,
-      product_id: pid,
+      product_template_id: pid,
       product_qty: demand.totalQty,
       name: demand.name,
       price_unit: 0,
