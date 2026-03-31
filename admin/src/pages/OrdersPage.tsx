@@ -14,10 +14,9 @@ import ConfirmDialog from '../components/ConfirmDialog'
 import { shortId } from '../utils/displayHelpers'
 
 const stateOptions = [
-  { value: 'all', label: '全部' },
   { value: 'draft', label: '待確認' },
   { value: 'sale', label: '已確認' },
-  { value: 'done', label: '已完成' },
+  { value: 'all', label: '全部' },
 ]
 
 const stateConfig: Record<string, { label: string; color: string }> = {
@@ -34,7 +33,7 @@ export default function OrdersPage() {
   const { targetDate, saleOrders, loadSales } = useAdminStore()
   const { withLoading } = useUIStore()
   const [search, setSearch] = useState('')
-  const [filter, setFilter] = useState('all')
+  const [filter, setFilter] = useState('draft')
   const [expanded, setExpanded] = useState<string | null>(null)
   const [page, setPage] = useState(1)
   const [confirmId, setConfirmId] = useState<string | null>(null)
@@ -109,7 +108,7 @@ export default function OrdersPage() {
                     <p className="font-bold text-gray-900">{order.customerName}</p>
                     <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${config.color}`}>{config.label}</span>
                   </div>
-                  <p className="text-sm text-gray-400">{shortId(order.name)} · {order.date} · {order.lines.length} 品項 · NT${order.totalAmount.toLocaleString()}</p>
+                  <p className="text-sm text-gray-400">{shortId(order.name)} · {order.date} · {order.lines.length} 品項</p>
                 </div>
                 <div className="flex items-center gap-2">
                   {order.state === 'draft' && (
@@ -128,8 +127,6 @@ export default function OrdersPage() {
                       <tr className="text-gray-400 text-xs">
                         <th className="py-1 text-left">品名</th>
                         <th className="py-1 text-right">數量</th>
-                        <th className="py-1 text-right">單價</th>
-                        <th className="py-1 text-right">小計</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -137,8 +134,6 @@ export default function OrdersPage() {
                         <tr key={line.id} className="border-t border-gray-50">
                           <td className="py-1.5 font-medium">{line.name}</td>
                           <td className="py-1.5 text-right">{line.quantity}</td>
-                          <td className="py-1.5 text-right text-gray-500">NT${line.unitPrice}</td>
-                          <td className="py-1.5 text-right font-bold">NT${line.subtotal.toLocaleString()}</td>
                         </tr>
                       ))}
                     </tbody>

@@ -13,6 +13,7 @@ export default function DeliveryPage() {
   const { targetDate, saleOrders, loadAll } = useAdminStore()
   const { withLoading } = useUIStore()
   const [driverFilter, setDriverFilter] = useState('all')
+  const [statusFilter, setStatusFilter] = useState('pending') // pending (待配送) | all (全部)
   const [expanded, setExpanded] = useState<string | null>(null)
   const [confirmId, setConfirmId] = useState<string | null>(null)
 
@@ -23,11 +24,14 @@ export default function DeliveryPage() {
     let list = saleOrders.filter(o =>
       (o.state === 'sale' && o.allocated) || o.state === 'done',
     )
+    if (statusFilter === 'pending') {
+      list = list.filter(o => o.state === 'sale')
+    }
     if (driverFilter !== 'all') {
       list = list.filter(o => o.driver === driverFilter)
     }
     return list.sort((a, b) => (a.state === 'sale' ? -1 : 1) - (b.state === 'sale' ? -1 : 1))
-  }, [saleOrders, driverFilter])
+  }, [saleOrders, driverFilter, statusFilter])
 
   // 取得所有有訂單的司機名（用於篩選）
   const activeDrivers = useMemo(() => {
@@ -54,13 +58,28 @@ export default function DeliveryPage() {
     <div className="min-h-screen flex flex-col bg-gray-50">
       <PageHeader title="出貨配送" showBack>
         <div className="flex items-center gap-3 pt-2">
+          {/* 狀態篩選 */}
+          <button onClick={() => setStatusFilter('pending')}
+            className={`px-3 py-1 rounded-full text-sm font-medium transition-colors ${
+              statusFilter === 'pending' ? 'bg-orange-100 text-orange-700' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+            }`}>
+            待配送
+          </button>
+          <button onClick={() => setStatusFilter('all')}
+            className={`px-3 py-1 rounded-full text-sm font-medium transition-colors ${
+              statusFilter === 'all' ? 'bg-gray-900 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+            }`}>
+            全部狀態
+          </button>
+          
+          <div className="w-px h-6 bg-gray-300 mx-1"></div>
+
           {/* 司機篩選 */}
-          <span className="text-sm text-gray-500 mr-2">{pendingCount} 筆待出貨</span>
           <button onClick={() => setDriverFilter('all')}
-            className={`px-3 py-1 rounded-full text-sm font-medium ${
+            className={`px-3 py-1 rounded-full text-sm font-medium transition-colors ${
               driverFilter === 'all' ? 'bg-gray-900 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
             }`}>
-            全部
+            全部司機
           </button>
           {activeDrivers.map(d => (
             <button key={d} onClick={() => setDriverFilter(d)}
@@ -73,6 +92,7 @@ export default function DeliveryPage() {
           {activeDrivers.length === 0 && (
             <span className="text-xs text-gray-400 py-1 ml-2">尚無指派司機的訂單</span>
           )}
+          <span className="text-sm text-gray-500 ml-2">{pendingCount} 筆待出貨</span>
         </div>
       </PageHeader>
 
