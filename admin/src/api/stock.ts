@@ -39,7 +39,13 @@ export const getUomMap = async (): Promise<Record<string, string>> => {
 
 export const getProducts = async (): Promise<Product[]> => {
   const [templates, uomMap] = await Promise.all([
-    db.query('product_templates', { select_columns: ['id', 'name', 'default_code', 'uom_id'] }),
+    db.query('product_templates', {
+      select_columns: ['id', 'name', 'default_code', 'uom_id'],
+      filters: [
+        { column: 'sale_ok', op: 'eq', value: true },
+        { column: 'active', op: 'eq', value: true },
+      ],
+    }),
     getUomMap(),
   ])
   return templates.map((t: any) => ({

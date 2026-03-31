@@ -91,13 +91,37 @@ export const getSupplierMap = async (): Promise<Record<string, string>> => {
 }
 
 export const getPurchaseOrders = async (): Promise<PurchaseOrder[]> => {
-  const [orders, lines, supplierNameMap, uomMap, products] = await Promise.all([
-    db.query('purchase_orders', { select_columns: ['id', 'name', 'state', 'date_order', 'supplier_id', 'amount_total', 'note'] }),
-    db.query('purchase_order_lines', { select_columns: ['id', 'order_id', 'product_template_id', 'product_id', 'name', 'product_qty', 'qty_received', 'price_unit'] }),
+  // 算出 7 天前的 UTC 日期
+  const sevenDaysAgo = new Date()
+  sevenDaysAgo.setUTCDate(sevenDaysAgo.getUTCDate() - 7)
+  const dateStr = sevenDaysAgo.toISOString().split('T')[0]
+
+  // 第一階段平行拉取母單、供應商、單位、活性商品
+  const [orders, supplierNameMap, uomMap, products] = await Promise.all([
+    db.query('purchase_orders', { 
+      select_columns: ['id', 'name', 'state', 'date_order', 'supplier_id', 'amount_total', 'note'],
+      filters: [{ column: 'date_order', op: 'ge', value: `${dateStr} 00:00:00` }]
+    }),
     getSupplierMap(),
     getUomMap(),
-    db.query('product_templates', { select_columns: ['id', 'uom_id'] }),
+    db.query('product_templates', { 
+      select_columns: ['id', 'uom_id'],
+      filters: [
+        { column: 'sale_ok', op: 'eq', value: true },
+        { column: 'active', op: 'eq', value: true },
+      ]
+    }),
   ])
+
+  // 第二階段：拉出這批採購單專屬的子明細
+  const orderIds = orders.map((o: any) => o.id)
+  let lines: any[] = []
+  if (orderIds.length > 0) {
+    lines = await db.query('purchase_order_lines', { 
+      select_columns: ['id', 'order_id', 'product_template_id', 'product_id', 'name', 'product_qty', 'qty_received', 'price_unit'],
+      filters: [{ column: 'order_id', op: 'in', value: orderIds }]
+    })
+  }
 
   // product_template_id → uom_id → 單位名稱
   const productUom: Record<string, string> = {}
