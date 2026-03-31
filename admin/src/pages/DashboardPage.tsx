@@ -1,5 +1,5 @@
 /**
- * Dashboard — 四階段作業流程入口
+ * Dashboard — 三階段作業流程入口
  */
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
@@ -15,15 +15,15 @@ export default function DashboardPage() {
   }, [])
 
   const step1Count = saleOrders.filter(o => o.state === 'draft').length
-  const step2Count = purchaseOrders.filter(o => o.state === 'draft').length
-  const step3Count = purchaseOrders.filter(o => o.state === 'purchase').length
-  const step4Count = saleOrders.filter(o => o.state === 'sale').length
+  const step2Count = purchaseOrders
+    .filter(o => o.state === 'draft')
+    .reduce((sum, po) => sum + po.lines.filter(l => !l.received).length, 0)
+  const step3Count = saleOrders.filter(o => o.state === 'sale').length
 
   const steps = [
     { step: '1', label: '確認訂單', desc: '審核新訂單', href: '/orders', count: step1Count, color: 'bg-blue-500' },
-    { step: '2', label: '採購定價', desc: '建立與定價採購單', href: '/purchase', count: step2Count, color: 'bg-orange-500' },
-    { step: '3', label: '入庫收貨', desc: '確認採購到貨', href: '/receiving', count: step3Count, color: 'bg-purple-500' },
-    { step: '4', label: '出貨配送', desc: '出貨給客戶', href: '/delivery', count: step4Count, color: 'bg-green-600' },
+    { step: '2', label: '採購管理', desc: '待採購品項', href: '/purchase', count: step2Count, color: 'bg-orange-500' },
+    { step: '3', label: '出貨配送', desc: '出貨給客戶', href: '/delivery', count: step3Count, color: 'bg-green-600' },
   ]
 
   if (loading) return <div className="min-h-screen bg-gray-50 flex items-center justify-center">載入中...</div>
@@ -39,7 +39,7 @@ export default function DashboardPage() {
       </header>
 
       <div className="p-6 max-w-4xl mx-auto">
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <div className="grid grid-cols-3 gap-4">
           {steps.map(s => (
             <button key={s.step} onClick={() => navigate(s.href)}
               className="rounded-xl border border-gray-100 bg-white hover:bg-gray-50 p-5 text-left transition-all hover:shadow-md">
