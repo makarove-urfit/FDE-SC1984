@@ -30,7 +30,7 @@ export interface SaleOrderLine {
   productTemplateId: string
   name: string
   quantity: number
-  actualDeliveryQty: number  // 實際出貨量（from qty_delivered）
+  actualDeliveryQty: number  // 從 note JSON 解析而得的自定義分配量，如果沒分配過則為預設 0
   unitPrice: number
   subtotal: number
   uom: string
@@ -41,6 +41,7 @@ export interface SaleOrderLine {
 interface NoteData {
   driver?: string
   allocated?: boolean
+  allocations?: Record<string, number> // { 產品 ID 或 行 ID: 分配數量 }
   text?: string            // 原始備註文字
 }
 
@@ -107,13 +108,16 @@ export const getSaleOrders = async (): Promise<SaleOrder[]> => {
           const ptId = Array.isArray(l.product_template_id)
             ? String(l.product_template_id[0])
             : String(l.product_template_id || '')
+          
+          const actualDeliveryQty = noteData.allocations?.[String(l.id)] ?? 0
+          
           return {
             id: String(l.id),
             orderId: String(o.id),
             productTemplateId: ptId,
             name: l.name || '未知商品',
             quantity: l.product_uom_qty || 0,
-            actualDeliveryQty: l.qty_delivered || 0,
+            actualDeliveryQty,
             unitPrice: l.price_unit || 0,
             subtotal: l.price_subtotal || 0,
             uom: productUom[ptId] || '單位',
@@ -131,22 +135,28 @@ export const updateSaleOrderState = async (id: string, state: string) => {
 /** 更新銷售訂單的分配資訊（司機、分配完成狀態）— 存在 note 欄位 */
 export const updateSaleOrderAllocation = async (
   orderId: string,
-  data: { driver?: string; allocated?: boolean },
+  data: { driver?: string; allocated?: boolean; allocations?: Record<string, number> },
 ) => {
   // 先讀取現有 note，合併後寫回
-  const orders = await db.query('sale_orders', { limit: 200 })
-  const order = orders.find((o: any) => String(o.id) === orderId)
-  const existing = parseNote(order?.note)
-  const merged = { ...existing, ...data }
-  return await db.update('sale_orders', orderId, { note: serializeNote(merged) })
+  try {
+    const records = await db.query('sale_orders', { filters: [{ column: 'id', op: 'eq', value: parseInt(orderId) }], limit: 1 })
+    const existing = parseNote(records[0]?.note)
+    
+    // 將新的數量分配混入 existing.allocations
+    let newAllocations = existing.allocations || {}
+    if (data.allocations) {
+      newAllocations = { ...newAllocations, ...data.allocations }
+    }
+
+    const merged: NoteData = { 
+      ...existing, 
+      ...data, 
+      allocations: Object.keys(newAllocations).length > 0 ? newAllocations : undefined
+    }
+    return await db.update('sale_orders', orderId, { note: serializeNote(merged) })
+  } catch (err) {
+    console.error(`[updateSaleOrderAllocation] Failed:`, err)
+    throw err
+  }
 }
 
-/** 更新銷售訂單品項的實際出貨量 — 使用原生 qty_delivered */
-export const updateSaleOrderLineDelivery = async (
-  lineId: string,
-  actualDeliveryQty: number,
-) => {
-  return await db.update('sale_order_lines', lineId, {
-    qty_delivered: actualDeliveryQty,
-  })
-}

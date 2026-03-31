@@ -8,7 +8,6 @@ import BackButton from '../components/BackButton'
 import { useAdminStore } from '../store/useAdminStore'
 import { useUIStore } from '../store/useUIStore'
 import {
-  updateSaleOrderLineDelivery,
   updateSaleOrderAllocation,
 } from '../api/sales'
 import ConfirmDialog from '../components/ConfirmDialog'
@@ -36,7 +35,7 @@ export default function AllocationPage() {
   const purchasedQtyMap = useMemo(() => {
     const map: Record<string, number> = {}
     purchaseOrders
-      .filter(po => po.state === 'draft' || po.state === 'done')
+      .filter(po => po.state !== 'cancel')
       .forEach(po => {
         po.lines.forEach(line => {
           if (line.received && line.actualQty > 0) {
@@ -86,17 +85,25 @@ export default function AllocationPage() {
     const order = allocatableOrders.find(o => o.id === orderId)
     if (!order) return
     await withLoading(async () => {
-      // 儲存各品項實際出貨量
+      // 收集所有修改的數量
+      const allocations: Record<string, number> = {}
       for (const line of order.lines) {
         const editKey = `${line.id}_qty`
         if (edits[editKey] !== undefined) {
-          await updateSaleOrderLineDelivery(line.id, parseFloat(edits[editKey]) || 0)
+          allocations[line.id] = parseFloat(edits[editKey]) || 0
         }
       }
-      // 儲存司機
+
+      // 取得司機修改
       const driverKey = `${orderId}_driver`
-      if (edits[driverKey] !== undefined) {
-        await updateSaleOrderAllocation(orderId, { driver: edits[driverKey] })
+      const driverValue = edits[driverKey]
+
+      // 一併寫入
+      if (Object.keys(allocations).length > 0 || driverValue !== undefined) {
+        await updateSaleOrderAllocation(orderId, { 
+          driver: driverValue,
+          allocations: Object.keys(allocations).length > 0 ? allocations : undefined
+        })
       }
       // 清除此訂單的編輯
       setEdits(prev => {
@@ -114,19 +121,22 @@ export default function AllocationPage() {
     const order = allocatableOrders.find(o => o.id === completingId)
     if (!order) { setCompletingId(null); return }
     await withLoading(async () => {
-      // 儲存各品項實際出貨量
+      // 收集所有修改的數量
+      const allocations: Record<string, number> = {}
       for (const line of order.lines) {
         const editKey = `${line.id}_qty`
         if (edits[editKey] !== undefined) {
-          await updateSaleOrderLineDelivery(line.id, parseFloat(edits[editKey]) || 0)
+          allocations[line.id] = parseFloat(edits[editKey]) || 0
         }
       }
-      // 一次寫入 driver + allocated
+
+      // 一次寫入 driver + allocated + allocations
       const driverKey = `${completingId}_driver`
       const driverValue = edits[driverKey] ?? order.driver
       await updateSaleOrderAllocation(completingId, {
         driver: driverValue,
         allocated: true,
+        allocations: Object.keys(allocations).length > 0 ? allocations : undefined
       })
       // 清除此訂單的編輯
       setEdits(prev => {
