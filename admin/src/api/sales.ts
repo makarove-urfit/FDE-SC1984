@@ -72,13 +72,37 @@ const resolveCustomerName = (raw: any, customerMap: Record<string, string>): str
 // ─── API ───
 
 export const getSaleOrders = async (): Promise<SaleOrder[]> => {
-  const [orders, lines, customers, uomMap, products] = await Promise.all([
-    db.query('sale_orders', { select_columns: ['id', 'name', 'state', 'date_order', 'customer_id', 'amount_total', 'note'] }),
-    db.query('sale_order_lines', { select_columns: ['id', 'order_id', 'product_template_id', 'name', 'product_uom_qty', 'qty_delivered', 'price_unit', 'price_subtotal'] }),
+  // 算出 7 天前的 UTC 日期
+  const sevenDaysAgo = new Date()
+  sevenDaysAgo.setUTCDate(sevenDaysAgo.getUTCDate() - 7)
+  const dateStr = sevenDaysAgo.toISOString().split('T')[0]
+
+  // 第一階段平行拉取母單、客人、單位、活性商品
+  const [orders, customers, uomMap, products] = await Promise.all([
+    db.query('sale_orders', { 
+      select_columns: ['id', 'name', 'state', 'date_order', 'customer_id', 'amount_total', 'note'],
+      filters: [{ column: 'date_order', op: 'ge', value: `${dateStr} 00:00:00` }] 
+    }),
     db.query('customers', { select_columns: ['id', 'name'] }).catch(() => []),
     getUomMap(),
-    db.query('product_templates', { select_columns: ['id', 'uom_id'] }),
+    db.query('product_templates', { 
+      select_columns: ['id', 'uom_id'],
+      filters: [
+        { column: 'sale_ok', op: 'eq', value: true },
+        { column: 'active', op: 'eq', value: true },
+      ]
+    }),
   ])
+
+  // 第二階段：只拉取這批訂單關聯的子明細
+  const orderIds = orders.map((o: any) => o.id)
+  let lines: any[] = []
+  if (orderIds.length > 0) {
+    lines = await db.query('sale_order_lines', { 
+      select_columns: ['id', 'order_id', 'product_template_id', 'name', 'product_uom_qty', 'qty_delivered', 'price_unit', 'price_subtotal'],
+      filters: [{ column: 'order_id', op: 'in', value: orderIds }]
+    })
+  }
 
   const customerMap: Record<string, string> = {}
   ;(customers || []).forEach((c: any) => {
