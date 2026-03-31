@@ -13,7 +13,7 @@ export default function DeliveryPage() {
   const { targetDate, saleOrders, loadAll } = useAdminStore()
   const { withLoading } = useUIStore()
   const [driverFilter, setDriverFilter] = useState('all')
-  const [statusFilter, setStatusFilter] = useState('pending') // pending (待配送) | all (全部)
+  const [statusFilter, setStatusFilter] = useState('pending') // pending (待配送) | other (其他)
   const [expanded, setExpanded] = useState<string | null>(null)
   const [confirmId, setConfirmId] = useState<string | null>(null)
 
@@ -26,6 +26,8 @@ export default function DeliveryPage() {
     )
     if (statusFilter === 'pending') {
       list = list.filter(o => o.state === 'sale')
+    } else if (statusFilter === 'other') {
+      list = list.filter(o => o.state === 'done')
     }
     if (driverFilter !== 'all') {
       list = list.filter(o => o.driver === driverFilter)
@@ -65,11 +67,11 @@ export default function DeliveryPage() {
             }`}>
             待配送
           </button>
-          <button onClick={() => setStatusFilter('all')}
+          <button onClick={() => setStatusFilter('other')}
             className={`px-3 py-1 rounded-full text-sm font-medium transition-colors ${
-              statusFilter === 'all' ? 'bg-gray-900 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+              statusFilter === 'other' ? 'bg-gray-900 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
             }`}>
-            全部狀態
+            其他
           </button>
           
           <div className="w-px h-6 bg-gray-300 mx-1"></div>
