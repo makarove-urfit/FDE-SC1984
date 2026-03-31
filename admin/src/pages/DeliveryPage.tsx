@@ -42,7 +42,7 @@ export default function DeliveryPage() {
     if (!confirmId) return
     await withLoading(async () => {
       await updateSaleOrderState(confirmId, 'done')
-      await loadAll(true)
+      await useAdminStore.getState().reloadBusinessData()
     }, '記錄送達中...', '訂單已完成')
     setConfirmId(null)
   }

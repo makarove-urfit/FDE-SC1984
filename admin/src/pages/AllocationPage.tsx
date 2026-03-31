@@ -14,7 +14,7 @@ import ConfirmDialog from '../components/ConfirmDialog'
 import { shortId } from '../utils/displayHelpers'
 
 export default function AllocationPage() {
-  const { targetDate, saleOrders, purchaseOrders, drivers, loadAll } = useAdminStore()
+  const { targetDate, saleOrders, purchaseOrders, drivers, loadAll, reloadBusinessData } = useAdminStore()
   const { withLoading } = useUIStore()
   const [expanded, setExpanded] = useState<string | null>(null)
   const [completingId, setCompletingId] = useState<string | null>(null)
@@ -112,7 +112,7 @@ export default function AllocationPage() {
         delete next[driverKey]
         return next
       })
-      await loadAll(true)
+      await reloadBusinessData()
     }, '儲存分配中...', '分配已儲存')
   }
 
@@ -145,7 +145,7 @@ export default function AllocationPage() {
         delete next[driverKey]
         return next
       })
-      await loadAll(true)
+      await reloadBusinessData()
     }, '完成分配中...', '訂單已標記為分配完成')
     setCompletingId(null)
   }

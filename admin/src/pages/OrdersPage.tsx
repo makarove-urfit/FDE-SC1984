@@ -74,7 +74,7 @@ export default function OrdersPage() {
         )
       }
       // 3. 重新載入
-      await useAdminStore.getState().loadAll(true)
+      await useAdminStore.getState().reloadBusinessData()
     }, '確認訂單中...', '訂單已確認')
     setConfirmId(null)
   }

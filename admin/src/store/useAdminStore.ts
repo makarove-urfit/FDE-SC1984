@@ -44,6 +44,8 @@ interface AdminState {
   // 全域 Loading 狀態
   globalLoading: boolean
   loadAll: (force?: boolean) => Promise<void>
+  /** 操作後僅刷新業務資料（不重載靜態參照快取） */
+  reloadBusinessData: () => Promise<void>
 }
 
 export const useAdminStore = create<AdminState>((set, get) => ({
@@ -155,6 +157,20 @@ export const useAdminStore = create<AdminState>((set, get) => ({
         loadProducts(force), 
         loadPurchases(targetDate, force), 
         loadDrivers(force)
+      ])
+    } finally {
+      set({ globalLoading: false })
+    }
+  },
+
+  reloadBusinessData: async () => {
+    set({ globalLoading: true })
+    try {
+      // 僅刷新業務資料，靜態參照快取保持不變
+      const { targetDate, loadSales, loadPurchases } = get()
+      await Promise.all([
+        loadSales(targetDate, true),
+        loadPurchases(targetDate, true),
       ])
     } finally {
       set({ globalLoading: false })

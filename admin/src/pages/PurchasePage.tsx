@@ -110,7 +110,7 @@ export default function PurchasePage() {
         confirmTarget.actualQty,
       )
       setEdits(prev => { const next = { ...prev }; delete next[confirmTarget.lineId]; return next })
-      await loadAll(true)
+      await useAdminStore.getState().reloadBusinessData()
     }, '記錄到貨中...', '已標記為到貨')
     setConfirmTarget(null)
   }
