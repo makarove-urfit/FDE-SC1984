@@ -5,7 +5,7 @@
  */
 import { db } from './client'
 import { isUUID } from '../utils/displayHelpers'
-import { getUomMap } from './stock'
+import { getUomMap, resolveUom } from './stock'
 
 // ─── 型別 ───
 
@@ -63,7 +63,7 @@ export const getSaleOrders = async (): Promise<SaleOrder[]> => {
   // product_template_id → 單位名稱
   const productUom: Record<string, string> = {}
   products.forEach((p: any) => {
-    productUom[String(p.id)] = uomMap[String(p.uom_id)] || '單位'
+    productUom[String(p.id)] = resolveUom(p.uom_id, uomMap)
   })
 
   return orders.map((o: any) => {
@@ -94,7 +94,7 @@ export const getSaleOrders = async (): Promise<SaleOrder[]> => {
             actualDeliveryQty: lineCustomData.actual_delivery_qty ?? 0,
             unitPrice: l.price_unit || 0,
             subtotal: l.price_subtotal || 0,
-            uom: productUom[ptId] || '單位',
+            uom: productUom[ptId] || '',
           }
         }),
     }

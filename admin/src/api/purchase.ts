@@ -10,7 +10,7 @@
  * 品項到貨狀態：用 purchase_order_lines.custom_data.received 追蹤
  */
 import { db } from './client'
-import { getUomMap } from './stock'
+import { getUomMap, resolveUom } from './stock'
 import { isUUID } from '../utils/displayHelpers'
 
 // ─── 型別 ───
@@ -100,7 +100,7 @@ export const getPurchaseOrders = async (): Promise<PurchaseOrder[]> => {
 
   // product_template_id → uom_id → 單位名稱
   const productUom: Record<string, string> = {}
-  products.forEach((p: any) => { productUom[String(p.id)] = uomMap[String(p.uom_id)] || '單位' })
+  products.forEach((p: any) => { productUom[String(p.id)] = resolveUom(p.uom_id, uomMap) })
 
   return orders.map((o: any) => ({
     id: String(o.id),
@@ -127,7 +127,7 @@ export const getPurchaseOrders = async (): Promise<PurchaseOrder[]> => {
           actualQty,
           unitPrice,
           subtotal: Math.round(actualQty * unitPrice * 100) / 100,
-          uom: productUom[ptId] || '單位',
+          uom: productUom[ptId] || '',
           received: customData.received === true,
          }
       }),
