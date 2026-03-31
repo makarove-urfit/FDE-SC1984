@@ -68,6 +68,7 @@ export default function ProcurementPage() {
         const pid = line.product_id
         const existing = map.get(pid)
         const prod = products.find(p => p.id === pid)
+        const prodName = prod?.name || line.name || '未知商品'
         if (existing) {
           existing.totalQty += line.quantity
           existing.sourceLineIds.push(line.id)
@@ -75,7 +76,7 @@ export default function ProcurementPage() {
         } else {
           map.set(pid, {
             productId: pid,
-            name: prod?.name || '未知商品',
+            name: prodName,
             sku: prod?.sku || '-',
             totalQty: line.quantity,
             unitPrice: line.unit_price,

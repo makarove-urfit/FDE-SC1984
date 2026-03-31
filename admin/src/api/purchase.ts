@@ -14,6 +14,7 @@ export interface PurchaseOrderLine {
   id: string;
   order_id: string;
   product_id: string;
+  name: string;
   quantity: number;
   unit_price: number;
   subtotal: number;
@@ -54,7 +55,8 @@ export const getPurchaseOrders = async (): Promise<PurchaseOrder[]> => {
     lines: lines.filter(l => (Array.isArray(l.order_id) ? l.order_id[0] : l.order_id) === o.id).map(l => ({
         id: String(l.id),
         order_id: String(o.id),
-        product_id: Array.isArray(l.product_id) ? String(l.product_id[0]) : String(l.product_id),
+        product_id: Array.isArray(l.product_template_id) ? String(l.product_template_id[0]) : String(l.product_template_id || l.product_id || ''),
+        name: l.name || '',
         quantity: l.product_qty || 0,
         unit_price: l.price_unit || 0,
         subtotal: l.price_subtotal || 0

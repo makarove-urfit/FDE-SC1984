@@ -50,15 +50,19 @@ export default function PurchaseListPage() {
     customerGroups.set(cid, list)
   }
 
-  // 按品項彙總
+  // 按品項彙總（改用 product_template_id 匹配 products store，fallback 到 line.name）
   const productSummary = new Map<string, { name: string; code: string; totalQty: number; unit: string; customerCount: number; supplierId: string }>()
   for (const order of draftOrders) {
     for (const line of order.lines) {
-      const p = products.find(pp => pp.id === line.product_id) || { name: '未知', sku: '-', uom_id: '單位', supplierId: '未知' }
-      const existing = productSummary.get(line.product_id) || { name: p.name, code: p.sku, totalQty: 0, unit: p.uom_id, customerCount: 0, supplierId: (p as any).supplierId || '未知' }
+      const pid = line.product_template_id || line.product_id
+      const p = products.find(pp => pp.id === pid)
+      const pName = p?.name || line.name || '未知'
+      const pSku = p?.sku || '-'
+      const pUom = p?.uom_id || '單位'
+      const existing = productSummary.get(pid) || { name: pName, code: pSku, totalQty: 0, unit: pUom, customerCount: 0, supplierId: (p as any)?.supplierId || '未知' }
       existing.totalQty = Math.round((existing.totalQty + line.quantity) * 100) / 100
       existing.customerCount++
-      productSummary.set(line.product_id, existing)
+      productSummary.set(pid, existing)
     }
   }
 
@@ -159,13 +163,17 @@ export default function PurchaseListPage() {
                         </thead>
                         <tbody>
                           {order.lines.map((line, i) => {
-                            const prod = products.find(pp => pp.id === line.product_id) || { sku: '-', name: '未知商品', uom_id: '單位' }
+                            const pid = line.product_template_id || line.product_id
+                            const prod = products.find(pp => pp.id === pid)
+                            const prodName = prod?.name || line.name || '未知商品'
+                            const prodSku = prod?.sku || '-'
+                            const prodUom = prod?.uom_id || '單位'
                             return (
                               <tr key={i} className="border-t border-gray-50">
-                                <td className="py-1.5 text-gray-400 text-xs font-mono">{prod.sku}</td>
-                                <td className="py-1.5 font-medium">{prod.name}</td>
+                                <td className="py-1.5 text-gray-400 text-xs font-mono">{prodSku}</td>
+                                <td className="py-1.5 font-medium">{prodName}</td>
                                 <td className="py-1.5 text-right font-bold text-primary">{line.quantity.toFixed(2)}</td>
-                                <td className="py-1.5 text-gray-400 pl-2">{prod.uom_id}</td>
+                                <td className="py-1.5 text-gray-400 pl-2">{prodUom}</td>
                                 <td className="py-1.5 text-gray-400 text-xs">{line.metadata?.note || '-'}</td>
                               </tr>
                             )
