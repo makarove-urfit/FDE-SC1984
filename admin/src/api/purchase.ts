@@ -31,7 +31,8 @@ export interface PurchaseOrder {
 export interface PurchaseOrderLine {
   id: string
   orderId: string
-  productTemplateId: string
+  productId: string       // product_products.id (UUID)
+  productTemplateId: string // 從 product_id 反查得到的 template id（用於 UoM 查找）
   name: string
   quantity: number        // 需求量（唯讀，自動累加）
   actualQty: number       // 實際採購量（可編輯）
@@ -91,14 +92,14 @@ export const getSupplierMap = async (): Promise<Record<string, string>> => {
 }
 
 import { getOrderDateBounds } from '../utils/dateHelpers'
-import { getCachedSupplierMap, getCachedProductUomMap } from './refCache'
+import { getCachedSupplierMap, getCachedProductUomMap, getCachedProductIdToTemplateMap } from './refCache'
 
 export const getPurchaseOrders = async (targetDate: string): Promise<PurchaseOrder[]> => {
   // 取出精準的 Odoo UTC [開始, 結束) 界線（用於前端篩選）
   const { start, end } = getOrderDateBounds(targetDate)
 
   // 平行拉取：活躍訂單 + 快取的參照資料
-  const [allOrders, supplierNameMap, productUom] = await Promise.all([
+  const [allOrders, supplierNameMap, productUom, pid2tmplMap] = await Promise.all([
     db.query('purchase_orders', { 
       select_columns: ['id', 'name', 'state', 'date_order', 'supplier_id', 'amount_total'],
       filters: [
@@ -107,6 +108,7 @@ export const getPurchaseOrders = async (targetDate: string): Promise<PurchaseOrd
     }),
     getCachedSupplierMap(),
     getCachedProductUomMap(),
+    getCachedProductIdToTemplateMap(),
   ])
 
   // 前端做 02:00 UTC+8 週期過濾（後端 proxy 不支援 ge/lt 運算子）
@@ -138,19 +140,22 @@ export const getPurchaseOrders = async (targetDate: string): Promise<PurchaseOrd
     lines: lines
       .filter((l: any) => resolveId(l.order_id) === String(o.id))
       .map((l: any) => {
-        const ptId = resolveId(l.product_id)
+        const pId = resolveId(l.product_id)
+        // 透過 product_id → product_template_id 映射表查找 template id，用於 UoM 查找
+        const tmplId = pid2tmplMap[pId] || ''
         const actualQty = l.qty_received || 0
         const unitPrice = l.price_unit || 0
         return {
           id: String(l.id),
           orderId: String(o.id),
-          productTemplateId: ptId,
+          productId: pId,
+          productTemplateId: tmplId,
           name: l.name || '未知商品',
           quantity: l.product_qty || 0,
           actualQty,
           unitPrice,
           subtotal: Math.round(actualQty * unitPrice * 100) / 100,
-          uom: productUom[ptId] || '單位',
+          uom: productUom[tmplId] || productUom[pId] || '單位',
           received: actualQty > 0,
          }
       }),
@@ -227,10 +232,20 @@ export async function autoAddToPurchaseOrder(
   }
 
   // 3. 載入現有 draft POs
-  const existingPOs = await db.query('purchase_orders')
-  const existingLines = await db.query('purchase_order_lines')
+  const existingPOs = await db.query('purchase_orders', {
+    select_columns: ['id', 'state', 'supplier_id'],
+    filters: [{ column: 'state', op: 'eq', value: 'draft' }]
+  })
+  const poIds = existingPOs.map((po: any) => po.id)
+  let existingLines: any[] = []
+  if (poIds.length > 0) {
+    existingLines = await db.query('purchase_order_lines', {
+      select_columns: ['id', 'order_id', 'product_id', 'product_qty'],
+      filters: [{ column: 'order_id', op: 'in', value: poIds }]
+    })
+  }
 
-  const draftPOs = existingPOs.filter((po: any) => po.state === 'draft')
+  const draftPOs = existingPOs
 
   // 4. 逐供應商處理
   for (const [supplierId, lines] of bySupplier.entries()) {

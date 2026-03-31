@@ -109,7 +109,7 @@ export default function OrdersPage() {
                     <p className="font-bold text-gray-900">{order.customerName}</p>
                     <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${config.color}`}>{config.label}</span>
                   </div>
-                  <p className="text-sm text-gray-400">{shortId(order.name)} · {order.date} · {order.lines.length} 品項 · ${order.totalAmount.toLocaleString()}</p>
+                  <p className="text-sm text-gray-400">{shortId(order.name)} · {order.date} · {order.lines.length} 品項 · NT${order.totalAmount.toLocaleString()}</p>
                 </div>
                 <div className="flex items-center gap-2">
                   {order.state === 'draft' && (
@@ -137,8 +137,8 @@ export default function OrdersPage() {
                         <tr key={line.id} className="border-t border-gray-50">
                           <td className="py-1.5 font-medium">{line.name}</td>
                           <td className="py-1.5 text-right">{line.quantity}</td>
-                          <td className="py-1.5 text-right text-gray-500">${line.unitPrice}</td>
-                          <td className="py-1.5 text-right font-bold">${line.subtotal.toLocaleString()}</td>
+                          <td className="py-1.5 text-right text-gray-500">NT${line.unitPrice}</td>
+                          <td className="py-1.5 text-right font-bold">NT${line.subtotal.toLocaleString()}</td>
                         </tr>
                       ))}
                     </tbody>

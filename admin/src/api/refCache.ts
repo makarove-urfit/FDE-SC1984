@@ -13,6 +13,7 @@ let _supplierMapPromise: Promise<Record<string, string>> | null = null
 let _uomMapPromise: Promise<Record<string, string>> | null = null
 let _productUomMapPromise: Promise<Record<string, string>> | null = null
 let _driversPromise: Promise<Array<{ id: string; name: string }>> | null = null
+let _pid2tmplPromise: Promise<Record<string, string>> | null = null
 
 // ─── 公開 API ───
 
@@ -25,7 +26,7 @@ export function getCachedCustomerMap(): Promise<Record<string, string>> {
         data.forEach((c: any) => { map[String(c.id)] = c.name || '' })
         return map
       })
-      .catch(() => ({}))
+      .catch(() => { _customerMapPromise = null; return {} })
   }
   return _customerMapPromise
 }
@@ -39,7 +40,7 @@ export function getCachedSupplierMap(): Promise<Record<string, string>> {
         data.forEach((s: any) => { map[String(s.id)] = s.name || '未知供應商' })
         return map
       })
-      .catch(() => ({}))
+      .catch(() => { _supplierMapPromise = null; return {} })
   }
   return _supplierMapPromise
 }
@@ -71,7 +72,7 @@ export function getCachedProductTemplates(): Promise<any[]> {
         { column: 'active', op: 'eq', value: true },
       ],
       limit: 5000,
-    }).catch(() => [])
+    }).catch(() => { _productTemplatesPromise = null; return [] })
   }
   return _productTemplatesPromise
 }
@@ -105,9 +106,30 @@ export function getCachedDrivers(): Promise<Array<{ id: string; name: string }>>
   if (!_driversPromise) {
     _driversPromise = db.query('hr_employees', { select_columns: ['id', 'name'], limit: 5000 })
       .then(data => data.map((e: any) => ({ id: String(e.id), name: e.name || '未知' })))
-      .catch(() => [])
+      .catch(() => { _driversPromise = null; return [] })
   }
   return _driversPromise
+}
+
+/** product_products.id → product_templates.id 映射表（含快取 + dedup） */
+export function getCachedProductIdToTemplateMap(): Promise<Record<string, string>> {
+  if (!_pid2tmplPromise) {
+    _pid2tmplPromise = db.query('product_products', {
+      select_columns: ['id', 'product_tmpl_id'],
+      limit: 5000,
+    }).then(data => {
+      const map: Record<string, string> = {}
+      data.forEach((p: any) => {
+        const pid = String(p.id)
+        const tmplId = Array.isArray(p.product_tmpl_id)
+          ? String(p.product_tmpl_id[0])
+          : String(p.product_tmpl_id || '')
+        if (pid && tmplId) map[pid] = tmplId
+      })
+      return map
+    }).catch(() => { _pid2tmplPromise = null; return {} })
+  }
+  return _pid2tmplPromise
 }
 
 /**
@@ -121,6 +143,7 @@ export async function preloadRefData(): Promise<void> {
     getCachedUomMap(),
     getCachedProductUomMap(),
     getCachedDrivers(),
+    getCachedProductIdToTemplateMap(),
   ])
 }
 
@@ -132,4 +155,5 @@ export function clearRefCache(): void {
   _productTemplatesPromise = null
   _productUomMapPromise = null
   _driversPromise = null
+  _pid2tmplPromise = null
 }

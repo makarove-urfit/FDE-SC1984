@@ -160,7 +160,7 @@ export const updateSaleOrderAllocation = async (
   try {
     const records = await db.query('sale_orders', { 
       select_columns: ['id', 'note'],
-      filters: [{ column: 'id', op: 'eq', value: parseInt(orderId) }], 
+      filters: [{ column: 'id', op: 'eq', value: orderId }], 
       limit: 1 
     })
     const existing = parseNote(records[0]?.note)
