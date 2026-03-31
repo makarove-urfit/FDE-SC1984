@@ -142,10 +142,55 @@ export default function AllocationPage() {
 
   const unallocatedCount = allocatableOrders.filter(o => !o.allocated).length
 
+  // 新增：計算所有待分配品項的剩餘狀況 (全域即時變更)
+  const remainingSummary = useMemo(() => {
+    const map = new Map<string, { id: string, name: string, uom: string, purchased: number, allocated: number }>()
+
+    // 1. 蒐集產品基礎資訊與總採購量
+    allocatableOrders.forEach(o => {
+      o.lines.forEach(line => {
+        if (!map.has(line.productTemplateId)) {
+          map.set(line.productTemplateId, {
+            id: line.productTemplateId,
+            name: line.name,
+            uom: line.uom,
+            purchased: purchasedQtyMap[line.productTemplateId] || 0,
+            allocated: 0,
+          })
+        }
+      })
+    })
+
+    // 2. 扣除即時編輯中與既有的出庫數量
+    allocatableOrders.forEach(order => {
+      order.lines.forEach(line => {
+        const item = map.get(line.productTemplateId)
+        if (item) {
+          const editKey = `${line.id}_qty`
+          const thisQty = edits[editKey] !== undefined ? parseFloat(edits[editKey]) || 0 : line.actualDeliveryQty
+          item.allocated += thisQty
+        }
+      })
+    })
+
+    return Array.from(map.values())
+      // 排序：負數警告優先，大於 0 的次之，已分配完 (0) 放最後
+      .sort((a, b) => {
+        const diffA = a.purchased - a.allocated
+        const diffB = b.purchased - b.allocated
+        if (diffA < 0 && diffB >= 0) return -1
+        if (diffB < 0 && diffA >= 0) return 1
+        if (diffA > 0 && diffB <= 0) return -1
+        if (diffB > 0 && diffA <= 0) return 1
+        // 若類別相同，依剩餘量多寡排序
+        return diffB - diffA
+      })
+  }, [allocatableOrders, edits, purchasedQtyMap])
+
   return (
-    <div className="min-h-screen bg-gray-50">
-      <header className="bg-white border-b border-gray-200 px-6 py-4">
-        <div className="flex items-center gap-3">
+    <div className="min-h-screen bg-gray-50 pb-20">
+      <header className="sticky top-0 z-20 bg-white border-b border-gray-200">
+        <div className="px-6 py-4 flex items-center gap-3">
           <BackButton />
           <div>
             <h1 className="text-xl font-bold text-gray-900">出庫分配</h1>
@@ -154,6 +199,41 @@ export default function AllocationPage() {
             </p>
           </div>
         </div>
+
+        {/* 橫向滾動剩餘數量狀態列 */}
+        {remainingSummary.length > 0 && (
+          <div className="bg-gray-100/80 backdrop-blur-md px-6 py-2.5 overflow-x-auto no-scrollbar shadow-inner border-t border-gray-200">
+            <div className="flex gap-3">
+              <span className="text-xs font-bold text-gray-500 whitespace-nowrap self-center mr-2">
+                即時可用扣減量：
+              </span>
+              {remainingSummary.map(item => {
+                const remaining = Math.round((item.purchased - item.allocated) * 100) / 100
+                const isNegative = remaining < 0
+                const isZero = remaining === 0
+                
+                return (
+                  <div key={item.id} className={`flex-shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-sm transition-colors ${
+                    isNegative 
+                      ? 'bg-red-50 border-red-200 text-red-700 font-bold shadow-sm' 
+                      : isZero
+                        ? 'bg-gray-50 border-transparent text-gray-400 opacity-60'
+                        : 'bg-white border-gray-200 text-gray-800 font-medium shadow-sm'
+                  }`}>
+                    <span>{item.name}</span>
+                    <span className={`px-1.5 py-0.5 rounded-md text-xs font-bold ${
+                      isNegative ? 'bg-red-200 text-red-900' 
+                      : isZero ? 'bg-gray-200 text-gray-500'
+                      : 'bg-blue-50 text-blue-700'
+                    }`}>
+                      {remaining} {item.uom}
+                    </span>
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+        )}
       </header>
 
       <div className="p-6 max-w-5xl mx-auto space-y-3">
