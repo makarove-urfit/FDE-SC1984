@@ -31,9 +31,9 @@ export default function AllocationPage() {
     [saleOrders],
   )
 
-  // 建立強固的配對鍵值（因 Odoo Proxy 會隱藏或缺漏 ID 欄位，故以字面上絕對一致的品名作為終極連結）
-  const getLineKey = useCallback((line: { name?: string }) => {
-    return line.name || '未知品項'
+  // 優先使用 UUID 作為配對鍵值，若後端未提供則降級使用品名
+  const getLineKey = useCallback((line: { productId?: string; productTemplateId?: string; name?: string }) => {
+    return line.productId || line.productTemplateId || line.name || '未知品項'
   }, [])
 
   // 計算每個品項的實際採購總量（from purchase_order_lines）
