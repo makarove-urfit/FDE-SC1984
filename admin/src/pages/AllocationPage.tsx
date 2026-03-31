@@ -48,12 +48,12 @@ export default function AllocationPage() {
   }, [purchaseOrders])
 
   // 計算每個品項已分配的總量（排除正在編輯的訂單）
-  const getAllocatedTotal = useCallback((productTemplateId: string, excludeOrderId?: string) => {
+  const getAllocatedTotal = useCallback((productId: string, excludeOrderId?: string) => {
     let total = 0
     allocatableOrders.forEach(order => {
       if (order.id === excludeOrderId) return
       order.lines.forEach(line => {
-        if (line.productTemplateId === productTemplateId) {
+        if (line.productId === productId) {
           const editKey = `${line.id}_qty`
           const qty = edits[editKey] !== undefined
             ? parseFloat(edits[editKey]) || 0
@@ -74,8 +74,8 @@ export default function AllocationPage() {
       const thisQty = edits[editKey] !== undefined
         ? parseFloat(edits[editKey]) || 0
         : line.actualDeliveryQty
-      const othersTotal = getAllocatedTotal(line.productTemplateId, orderId)
-      const available = purchasedQtyMap[line.productTemplateId] || 0
+      const othersTotal = getAllocatedTotal(line.productId, orderId)
+      const available = purchasedQtyMap[line.productId] || 0
       if (thisQty + othersTotal > available) return false
     }
     return true
@@ -159,12 +159,12 @@ export default function AllocationPage() {
     // 1. 蒐集產品基礎資訊與總採購量
     allocatableOrders.forEach(o => {
       o.lines.forEach(line => {
-        if (!map.has(line.productTemplateId)) {
-          map.set(line.productTemplateId, {
-            id: line.productTemplateId,
+        if (!map.has(line.productId)) {
+          map.set(line.productId, {
+            id: line.productId,
             name: line.name,
             uom: line.uom,
-            purchased: purchasedQtyMap[line.productTemplateId] || 0,
+            purchased: purchasedQtyMap[line.productId] || 0,
             allocated: 0,
           })
         }
@@ -174,7 +174,7 @@ export default function AllocationPage() {
     // 2. 扣除即時編輯中與既有的出庫數量
     allocatableOrders.forEach(order => {
       order.lines.forEach(line => {
-        const item = map.get(line.productTemplateId)
+        const item = map.get(line.productId)
         if (item) {
           const editKey = `${line.id}_qty`
           const thisQty = edits[editKey] !== undefined ? parseFloat(edits[editKey]) || 0 : line.actualDeliveryQty
@@ -307,8 +307,8 @@ export default function AllocationPage() {
                         const thisQty = edits[editKey] !== undefined
                           ? parseFloat(edits[editKey]) || 0
                           : line.actualDeliveryQty
-                        const available = purchasedQtyMap[line.productTemplateId] || 0
-                        const othersTotal = getAllocatedTotal(line.productTemplateId, order.id)
+                        const available = purchasedQtyMap[line.productId] || 0
+                        const othersTotal = getAllocatedTotal(line.productId, order.id)
                         const remaining = Math.max(0, available - othersTotal)
                         const overLimit = thisQty > remaining
 
