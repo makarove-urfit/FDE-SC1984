@@ -14,8 +14,13 @@ services:
   admin:
     build:
       context: ./admin
+      args:
+        # Vite 環境變數（build-time 注入）
+        # docker-compose 會從專案根目錄的 .env 讀取這些變數
+        VITE_API_BASE: ${VITE_API_BASE:-/api/v1}
+        VITE_API_KEY: ${VITE_API_KEY}
+        VITE_APP_SLUG: ${VITE_APP_SLUG}
+        VITE_AIGO_URL: ${VITE_AIGO_URL:-https://ai-go.app}
     ports:
       - "${ADMIN_PORT:-3002}:80"
     restart: always
-    env_file:
-      - ./admin/.env
