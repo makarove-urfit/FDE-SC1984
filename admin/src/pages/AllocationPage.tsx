@@ -31,12 +31,20 @@ export default function AllocationPage() {
     [saleOrders],
   )
 
-  // 優先使用 UUID 作為配對鍵值，若後端未提供則降級使用品名
+  // 優先使用 UUID 作為配對組合的 Key
   const getLineKey = useCallback((line: { productId?: string; productTemplateId?: string; name?: string }) => {
     return line.productId || line.productTemplateId || line.name || '未知品項'
   }, [])
 
-  // 計算每個品項的實際採購總量（from purchase_order_lines）
+  // 雙重比對提取函式：無論雙邊有無 UUID 都能保證找到對應庫存
+  const getAvailableQty = useCallback((line: { productId?: string; productTemplateId?: string; name?: string }, qtyMap: Record<string, number>) => {
+    if (line.productId && qtyMap[line.productId] !== undefined) return qtyMap[line.productId]
+    if (line.productTemplateId && qtyMap[line.productTemplateId] !== undefined) return qtyMap[line.productTemplateId]
+    if (line.name && qtyMap[line.name] !== undefined) return qtyMap[line.name]
+    return 0
+  }, [])
+
+  // 計算每個品項的實際採購總量（from purchase_order_lines），全面註冊所有可用識別碼
   const purchasedQtyMap = useMemo(() => {
     const map: Record<string, number> = {}
     purchaseOrders
@@ -44,13 +52,16 @@ export default function AllocationPage() {
       .forEach(po => {
         po.lines.forEach(line => {
           if (line.received && line.actualQty > 0) {
-            const key = getLineKey(line as any)
-            map[key] = (map[key] || 0) + line.actualQty
+            // 一旦有採購量，將其登記在該品項擁有的所有識別碼下，確保跨表映射必定命中
+            const l = line as any
+            if (l.productId) map[l.productId] = (map[l.productId] || 0) + line.actualQty
+            if (l.productTemplateId) map[l.productTemplateId] = (map[l.productTemplateId] || 0) + line.actualQty
+            if (l.name) map[l.name] = (map[l.name] || 0) + line.actualQty
           }
         })
       })
     return map
-  }, [purchaseOrders, getLineKey])
+  }, [purchaseOrders])
 
   // 計算每個品項已分配的總量（排除正在編輯的訂單）
   const getAllocatedTotal = useCallback((lineKey: string, excludeOrderId?: string) => {
@@ -81,11 +92,11 @@ export default function AllocationPage() {
         ? parseFloat(edits[editKey]) || 0
         : line.actualDeliveryQty
       const othersTotal = getAllocatedTotal(lineKey, orderId)
-      const available = purchasedQtyMap[lineKey] || 0
+      const available = getAvailableQty(line, purchasedQtyMap)
       if (thisQty + othersTotal > available) return false
     }
     return true
-  }, [allocatableOrders, edits, purchasedQtyMap, getAllocatedTotal, getLineKey])
+  }, [allocatableOrders, edits, purchasedQtyMap, getAllocatedTotal, getLineKey, getAvailableQty])
 
   const handleSave = async (orderId: string) => {
     const order = allocatableOrders.find(o => o.id === orderId)
@@ -171,7 +182,7 @@ export default function AllocationPage() {
             id: lineKey,
             name: line.name,
             uom: line.uom,
-            purchased: purchasedQtyMap[lineKey] || 0,
+            purchased: getAvailableQty(line, purchasedQtyMap),
             allocated: 0,
           })
         }
