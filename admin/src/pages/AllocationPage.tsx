@@ -31,6 +31,11 @@ export default function AllocationPage() {
     [saleOrders],
   )
 
+  // 建立強固的配對鍵值（無視 Odoo 缺漏）
+  const getLineKey = useCallback((line: { productId?: string; productTemplateId?: string; name?: string }) => {
+    return line.productId || line.productTemplateId || line.name || '未知品項'
+  }, [])
+
   // 計算每個品項的實際採購總量（from purchase_order_lines）
   const purchasedQtyMap = useMemo(() => {
     const map: Record<string, number> = {}
@@ -39,21 +44,21 @@ export default function AllocationPage() {
       .forEach(po => {
         po.lines.forEach(line => {
           if (line.received && line.actualQty > 0) {
-            const key = line.productTemplateId
+            const key = getLineKey(line as any)
             map[key] = (map[key] || 0) + line.actualQty
           }
         })
       })
     return map
-  }, [purchaseOrders])
+  }, [purchaseOrders, getLineKey])
 
   // 計算每個品項已分配的總量（排除正在編輯的訂單）
-  const getAllocatedTotal = useCallback((productId: string, excludeOrderId?: string) => {
+  const getAllocatedTotal = useCallback((lineKey: string, excludeOrderId?: string) => {
     let total = 0
     allocatableOrders.forEach(order => {
       if (order.id === excludeOrderId) return
       order.lines.forEach(line => {
-        if (line.productId === productId) {
+        if (getLineKey(line) === lineKey) {
           const editKey = `${line.id}_qty`
           const qty = edits[editKey] !== undefined
             ? parseFloat(edits[editKey]) || 0
@@ -63,23 +68,24 @@ export default function AllocationPage() {
       })
     })
     return total
-  }, [allocatableOrders, edits])
+  }, [allocatableOrders, edits, getLineKey])
 
   // 檢查某訂單的分配是否超量
   const checkAllocationValid = useCallback((orderId: string) => {
     const order = allocatableOrders.find(o => o.id === orderId)
     if (!order) return true
     for (const line of order.lines) {
+      const lineKey = getLineKey(line)
       const editKey = `${line.id}_qty`
       const thisQty = edits[editKey] !== undefined
         ? parseFloat(edits[editKey]) || 0
         : line.actualDeliveryQty
-      const othersTotal = getAllocatedTotal(line.productId, orderId)
-      const available = purchasedQtyMap[line.productId] || 0
+      const othersTotal = getAllocatedTotal(lineKey, orderId)
+      const available = purchasedQtyMap[lineKey] || 0
       if (thisQty + othersTotal > available) return false
     }
     return true
-  }, [allocatableOrders, edits, purchasedQtyMap, getAllocatedTotal])
+  }, [allocatableOrders, edits, purchasedQtyMap, getAllocatedTotal, getLineKey])
 
   const handleSave = async (orderId: string) => {
     const order = allocatableOrders.find(o => o.id === orderId)
@@ -159,12 +165,13 @@ export default function AllocationPage() {
     // 1. 蒐集產品基礎資訊與總採購量
     allocatableOrders.forEach(o => {
       o.lines.forEach(line => {
-        if (!map.has(line.productId)) {
-          map.set(line.productId, {
-            id: line.productId,
+        const lineKey = getLineKey(line)
+        if (!map.has(lineKey)) {
+          map.set(lineKey, {
+            id: lineKey,
             name: line.name,
             uom: line.uom,
-            purchased: purchasedQtyMap[line.productId] || 0,
+            purchased: purchasedQtyMap[lineKey] || 0,
             allocated: 0,
           })
         }
@@ -174,7 +181,7 @@ export default function AllocationPage() {
     // 2. 扣除即時編輯中與既有的出庫數量
     allocatableOrders.forEach(order => {
       order.lines.forEach(line => {
-        const item = map.get(line.productId)
+        const item = map.get(getLineKey(line))
         if (item) {
           const editKey = `${line.id}_qty`
           const thisQty = edits[editKey] !== undefined ? parseFloat(edits[editKey]) || 0 : line.actualDeliveryQty
@@ -303,12 +310,13 @@ export default function AllocationPage() {
                     </thead>
                     <tbody>
                       {order.lines.map(line => {
+                        const lineKey = getLineKey(line)
                         const editKey = `${line.id}_qty`
                         const thisQty = edits[editKey] !== undefined
                           ? parseFloat(edits[editKey]) || 0
                           : line.actualDeliveryQty
-                        const available = purchasedQtyMap[line.productId] || 0
-                        const othersTotal = getAllocatedTotal(line.productId, order.id)
+                        const available = purchasedQtyMap[lineKey] || 0
+                        const othersTotal = getAllocatedTotal(lineKey, order.id)
                         const remaining = Math.max(0, available - othersTotal)
                         const overLimit = thisQty > remaining
 
