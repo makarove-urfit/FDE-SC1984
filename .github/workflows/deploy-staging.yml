@@ -41,7 +41,6 @@ jobs:
           REPO_NAME="fde-sc1984"
           APP_DIR="/opt/apps/${REPO_NAME}"
 
-          # 首次部署：clone；後續：pull
           if [ ! -d "$APP_DIR" ]; then
             git clone https://github.com/AI-GO-APP/${REPO_NAME}.git "$APP_DIR"
           fi
@@ -50,24 +49,17 @@ jobs:
           git fetch origin main
           git reset --hard FETCH_HEAD
 
-          # ── 寫入 Admin 環境變數 ──
-          # Vite 的 VITE_* 變數會在 Docker build 時透過 ARG 被 bake 進 JS
-          cat > admin/.env << ENVEOF
-          VITE_API_BASE=/api/v1
-          VITE_API_KEY=${VITE_API_KEY}
-          VITE_APP_SLUG=${VITE_APP_SLUG}
-          VITE_AIGO_URL=https://ai-go.app
-          ENVEOF
+          # 寫入 admin/.env（Vite build 用）— 用 printf 避免 heredoc 縮排問題
+          printf 'VITE_API_BASE=/api/v1\nVITE_API_KEY=%s\nVITE_APP_SLUG=%s\nVITE_AIGO_URL=https://ai-go.app\n' "$VITE_API_KEY" "$VITE_APP_SLUG" > admin/.env
 
-          # docker-compose 從專案根目錄 .env 讀取變數供 build args 使用
-          cat > .env << ENVEOF
-          VITE_API_KEY=${VITE_API_KEY}
-          VITE_APP_SLUG=${VITE_APP_SLUG}
-          ENVEOF
+          # docker-compose 從根目錄 .env 讀取 build args
+          printf 'VITE_API_KEY=%s\nVITE_APP_SLUG=%s\n' "$VITE_API_KEY" "$VITE_APP_SLUG" > .env
 
-          echo "admin/.env 內容:"
+          echo "=== admin/.env ==="
           cat admin/.env
-          echo "---"
+          echo "=== .env ==="
+          cat .env
+          echo "================"
 
           # 確保 ordering .env 存在
           for f in ordering/.env ordering/backend/.env; do
@@ -83,7 +75,7 @@ jobs:
             fi
           done
 
-          # 停止舊部署的容器（遷移前路徑）
+          # 停止舊部署的容器
           OLD_DIR="/opt/apps/fde-apps"
           if [ -d "$OLD_DIR" ] && [ -f "$OLD_DIR/docker-compose.staging.yml" ]; then
             echo "偵測到舊部署，正在停止..."
@@ -92,7 +84,6 @@ jobs:
             cd "$APP_DIR"
           fi
 
-          # 建置並啟動 ordering + admin 雙服務
           echo "開始 build..."
           docker-compose -f docker-compose.staging.yml up -d --build --force-recreate
           echo "部署完成！"
