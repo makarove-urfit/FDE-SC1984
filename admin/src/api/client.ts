@@ -56,7 +56,7 @@ export const db = {
   },
 
   async insert<T = any>(table: string, data: Record<string, any>): Promise<T> {
-    const res = await apiClient.post(`/open/proxy/${table}`, { data });
+    const res = await apiClient.post(`/open/proxy/${table}`, data);
     return res.data;
   }
 };
