@@ -133,43 +133,52 @@ const CATEGORY_SELECT_COLUMNS = ['id', 'name', 'parent_id']
  */
 export async function fetchProductTemplates(): Promise<RawProductTemplate[]> {
   const PAGE_SIZE = 500
-
-  // 第一頁先載入
-  const firstPage = await fetchProxy<RawProductTemplate[]>('product_templates/query', 'POST', {
+  const fetchPage = (offset: number) => fetchProxy<RawProductTemplate[]>('product_templates/query', 'POST', {
     filters: [
       { column: 'sale_ok', op: 'eq', value: true },
       { column: 'active', op: 'eq', value: true },
     ],
     select_columns: PRODUCT_SELECT_COLUMNS,
     limit: PAGE_SIZE,
-    offset: 0,
+    offset,
   })
 
-  // 如果第一頁不滿，就是全部了
-  if (firstPage.length < PAGE_SIZE) return firstPage
-
-  // 估算總頁數，並行載入剩餘頁面
-  // 假設最多 4000 筆，需要額外 7 頁
-  const remainingPages = []
-  for (let offset = PAGE_SIZE; offset < 4000; offset += PAGE_SIZE) {
-    remainingPages.push(
-      fetchProxy<RawProductTemplate[]>('product_templates/query', 'POST', {
-        filters: [
-          { column: 'sale_ok', op: 'eq', value: true },
-          { column: 'active', op: 'eq', value: true },
-        ],
-        select_columns: PRODUCT_SELECT_COLUMNS,
-        limit: PAGE_SIZE,
-        offset,
-      })
-    )
+  // 第一頁先拉取試探
+  let all: RawProductTemplate[] = []
+  try {
+    const firstPage = await fetchPage(0)
+    all = firstPage || []
+    if (!Array.isArray(all) || all.length < PAGE_SIZE) return all
+  } catch {
+    return []
   }
 
-  const results = await Promise.all(remainingPages)
-  let all = firstPage
-  for (const page of results) {
-    all = all.concat(page)
-    if (page.length < PAGE_SIZE) break // 已到最後一頁
+  // 第二步：動態分頁，每次並行 2 頁避免過度消耗
+  const BATCH_SIZE = 2
+  let currentOffset = PAGE_SIZE
+  const firstId = String((all[0] as any).id)
+
+  while (true) {
+    const batchPromises = Array.from(
+      { length: BATCH_SIZE },
+      (_, i) => fetchPage(currentOffset + i * PAGE_SIZE).catch(() => [] as RawProductTemplate[])
+    )
+    const batchResults = await Promise.all(batchPromises)
+    
+    let done = false
+    for (const page of batchResults) {
+      if (!Array.isArray(page) || page.length === 0) { done = true; break }
+      // 防呆：若 server 忽略 offset 回傳相同首筆，中斷
+      if (String((page[0] as any).id) === firstId) { done = true; break }
+
+      const newItems = page.filter(item => !all.some(a => a.id === item.id))
+      all = all.concat(newItems)
+
+      if (page.length < PAGE_SIZE) { done = true; break }
+    }
+
+    if (done) break
+    currentOffset += PAGE_SIZE * BATCH_SIZE
   }
 
   return all
@@ -198,6 +207,7 @@ export async function createSaleOrder(data: {
   note?: string
   state?: string
   client_order_ref?: string
+  order_line?: any[]
 }): Promise<{ id: string; data: Record<string, unknown> }> {
   return fetchProxy('sale_orders', 'POST', data as Record<string, unknown>)
 }

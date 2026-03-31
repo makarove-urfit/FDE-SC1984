@@ -103,7 +103,9 @@ export const getPurchaseOrders = async (targetDate: string): Promise<PurchaseOrd
     db.query('purchase_orders', { 
       select_columns: ['id', 'name', 'state', 'date_order', 'supplier_id', 'amount_total'],
       filters: [
-        { column: 'state', op: 'in', value: ['draft', 'sent', 'purchase', 'done'] }
+        { column: 'state', op: 'in', value: ['draft', 'sent', 'purchase', 'done'] },
+        { column: 'date_order', op: 'ge', value: start },
+        { column: 'date_order', op: 'lt', value: end }
       ]
     }),
     getCachedSupplierMap(),

@@ -82,14 +82,16 @@ export const getSaleOrders = async (targetDate: string): Promise<SaleOrder[]> =>
     db.query('sale_orders', { 
       select_columns: ['id', 'name', 'state', 'date_order', 'customer_id', 'amount_total', 'note'],
       filters: [
-        { column: 'state', op: 'in', value: ['draft', 'sent', 'sale', 'done'] }
+        { column: 'state', op: 'in', value: ['draft', 'sent', 'sale', 'done'] },
+        { column: 'date_order', op: 'ge', value: start },
+        { column: 'date_order', op: 'lt', value: end }
       ]
     }),
     getCachedCustomerMap(),
     getCachedProductUomMap(),
   ])
 
-  // 前端做 02:00 UTC+8 週期過濾（後端 proxy 不支援 ge/lt 運算子）
+  // 前端仍做額外確認過濾，以防 Proxy 查詢時區等異常
   const orders = allOrders.filter((o: any) => {
     const d = String(o.date_order || '')
     return d >= start && d < end

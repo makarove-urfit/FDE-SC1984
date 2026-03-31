@@ -17,10 +17,8 @@ import {
   mapCategories,
   mapProducts,
   createSaleOrder,
-  createSaleOrderLine,
   querySaleOrders,
   querySaleOrderLines,
-  deleteSaleOrder,
   type RawSaleOrder,
   type RawSaleOrderLine,
 } from '../api/client'
@@ -212,41 +210,27 @@ export const useStore = create<AppState>((set, get) => ({
 
     set({ submitError: null })
     try {
-      // 1. 建立 sale_order
-      onProgress?.('建立訂單中...')
+      // 1. 整理 Odoo One2many 格式的訂單明細
+      const orderLines = cart.map(item => {
+        const product = liveProducts.find(p => p.id === item.productId)
+        return [0, 0, {
+          product_template_id: item.productId,
+          name: product ? `${product.name}${item.note ? ` (${item.note})` : ''}` : item.productId,
+          product_uom_qty: item.qty,
+        }]
+      })
+
+      // 2. 建立 sale_order (包含明細)
+      onProgress?.('建立訂單與明細中...')
       const customerId = useAuthStore.getState().customerId
       const orderRes = await createSaleOrder({
         customer_id: customerId || undefined,
         date_order: new Date().toISOString().slice(0, 10),
         note: note || undefined,
         state: 'draft',
+        order_line: orderLines,
       })
       const orderId = orderRes.id
-
-      // 2. 逐一建立 sale_order_line（回報進度）
-      try {
-        const total = cart.length
-        let done = 0
-        const linePromises = cart.map(item => {
-          const product = liveProducts.find(p => p.id === item.productId)
-          return createSaleOrderLine({
-            order_id: orderId,
-            product_template_id: item.productId,
-            name: product ? `${product.name}${item.note ? ` (${item.note})` : ''}` : item.productId,
-            product_uom_qty: item.qty,
-          }).then(res => {
-            done++
-            onProgress?.(`上傳品項 (${done}/${total})...`)
-            return res
-          })
-        })
-        await Promise.all(linePromises)
-      } catch (lineErr) {
-        // 部分失敗回滾
-        onProgress?.('建立失敗，正在回復...')
-        await deleteSaleOrder(orderId).catch(console.error)
-        throw lineErr
-      }
 
       // 3. 清空購物車，背景刷新訂單（不阻塞）
       onProgress?.('完成！')
