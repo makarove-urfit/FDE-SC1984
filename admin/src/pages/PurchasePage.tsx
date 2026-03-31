@@ -94,23 +94,29 @@ export default function PurchasePage() {
     const po = purchaseOrders.find(p => p.id === confirmTarget.poId)
     if (!po) { setConfirmTarget(null); return }
 
+    // 取消可能還在跑的 debounce 儲存，避免重複 query 覆蓋
+    if (saveTimers.current[`${confirmTarget.lineId}_actualQty`]) {
+      clearTimeout(saveTimers.current[`${confirmTarget.lineId}_actualQty`])
+    }
+    if (saveTimers.current[`${confirmTarget.lineId}_price`]) {
+      clearTimeout(saveTimers.current[`${confirmTarget.lineId}_price`])
+    }
+
     await withLoading(async () => {
-      // 先存單價
       const edit = edits[confirmTarget.lineId]
-      if (edit?.price) {
-        await updatePurchaseOrderLine(confirmTarget.lineId, {
-          price_unit: parseFloat(edit.price) || 0,
-        })
-      }
+      const priceVal = edit?.price ? parseFloat(edit.price) : undefined
+      const finalPrice = (!isNaN(priceVal as number)) ? priceVal : undefined
 
       await markLineReceived(
         confirmTarget.lineId,
         confirmTarget.poId,
         po.lines,
         confirmTarget.actualQty,
+        finalPrice
       )
       setEdits(prev => { const next = { ...prev }; delete next[confirmTarget.lineId]; return next })
-      await useAdminStore.getState().reloadBusinessData()
+      // 僅重載 Purchase 相關資料，不必重載 Sales 以減少重複 query
+      await useAdminStore.getState().loadPurchases(targetDate, true)
     }, '記錄到貨中...', '已標記為到貨')
     setConfirmTarget(null)
   }

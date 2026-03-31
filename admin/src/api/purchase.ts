@@ -102,7 +102,7 @@ export const getPurchaseOrders = async (targetDate: string): Promise<PurchaseOrd
     db.query('purchase_orders', { 
       select_columns: ['id', 'name', 'state', 'date_order', 'supplier_id', 'amount_total'],
       filters: [
-        { column: 'state', op: 'in', value: ['draft', 'sent', 'purchase'] }
+        { column: 'state', op: 'in', value: ['draft', 'sent', 'purchase', 'done'] }
       ]
     }),
     getCachedSupplierMap(),
@@ -178,11 +178,14 @@ export const markLineReceived = async (
   poId: string,
   allLines: PurchaseOrderLine[],
   actualQty: number,
+  priceUnit?: number,
 ) => {
-  // 1. 寫入實際採購量
-  await db.update('purchase_order_lines', lineId, {
-    qty_received: actualQty,
-  })
+  // 1. 寫入實際採購量與可選單價
+  const data: any = { qty_received: actualQty }
+  if (priceUnit !== undefined) {
+    data.price_unit = priceUnit
+  }
+  await db.update('purchase_order_lines', lineId, data)
 
   // 2. 檢查是否所有 lines 都已到貨
   const otherLines = allLines.filter(l => l.id !== lineId)
