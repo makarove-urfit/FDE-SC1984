@@ -207,7 +207,7 @@ export const markLineReceived = async (
  *    - 沒有 draft PO → 建立新 PO + line
  */
 export async function autoAddToPurchaseOrder(
-  orderLines: Array<{ productTemplateId: string; name: string; quantity: number }>,
+  orderLines: Array<{ productTemplateId: string; productId: string; name: string; quantity: number }>,
 ): Promise<void> {
   if (orderLines.length === 0) return
 
@@ -261,7 +261,7 @@ export async function autoAddToPurchaseOrder(
     // 逐品項處理
     for (const line of lines) {
       const existingLine = poLines.find(
-        (l: any) => resolveId(l.product_id) === line.productTemplateId,
+        (l: any) => resolveId(l.product_id) === line.productId,
       )
 
       if (existingLine) {
@@ -272,7 +272,7 @@ export async function autoAddToPurchaseOrder(
         // 新增 line
         await db.insert('purchase_order_lines', {
           order_id: targetPOId,
-          product_id: line.productTemplateId,
+          product_id: line.productId,
           product_qty: line.quantity,
           name: line.name,
           price_unit: 0,
