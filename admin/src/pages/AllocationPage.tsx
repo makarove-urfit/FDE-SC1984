@@ -114,11 +114,34 @@ export default function AllocationPage() {
 
   const handleComplete = async () => {
     if (!completingId) return
+    const order = allocatableOrders.find(o => o.id === completingId)
+    if (!order) return
+    setSaving(true)
     try {
-      await handleSave(completingId)
-      await updateSaleOrderAllocation(completingId, { allocated: true })
+      // 儲存各品項實際出貨量
+      for (const line of order.lines) {
+        const editKey = `${line.id}_qty`
+        if (edits[editKey] !== undefined) {
+          await updateSaleOrderLineDelivery(line.id, parseFloat(edits[editKey]) || 0)
+        }
+      }
+      // 一次寫入 driver + allocated
+      const driverKey = `${completingId}_driver`
+      const driverValue = edits[driverKey] ?? order.driver
+      await updateSaleOrderAllocation(completingId, {
+        driver: driverValue,
+        allocated: true,
+      })
+      // 清除此訂單的編輯
+      setEdits(prev => {
+        const next = { ...prev }
+        order.lines.forEach(l => delete next[`${l.id}_qty`])
+        delete next[driverKey]
+        return next
+      })
       await loadAll(true)
     } finally {
+      setSaving(false)
       setCompletingId(null)
     }
   }
