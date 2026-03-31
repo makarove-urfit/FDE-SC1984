@@ -209,9 +209,9 @@ export default function PurchasePage() {
                                   value={edit?.price ?? String(line.unitPrice)}
                                   onChange={e => updateEdit(line.id, 'price', e.target.value, line)}
                                   className="w-32 text-right border border-gray-200 rounded px-2 py-1 text-sm focus:border-blue-400 focus:outline-none" />
-                              ) : `$${line.unitPrice}`}
+                              ) : `NT$${line.unitPrice}`}
                             </td>
-                            <td className="py-2 text-right font-bold">${Math.round(actualQty * price).toLocaleString()}</td>
+                            <td className="py-2 text-right font-bold">NT${Math.round(actualQty * price).toLocaleString()}</td>
                             <td className="py-2 text-center">
                               {line.received ? (
                                 <span className="text-green-600 font-medium text-xs">✓ 已到</span>
