@@ -5,6 +5,7 @@ import { useState, useMemo, useEffect } from 'react'
 import BackButton from '../components/BackButton'
 import { useAdminStore } from '../store/useAdminStore'
 import { updateSaleOrderState } from '../api/sales'
+import { autoAddToPurchaseOrder } from '../api/purchase'
 import SearchInput from '../components/SearchInput'
 import StatusDropdown from '../components/StatusDropdown'
 import Pagination from '../components/Pagination'
@@ -58,8 +59,21 @@ export default function OrdersPage() {
   const handleConfirm = async () => {
     if (!confirmId) return
     try {
+      // 1. 確認訂單 (draft → sale)
       await updateSaleOrderState(confirmId, 'sale')
-      await loadSales(true)
+      // 2. 自動將品項加入採購單（按供應商分組）
+      const order = saleOrders.find(o => o.id === confirmId)
+      if (order) {
+        await autoAddToPurchaseOrder(
+          order.lines.map(l => ({
+            productTemplateId: l.productTemplateId,
+            name: l.name,
+            quantity: l.quantity,
+          })),
+        )
+      }
+      // 3. 重新載入
+      await useAdminStore.getState().loadAll(true)
     } finally {
       setConfirmId(null)
     }

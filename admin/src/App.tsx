@@ -7,7 +7,6 @@ import { useAdminStore } from './store/useAdminStore'
 const DashboardPage = lazy(() => import('./pages/DashboardPage'))
 const OrdersPage = lazy(() => import('./pages/OrdersPage'))
 const PurchasePage = lazy(() => import('./pages/PurchasePage'))
-const ReceivingPage = lazy(() => import('./pages/ReceivingPage'))
 const DeliveryPage = lazy(() => import('./pages/DeliveryPage'))
 
 function LoadingFallback() {
@@ -27,7 +26,6 @@ export default function App() {
           <Route path="/" element={<AuthGuard><DashboardPage /></AuthGuard>} />
           <Route path="/orders" element={<AuthGuard><OrdersPage /></AuthGuard>} />
           <Route path="/purchase" element={<AuthGuard><PurchasePage /></AuthGuard>} />
-          <Route path="/receiving" element={<AuthGuard><ReceivingPage /></AuthGuard>} />
           <Route path="/delivery" element={<AuthGuard><DeliveryPage /></AuthGuard>} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
