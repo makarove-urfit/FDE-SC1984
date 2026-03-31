@@ -28,6 +28,7 @@ export interface SaleOrderLine {
   id: string
   orderId: string
   productTemplateId: string
+  productId: string
   name: string
   quantity: number
   actualDeliveryQty: number  // 從 note JSON 解析而得的自定義分配量，如果沒分配過則為預設 0
@@ -99,7 +100,7 @@ export const getSaleOrders = async (targetDate: string): Promise<SaleOrder[]> =>
   let lines: any[] = []
   if (orderIds.length > 0) {
     lines = await db.query('sale_order_lines', { 
-      select_columns: ['id', 'order_id', 'product_template_id', 'name', 'product_uom_qty', 'qty_delivered', 'price_unit', 'price_subtotal'],
+      select_columns: ['id', 'order_id', 'product_template_id', 'product_id', 'name', 'product_uom_qty', 'qty_delivered', 'price_unit', 'price_subtotal'],
       filters: [{ column: 'order_id', op: 'in', value: orderIds }]
     })
   }
@@ -122,6 +123,9 @@ export const getSaleOrders = async (targetDate: string): Promise<SaleOrder[]> =>
           const ptId = Array.isArray(l.product_template_id)
             ? String(l.product_template_id[0])
             : String(l.product_template_id || '')
+          const pId = Array.isArray(l.product_id)
+            ? String(l.product_id[0])
+            : String(l.product_id || ptId)
           
           const actualDeliveryQty = noteData.allocations?.[String(l.id)] ?? 0
           
@@ -129,6 +133,7 @@ export const getSaleOrders = async (targetDate: string): Promise<SaleOrder[]> =>
             id: String(l.id),
             orderId: String(o.id),
             productTemplateId: ptId,
+            productId: pId,
             name: l.name || '未知商品',
             quantity: l.product_uom_qty || 0,
             actualDeliveryQty,

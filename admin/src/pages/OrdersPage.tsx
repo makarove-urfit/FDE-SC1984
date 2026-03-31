@@ -68,6 +68,7 @@ export default function OrdersPage() {
         await autoAddToPurchaseOrder(
           order.lines.map(l => ({
             productTemplateId: l.productTemplateId,
+            productId: l.productId,
             name: l.name,
             quantity: l.quantity,
           })),
