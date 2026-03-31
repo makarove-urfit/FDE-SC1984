@@ -15,8 +15,7 @@ import { shortId } from '../utils/displayHelpers'
 
 const stateOptions = [
   { value: 'draft', label: '待確認' },
-  { value: 'sale', label: '已確認' },
-  { value: 'all', label: '全部' },
+  { value: 'other', label: '其他' },
 ]
 
 const stateConfig: Record<string, { label: string; color: string }> = {
@@ -42,7 +41,11 @@ export default function OrdersPage() {
 
   const filtered = useMemo(() => {
     let list = saleOrders
-    if (filter !== 'all') list = list.filter(o => o.state === filter)
+    if (filter === 'draft') {
+      list = list.filter(o => o.state === 'draft')
+    } else if (filter === 'other') {
+      list = list.filter(o => o.state !== 'draft')
+    }
     if (search.trim()) {
       const q = search.toLowerCase()
       list = list.filter(o =>
@@ -94,7 +97,7 @@ export default function OrdersPage() {
       <div className="p-6 max-w-[1600px] mx-auto w-full space-y-3">
         {paged.length === 0 ? (
           <div className="text-center text-gray-400 py-12">
-            {search || filter !== 'all' ? '無符合的訂單' : '尚無訂單'}
+            {search || filter !== 'draft' ? '無符合的訂單' : '尚無訂單'}
           </div>
         ) : paged.map(order => {
           const config = stateConfig[order.state] || stateConfig.draft
