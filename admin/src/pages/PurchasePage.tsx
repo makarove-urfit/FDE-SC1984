@@ -30,8 +30,8 @@ export default function PurchasePage() {
 
   const activePOs = useMemo(() =>
     purchaseOrders
-      .filter(po => po.state === 'draft' || po.state === 'done')
-      .sort((a, b) => (a.state === 'draft' ? -1 : 1) - (b.state === 'draft' ? -1 : 1)),
+      .filter(po => po.state !== 'cancel')
+      .sort((a, b) => (a.state === 'done' ? 1 : -1) - (b.state === 'done' ? 1 : -1)),
     [purchaseOrders],
   )
 
