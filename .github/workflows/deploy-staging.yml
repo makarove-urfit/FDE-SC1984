@@ -3,6 +3,12 @@
 #
 # Push 到 main 即自動部署 ordering + admin 兩個 Custom App
 # 也可在 GitHub Actions 頁面手動觸發
+#
+# 必要 Secrets:
+#   STAGING_HOST       - VM IP/hostname
+#   STAGING_SSH_KEY    - SSH 私鑰
+#   VITE_API_KEY       - AI GO API Key (sk_live_xxx)
+#   VITE_APP_SLUG      - AI GO App ID (UUID)
 # ============================================================
 
 name: 部署到 Staging
@@ -29,7 +35,9 @@ jobs:
         host: ${{ secrets.STAGING_HOST }}
         username: deploy
         key: ${{ secrets.STAGING_SSH_KEY }}
+        envs: VITE_API_KEY,VITE_APP_SLUG
         script: |
+          set -e
           REPO_NAME="fde-sc1984"
           APP_DIR="/opt/apps/${REPO_NAME}"
 
@@ -42,20 +50,40 @@ jobs:
           git fetch origin main
           git reset --hard FETCH_HEAD
 
-          # 確保 .env 檔案存在（首次部署時從 .env.example 複製）
-          for f in ordering/.env ordering/backend/.env admin/.env; do
+          # ── 寫入 Admin 環境變數 ──
+          # Vite 的 VITE_* 變數會在 Docker build 時透過 ARG 被 bake 進 JS
+          cat > admin/.env << ENVEOF
+          VITE_API_BASE=/api/v1
+          VITE_API_KEY=${VITE_API_KEY}
+          VITE_APP_SLUG=${VITE_APP_SLUG}
+          VITE_AIGO_URL=https://ai-go.app
+          ENVEOF
+
+          # docker-compose 從專案根目錄 .env 讀取變數供 build args 使用
+          cat > .env << ENVEOF
+          VITE_API_KEY=${VITE_API_KEY}
+          VITE_APP_SLUG=${VITE_APP_SLUG}
+          ENVEOF
+
+          echo "admin/.env 內容:"
+          cat admin/.env
+          echo "---"
+
+          # 確保 ordering .env 存在
+          for f in ordering/.env ordering/backend/.env; do
             if [ ! -f "$f" ]; then
               example="${f%.env}.env.example"
               if [ -f "$example" ]; then
                 cp "$example" "$f"
-                echo "已從 $example 建立 $f（請稍後填入正確值）"
+                echo "已從 $example 建立 $f"
               else
                 touch "$f"
-                echo "已建立空的 $f（請稍後填入正確值）"
+                echo "已建立空的 $f"
               fi
             fi
           done
-          # 停止舊部署的容器（遷移前路徑 /opt/apps/fde-apps）
+
+          # 停止舊部署的容器（遷移前路徑）
           OLD_DIR="/opt/apps/fde-apps"
           if [ -d "$OLD_DIR" ] && [ -f "$OLD_DIR/docker-compose.staging.yml" ]; then
             echo "偵測到舊部署，正在停止..."
@@ -65,4 +93,9 @@ jobs:
           fi
 
           # 建置並啟動 ordering + admin 雙服務
+          echo "開始 build..."
           docker-compose -f docker-compose.staging.yml up -d --build --force-recreate
+          echo "部署完成！"
+      env:
+        VITE_API_KEY: ${{ secrets.VITE_API_KEY }}
+        VITE_APP_SLUG: ${{ secrets.VITE_APP_SLUG }}
