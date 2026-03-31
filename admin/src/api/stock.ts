@@ -28,7 +28,7 @@ const resolveUom = (raw: any, uomMap: Record<string, string>): string => {
 /** 取得 UoM 查找表：uuid → 名稱 */
 export const getUomMap = async (): Promise<Record<string, string>> => {
   try {
-    const uoms = await db.query('uom_uom')
+    const uoms = await db.query('uom_uom', { select_columns: ['id', 'name'] })
     const map: Record<string, string> = {}
     uoms.forEach((u: any) => { map[String(u.id)] = u.name || '單位' })
     return map
@@ -39,7 +39,7 @@ export const getUomMap = async (): Promise<Record<string, string>> => {
 
 export const getProducts = async (): Promise<Product[]> => {
   const [templates, uomMap] = await Promise.all([
-    db.query('product_templates'),
+    db.query('product_templates', { select_columns: ['id', 'name', 'default_code', 'uom_id'] }),
     getUomMap(),
   ])
   return templates.map((t: any) => ({
@@ -56,7 +56,7 @@ export { resolveUom }
 /** 取得司機（配送員）清單 from hr_employees */
 export const getDrivers = async (): Promise<Array<{ id: string; name: string }>> => {
   try {
-    const employees = await db.query('hr_employees')
+    const employees = await db.query('hr_employees', { select_columns: ['id', 'name'] })
     return employees.map((e: any) => ({
       id: String(e.id),
       name: e.name || '未知',

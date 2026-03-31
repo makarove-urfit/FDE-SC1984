@@ -26,7 +26,7 @@ interface UIState {
   removeToast: (id: string) => void
 }
 
-const MAX_TIMEOUT = 15_000
+const MAX_TIMEOUT = 45_000
 
 let loadingTimer: ReturnType<typeof setTimeout> | null = null
 

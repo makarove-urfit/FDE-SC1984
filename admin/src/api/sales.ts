@@ -72,11 +72,11 @@ const resolveCustomerName = (raw: any, customerMap: Record<string, string>): str
 
 export const getSaleOrders = async (): Promise<SaleOrder[]> => {
   const [orders, lines, customers, uomMap, products] = await Promise.all([
-    db.query('sale_orders'),
-    db.query('sale_order_lines'),
-    db.query('customers').catch(() => []),
+    db.query('sale_orders', { select_columns: ['id', 'name', 'state', 'date_order', 'customer_id', 'amount_total', 'note'] }),
+    db.query('sale_order_lines', { select_columns: ['id', 'order_id', 'product_template_id', 'name', 'product_uom_qty', 'qty_delivered', 'price_unit', 'price_subtotal'] }),
+    db.query('customers', { select_columns: ['id', 'name'] }).catch(() => []),
     getUomMap(),
-    db.query('product_templates'),
+    db.query('product_templates', { select_columns: ['id', 'uom_id'] }),
   ])
 
   const customerMap: Record<string, string> = {}

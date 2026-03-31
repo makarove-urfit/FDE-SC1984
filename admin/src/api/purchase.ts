@@ -66,7 +66,7 @@ const resolveId = (raw: any): string => {
 /** 載入 product_supplierinfo → 產品↔供應商對應表 */
 export const getSupplierMappings = async (): Promise<SupplierMapping[]> => {
   try {
-    const rows = await db.query('product_supplierinfo')
+    const rows = await db.query('product_supplierinfo', { select_columns: ['product_tmpl_id', 'supplier_id'] })
     return rows
       .filter((r: any) => r.product_tmpl_id && r.supplier_id)
       .map((r: any) => ({
@@ -81,7 +81,7 @@ export const getSupplierMappings = async (): Promise<SupplierMapping[]> => {
 /** 載入供應商清單 → id→name 查找表 */
 export const getSupplierMap = async (): Promise<Record<string, string>> => {
   try {
-    const suppliers = await db.query('suppliers')
+    const suppliers = await db.query('suppliers', { select_columns: ['id', 'name'] })
     const map: Record<string, string> = {}
     suppliers.forEach((s: any) => { map[String(s.id)] = s.name || '未知供應商' })
     return map
@@ -92,11 +92,11 @@ export const getSupplierMap = async (): Promise<Record<string, string>> => {
 
 export const getPurchaseOrders = async (): Promise<PurchaseOrder[]> => {
   const [orders, lines, supplierNameMap, uomMap, products] = await Promise.all([
-    db.query('purchase_orders'),
-    db.query('purchase_order_lines'),
+    db.query('purchase_orders', { select_columns: ['id', 'name', 'state', 'date_order', 'supplier_id', 'amount_total', 'note'] }),
+    db.query('purchase_order_lines', { select_columns: ['id', 'order_id', 'product_template_id', 'product_id', 'name', 'product_qty', 'qty_received', 'price_unit'] }),
     getSupplierMap(),
     getUomMap(),
-    db.query('product_templates'),
+    db.query('product_templates', { select_columns: ['id', 'uom_id'] }),
   ])
 
   // product_template_id → uom_id → 單位名稱
