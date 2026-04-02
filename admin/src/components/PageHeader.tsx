@@ -31,8 +31,9 @@ export default function PageHeader({ title, showBack = false, children }: Props)
             </button>
 
             <div className="flex flex-col items-center min-w-[120px]">
-              <span className="text-xs text-gray-500 font-medium">看診/訂單日期</span>
+              <span className="text-xs text-gray-500 font-medium">訂單日期</span>
               <span className="text-base font-bold text-blue-700 tracking-wide">{targetDate}</span>
+              <span className="text-[10px] text-gray-400">每天 02:00 AM 刷新</span>
             </div>
 
             <button

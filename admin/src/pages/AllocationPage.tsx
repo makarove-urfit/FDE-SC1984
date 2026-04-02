@@ -287,7 +287,7 @@ export default function AllocationPage() {
                       </span>
                     )}
                   </div>
-                  <p className="text-sm text-gray-400">{shortId(order.name)} · {order.date} · {order.lines.length} 品項</p>
+                  <p className="text-sm text-gray-400">訂單 {shortId(order.name)} · {order.date} · {order.lines.length} 品項</p>
                 </div>
                 <span className="text-gray-400 text-xl">{isExpanded ? '▾' : '▸'}</span>
               </button>
