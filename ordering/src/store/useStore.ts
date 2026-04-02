@@ -14,6 +14,7 @@ import { useUIStore } from './useUIStore'
 import {
   fetchProductTemplates,
   fetchProductCategories,
+  fetchUomMap,
   mapCategories,
   mapProducts,
   createSaleOrder,
@@ -252,12 +253,13 @@ export const useStore = create<AppState>((set, get) => ({
 
 /** 從 API 載入產品並更新快取 */
 async function refreshFromApi(set: (partial: Partial<AppState>) => void): Promise<void> {
-  const [rawTemplates, rawCategories] = await Promise.all([
+  const [rawTemplates, rawCategories, uomMap] = await Promise.all([
     fetchProductTemplates(),
     fetchProductCategories(),
+    fetchUomMap(),
   ])
   const cats = mapCategories(rawCategories)
-  const prods = mapProducts(rawTemplates, cats)
+  const prods = mapProducts(rawTemplates, cats, uomMap)
 
   // 更新 store
   set({ liveProducts: prods, liveCategories: cats, productsLoadedAt: Date.now(), productsLoading: false })

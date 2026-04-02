@@ -194,6 +194,27 @@ export async function fetchProductCategories(): Promise<RawProductCategory[]> {
   })
 }
 
+/**
+ * 查詢 uom_uom 表，回傳 { [id]: name } map
+ * 用於將 product_templates.uom_id (UUID) 反查為中文單位名稱
+ */
+export async function fetchUomMap(): Promise<Record<string, string>> {
+  try {
+    const raw = await fetchProxy<{ id: string; name: string }[]>('uom_uom/query', 'POST', {
+      select_columns: ['id', 'name'],
+      limit: 500,
+    })
+    const map: Record<string, string> = {}
+    for (const u of raw) {
+      if (u.id && u.name) map[u.id] = u.name
+    }
+    return map
+  } catch {
+    // UoM 查詢失敗不阻塞，fallback 由 mapProducts 處理
+    return {}
+  }
+}
+
 export async function fetchCustomers(): Promise<RawCustomer[]> {
   return fetchProxy<RawCustomer[]>('customers')
 }
@@ -275,21 +296,25 @@ export function mapCategories(raw: RawProductCategory[]): Category[] {
   }))
 }
 
-export function mapProducts(raw: RawProductTemplate[], categories: Category[]): Product[] {
+export function mapProducts(raw: RawProductTemplate[], categories: Category[], uomMap?: Record<string, string>): Product[] {
   // 防禦性去重：API 可能因 JOIN 回傳重複的 product template
   const seen = new Set<string>()
   return raw.filter(p => {
     if (!p.name || seen.has(p.id)) return false
     seen.add(p.id)
     return true
-  }).map(p => ({
-    id: p.id,
-    name: p.name,
-    categoryId: p.categ_id || (categories.length > 0 ? categories[0].id : 'unknown'),
-    unit: (p.uom_id && p.uom_id.length === 36 && p.uom_id.includes('-')) ? '' : (p.uom_id || '單位'),
-    defaultCode: p.default_code || '',
-    supplierId: '',
-  }))
+  }).map(p => {
+    // 查找 UoM 名稱：先用 uomMap 反查，fallback 為「單位」
+    const uomName = (p.uom_id && uomMap?.[p.uom_id]) || '單位'
+    return {
+      id: p.id,
+      name: p.name,
+      categoryId: p.categ_id || (categories.length > 0 ? categories[0].id : 'unknown'),
+      unit: uomName,
+      defaultCode: p.default_code || '',
+      supplierId: '',
+    }
+  })
 }
 
 export function mapCustomers(raw: RawCustomer[]): Customer[] {
