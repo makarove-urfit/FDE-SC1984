@@ -91,21 +91,16 @@ export const getSupplierMap = async (): Promise<Record<string, string>> => {
   }
 }
 
-import { getOrderDateBounds } from '../utils/dateHelpers'
 import { getCachedSupplierMap, getCachedProductUomMap, getCachedProductIdToTemplateMap } from './refCache'
 
 export const getPurchaseOrders = async (targetDate: string): Promise<PurchaseOrder[]> => {
-  // 取出精準的 Odoo UTC [開始, 結束) 界線（用於前端篩選）
-  const { start, end } = getOrderDateBounds(targetDate)
-
   // 平行拉取：活躍訂單 + 快取的參照資料
+  // 注意：AI GO Proxy 不支援 ge/lt 運算子，日期篩選改在前端執行
   const [allOrders, supplierNameMap, productUom, pid2tmplMap] = await Promise.all([
     db.query('purchase_orders', { 
       select_columns: ['id', 'name', 'state', 'date_order', 'supplier_id', 'amount_total'],
       filters: [
         { column: 'state', op: 'in', value: ['draft', 'sent', 'purchase', 'done'] },
-        { column: 'date_order', op: 'ge', value: start },
-        { column: 'date_order', op: 'lt', value: end }
       ]
     }),
     getCachedSupplierMap(),
@@ -113,10 +108,11 @@ export const getPurchaseOrders = async (targetDate: string): Promise<PurchaseOrd
     getCachedProductIdToTemplateMap(),
   ])
 
-  // 前端做 02:00 UTC+8 週期過濾（後端 proxy 不支援 ge/lt 運算子）
+  // 前端日期篩選：兼容純日期 "2026-04-02" 和 ISO datetime
   const orders = allOrders.filter((o: any) => {
     const d = String(o.date_order || '')
-    return d >= start && d < end
+    const dateOnly = d.substring(0, 10)
+    return dateOnly === targetDate
   })
 
   // 第二階段：拉出這批採購單專屬的子明細

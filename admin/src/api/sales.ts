@@ -70,31 +70,28 @@ const resolveCustomerName = (raw: any, customerMap: Record<string, string>): str
   return '未知客戶'
 }
 
-import { getOrderDateBounds } from '../utils/dateHelpers'
 import { getCachedCustomerMap, getCachedProductUomMap } from './refCache'
 
 export const getSaleOrders = async (targetDate: string): Promise<SaleOrder[]> => {
-  // 取出精準的 Odoo UTC [開始, 結束) 界線（用於前端篩選）
-  const { start, end } = getOrderDateBounds(targetDate)
-
   // 平行拉取：活躍訂單 + 快取的參照資料
+  // 注意：AI GO Proxy 不支援 ge/lt 運算子，日期篩選改在前端執行
   const [allOrders, customerMap, productUom] = await Promise.all([
     db.query('sale_orders', { 
       select_columns: ['id', 'name', 'state', 'date_order', 'customer_id', 'amount_total', 'note'],
       filters: [
         { column: 'state', op: 'in', value: ['draft', 'sent', 'sale', 'done'] },
-        { column: 'date_order', op: 'ge', value: start },
-        { column: 'date_order', op: 'lt', value: end }
       ]
     }),
     getCachedCustomerMap(),
     getCachedProductUomMap(),
   ])
 
-  // 前端仍做額外確認過濾，以防 Proxy 查詢時區等異常
+  // 前端日期篩選：兼容純日期 "2026-04-02" 和 ISO datetime "2026-04-02T01:48:49..."
   const orders = allOrders.filter((o: any) => {
     const d = String(o.date_order || '')
-    return d >= start && d < end
+    // 若 date_order 是純日期字串（如 "2026-04-02"），直接比較日期部分
+    const dateOnly = d.substring(0, 10)
+    return dateOnly === targetDate
   })
 
   // 第二階段：只拉取這批訂單關聯的子明細
