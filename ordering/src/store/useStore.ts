@@ -17,6 +17,7 @@ import {
   mapCategories,
   mapProducts,
   createSaleOrder,
+  createSaleOrderLine,
   querySaleOrders,
   querySaleOrderLines,
   type RawSaleOrder,
@@ -210,27 +211,30 @@ export const useStore = create<AppState>((set, get) => ({
 
     set({ submitError: null })
     try {
-      // 1. 整理 Odoo One2many 格式的訂單明細
-      const orderLines = cart.map(item => {
-        const product = liveProducts.find(p => p.id === item.productId)
-        return [0, 0, {
-          product_template_id: item.productId,
-          name: product ? `${product.name}${item.note ? ` (${item.note})` : ''}` : item.productId,
-          product_uom_qty: item.qty,
-        }]
-      })
-
-      // 2. 建立 sale_order (包含明細)
-      onProgress?.('建立訂單與明細中...')
+      // 1. 建立 sale_order（不含明細 — AI GO Proxy 不支援 One2many order_line）
+      onProgress?.('建立訂單中...')
       const customerId = useAuthStore.getState().customerId
       const orderRes = await createSaleOrder({
         customer_id: customerId || undefined,
-        date_order: new Date().toISOString().slice(0, 10),
+        date_order: new Date().toISOString(),
         note: note || undefined,
         state: 'draft',
-        order_line: orderLines,
       })
       const orderId = orderRes.id
+
+      // 2. 逐一建立 sale_order_lines
+      onProgress?.(`建立明細中 (0/${cart.length})...`)
+      for (let i = 0; i < cart.length; i++) {
+        const item = cart[i]
+        const product = liveProducts.find(p => p.id === item.productId)
+        await createSaleOrderLine({
+          order_id: orderId,
+          product_template_id: item.productId,
+          name: product ? `${product.name}${item.note ? ` (${item.note})` : ''}` : item.productId,
+          product_uom_qty: item.qty,
+        })
+        onProgress?.(`建立明細中 (${i + 1}/${cart.length})...`)
+      }
 
       // 3. 清空購物車，背景刷新訂單（不阻塞）
       onProgress?.('完成！')

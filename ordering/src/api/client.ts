@@ -200,14 +200,13 @@ export async function fetchCustomers(): Promise<RawCustomer[]> {
 
 // --- Sale Order CRUD ---
 
-/** 建立銷貨單 */
+/** 建立銷貨單（注意：AI GO Proxy 不支援 One2many order_line，明細需另外建立） */
 export async function createSaleOrder(data: {
   customer_id?: string
   date_order: string
   note?: string
   state?: string
   client_order_ref?: string
-  order_line?: any[]
 }): Promise<{ id: string; data: Record<string, unknown> }> {
   return fetchProxy('sale_orders', 'POST', data as Record<string, unknown>)
 }
