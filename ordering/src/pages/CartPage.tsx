@@ -78,13 +78,13 @@ export default function CartPage() {
 
   return (
     <div className="min-h-screen bg-gray-50 pb-28">
-      <header className="sticky top-0 z-10 bg-white border-b border-gray-200 px-4 py-3 flex items-center gap-3">
+      <header className="sticky top-0 z-10 bg-white border-b border-gray-200 px-4 py-3 flex items-center">
         <div className="flex items-center gap-2">
           <button onClick={() => navigate('/order')} className="text-gray-400 hover:text-gray-600">←</button>
           <h1 className="text-lg font-bold">確認訂單</h1>
           <span className="text-sm text-gray-400">({cart.length} 項)</span>
         </div>
-        <button onClick={() => { logout(); navigate('/login') }} className="text-sm text-gray-400 hover:text-red-500 transition-colors">
+        <button onClick={() => { logout(); navigate('/login') }} className="ml-auto text-sm text-gray-400 hover:text-red-500 transition-colors">
           登出
         </button>
       </header>
@@ -107,7 +107,7 @@ export default function CartPage() {
                   if (!isNaN(val)) updateCartQty(productId, val)
                 }}
                 className="w-24 text-center px-2 py-1 border border-gray-200 rounded-lg bg-gray-50 font-medium" />
-              <span className="text-sm text-gray-400">{product?.unit || ''}</span>
+              <span className="text-sm text-gray-400">{product?.unit || '單位'}</span>
             </div>
             <input placeholder="備註（如：去頭尾、切小丁、不黑不爛）" value={note}
               onChange={(e) => updateCartNote(productId, e.target.value)}

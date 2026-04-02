@@ -108,6 +108,7 @@ export default function OrderPage() {
                       if (!isNaN(val)) updateCartQty(product.id, val)
                     }}
                   />
+                  <span className="text-xs text-gray-400 ml-0.5">{product.unit || '單位'}</span>
                   <button onClick={() => addToCart(product.id)}
                     className="w-7 h-7 bg-primary rounded-lg flex items-center justify-center text-white hover:bg-green-700 font-bold text-lg">+</button>
                 </div>
@@ -133,7 +134,7 @@ export default function OrderPage() {
         <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 px-4 py-4 shadow-[0_-4px_12px_rgba(0,0,0,0.05)]">
           <button onClick={() => navigate('/cart')}
             className="w-full py-3.5 bg-primary text-white rounded-xl font-bold text-lg hover:bg-green-700 transition-colors shadow-lg shadow-green-200 flex items-center justify-center gap-2">
-            🛒 查看購物車（{cart.length} 項，共 {totalItems} 單位）
+            🛒 查看購物車（{cart.length} 項）
           </button>
         </div>
       )}

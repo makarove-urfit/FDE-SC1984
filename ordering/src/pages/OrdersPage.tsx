@@ -24,10 +24,9 @@ export default function OrdersPage() {
     loadOrders()
   }, [loadOrders])
 
-  const getProductName = (templateId: string | null) => {
-    if (!templateId) return '未知品項'
-    const p = liveProducts.find(pp => pp.id === templateId)
-    return p?.name || templateId.slice(0, 8)
+  const getProduct = (templateId: string | null) => {
+    if (!templateId) return null
+    return liveProducts.find(pp => pp.id === templateId) || null
   }
 
   return (
@@ -89,10 +88,10 @@ export default function OrdersPage() {
                   {lines.slice(0, 4).map((line) => (
                     <div key={line.id} className="flex justify-between text-sm">
                       <span className="text-gray-600 truncate max-w-[60%]">
-                        {line.name || getProductName(line.product_template_id)}
+                        {line.name || getProduct(line.product_template_id)?.name || '未知品項'}
                       </span>
                       <span className="text-gray-400">
-                        × {Number(line.product_uom_qty)}
+                        × {Number(line.product_uom_qty)} {getProduct(line.product_template_id)?.unit || '單位'}
                         {line.price_unit > 0 && (
                           <span className="ml-2 text-gray-600">${Math.round(Number(line.product_uom_qty) * line.price_unit)}</span>
                         )}
