@@ -525,17 +525,16 @@ html, :host {
 .product-card {
   display: flex;
   align-items: center;
-  justify-content: space-between;
   background: #fff;
   border-radius: var(--radius);
-  padding: 12px 16px;
+  padding: 10px 12px;
   border: 1px solid var(--border);
-  gap: 12px;
+  gap: 8px;
 }
 
-.product-info { flex: 1; }
-.product-code { font-size: 11px; color: var(--text-muted); display: block; }
-.product-name { font-size: 14px; font-weight: 500; }
+.product-info { flex: 1; min-width: 0; overflow: hidden; }
+.product-code { font-size: 11px; color: var(--text-muted); display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.product-name { font-size: 14px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .product-price-block { text-align: right; flex-shrink: 0; }
 .product-price { font-size: 15px; font-weight: 600; color: var(--primary); display: block; }
 .price-date { font-size: 11px; color: var(--text-muted); display: block; }
@@ -565,7 +564,7 @@ html, :host {
   color: var(--text);
 }
 
-.qty-unit { font-size: 12px; color: var(--text-muted); }
+.qty-unit { font-size: 12px; color: var(--text-muted); width: 2em; min-width: 2em; }
 
 .empty-msg { text-align: center; color: var(--text-muted); padding: 32px 0; }
 
@@ -888,6 +887,12 @@ export async function runAction(actionName: string, params: Record<string, any> 
 
     # src/action.ts：SDK stub，標記 /* @ai-go-sdk */，內容與 AI GO 官方 SDK 一致，不自行修改
     vfs["src/action.ts"] = r'''/* @ai-go-sdk */
+/**
+ * Server-Side Action SDK — 供 Custom App 呼叫後端 Python Action
+ * 透過 fetch 直接呼叫後端 API，觸發後端安全沙箱執行 Action。
+ * 使用前需先在「開發」Tab 的 actions/ 目錄中建立 Action。
+ */
+
 const API_BASE = (window as any).__API_BASE__ || '/api/v1';
 
 function _getHeaders(): Record<string, string> {
@@ -897,34 +902,67 @@ function _getHeaders(): Record<string, string> {
   return headers;
 }
 
-export async function runAction(actionName: string, params: Record<string, any> = {}): Promise<any> {
+/**
+ * 呼叫後端 Action
+ * @param actionName Action 名稱（需與 actions/ 目錄中的檔名一致）
+ * @param params 傳入 Action 的參數
+ * @returns {{ data, file }} — data 為 Action 回傳的 JSON，file 為檔案物件（若有）
+ */
+export async function runAction(
+  actionName: string,
+  params: Record<string, any> = {}
+): Promise<any> {
   const appId = (window as any).__APP_ID__ || '';
   const isExternal = !!(window as any).__IS_EXTERNAL__;
   const actionUrl = isExternal
     ? API_BASE + '/ext/actions/run/' + actionName
     : API_BASE + '/actions/run/' + appId + '/' + actionName;
   const resp = await fetch(actionUrl, {
-    method: 'POST', headers: _getHeaders(), credentials: 'include',
+    method: 'POST',
+    headers: _getHeaders(),
+    credentials: 'include',
     body: JSON.stringify({ params }),
   });
+
   if (!resp.ok) {
     const body = await resp.json().catch(() => ({}));
     throw new Error(body.detail || 'Action Error (' + resp.status + ')');
   }
+
   const result = await resp.json();
-  if (result && result.status === 'error') throw new Error(result.message || 'Action Error');
-  return { data: result.data || result, file: result.file || undefined };
+  if (result && result.status === 'error') {
+    throw new Error(result.message || 'Action Error');
+  }
+
+  return {
+    data: result.data || result,
+    file: result.file || undefined,
+  };
 }
 
+/**
+ * 下載檔案（原生瀏覽器下載）
+ * @param file 檔案物件，包含 content_base64, filename, mime_type 欄位
+ */
 export function downloadFile(file: any) {
   if (!file || !file.content_base64) return;
+
+  // 將 base64 轉為 Blob 並觸發原生下載
   const byteChars = atob(file.content_base64);
   const byteNumbers = new Array(byteChars.length);
-  for (let i = 0; i < byteChars.length; i++) byteNumbers[i] = byteChars.charCodeAt(i);
-  const blob = new Blob([new Uint8Array(byteNumbers)], { type: file.mime_type || 'application/octet-stream' });
+  for (let i = 0; i < byteChars.length; i++) {
+    byteNumbers[i] = byteChars.charCodeAt(i);
+  }
+  const byteArray = new Uint8Array(byteNumbers);
+  const blob = new Blob([byteArray], { type: file.mime_type || 'application/octet-stream' });
+
   const url = URL.createObjectURL(blob);
-  const a = document.createElement('a'); a.href = url; a.download = file.filename || 'download';
-  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = file.filename || 'download';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
   setTimeout(() => URL.revokeObjectURL(url), 5000);
 }
 '''
@@ -1082,26 +1120,36 @@ function ProductCard({ p, qty, addToCart, setCartExact, uomMap }: {
   uomMap: Record<string, string>;
 }) {
   const priceInfo = priceMap[p.id];
+  const [localQty, setLocalQty] = React.useState(1);
+  const displayQty = qty > 0 ? qty : localQty;
   return (
     <div className="product-card">
       <div className="product-info">
         <span className="product-code">{p.default_code || ""}</span>
         <span className="product-name">{p.name}</span>
       </div>
-      {priceInfo && (
-        <div className="product-price-block">
+      <div className="product-price-block">
+        {priceInfo && <>
           <span className="product-price">${priceInfo.price}</span>
           <span className="price-date">參考 {fmtPriceDate(priceInfo.effective_date)}</span>
-        </div>
-      )}
+        </>}
+      </div>
       <div className="qty-control">
-        {qty > 0 && <button className="qty-btn" onClick={() => addToCart(p.id, -1)}><Minus size={14} /></button>}
-        {qty > 0 && (
-          <input type="number" step="0.1" className="qty-input" value={qty}
-            onChange={e => setCartExact(p.id, parseFloat(e.target.value))} />
-        )}
-        <button className="qty-btn add" onClick={() => addToCart(p.id, 1)}><Plus size={14} /></button>
-        {qty > 0 && <span className="qty-unit">{uomMap[p.uom_id ?? ""] || "件"}</span>}
+        <button className="qty-btn" onClick={() => {
+          if (qty > 0) addToCart(p.id, -1);
+          else setLocalQty(v => Math.max(1, v - 1));
+        }}><Minus size={14} /></button>
+        <input type="number" step="1" min="1" className="qty-input" value={displayQty}
+          onChange={e => {
+            const v = Math.max(1, parseInt(e.target.value, 10) || 1);
+            if (qty > 0) setCartExact(p.id, v);
+            else setLocalQty(v);
+          }} />
+        <button className="qty-btn add" onClick={() => {
+          if (qty > 0) addToCart(p.id, 1);
+          else addToCart(p.id, localQty);
+        }}><Plus size={14} /></button>
+        <span className="qty-unit">{uomMap[p.uom_id ?? ""] || "件"}</span>
       </div>
     </div>
   );
