@@ -14,13 +14,16 @@ export default function DashboardPage() {
   const nav = useNavigate();
   const { orders, loading, selectedDate, setSelectedDate } = useData();
   const dlv = (o:any) => (typeof o.note === 'string' ? o.note : '').match(/配送日期：(\d{4}-\d{2}-\d{2})/)?.[1] || (o.date_order||o.created_at||'').slice(0,10);
-  const c = (s:string) => orders.filter(o=>o.state===s && dlv(o)===selectedDate).length;
+  const isDraft = (o:any) => !o.state || o.state === 'draft';
+  const isConfirmed = (o:any) => o.state === 'sale' || o.state === 'confirm';
+  const cd = () => orders.filter(o => isDraft(o) && dlv(o)===selectedDate).length;
+  const cs = () => orders.filter(o => isConfirmed(o) && dlv(o)===selectedDate).length;
   if (loading) return <div className="min-h-screen bg-gray-50 flex items-center justify-center"><p className="text-gray-400">載入中...</p></div>;
   const steps = [
-    {step:'1',label:'訂單接收',desc:`${c('draft')} 筆待處理`,href:'/admin/purchase-list',count:c('draft')},
+    {step:'1',label:'訂單接收',desc:`${cd()} 筆待處理`,href:'/admin/purchase-list',count:cd()},
     {step:'2',label:'採購定價',desc:'管理採購',href:'/admin/procurement',count:0},
     {step:'3',label:'庫存總表',desc:'查看庫存',href:'/admin/stock',count:0},
-    {step:'4',label:'銷貨單',desc:`${c('sale')} 筆已確認`,href:'/admin/sales-orders',count:c('sale')},
+    {step:'4',label:'銷貨單',desc:`${cs()} 筆已確認`,href:'/admin/sales-orders',count:cs()},
     {step:'5',label:'配送管理',desc:'出貨追蹤',href:'/admin/delivery',count:0},
   ];
   return (
@@ -37,7 +40,7 @@ export default function DashboardPage() {
       </header>
       <div className="p-6 space-y-6 max-w-6xl mx-auto">
         <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-          {[{l:'全部訂單',v:orders.filter(o=>dlv(o)===selectedDate).length,c:'text-gray-900'},{l:'草稿',v:c('draft'),c:'text-orange-600'},{l:'已確認',v:c('sale'),c:'text-blue-600'},{l:'完成',v:c('done'),c:'text-green-600'},{l:'已取消',v:c('cancel'),c:'text-red-600'}].map(s=>(
+          {[{l:'全部訂單',v:orders.filter(o=>dlv(o)===selectedDate).length,c:'text-gray-900'},{l:'待處理',v:cd(),c:'text-orange-600'},{l:'已確認',v:cs(),c:'text-blue-600'},{l:'完成',v:orders.filter(o=>o.state==='done'&&dlv(o)===selectedDate).length,c:'text-green-600'},{l:'已取消',v:orders.filter(o=>o.state==='cancel'&&dlv(o)===selectedDate).length,c:'text-red-600'}].map(s=>(
             <div key={s.l} className="bg-white rounded-xl border border-gray-100 p-4">
               <p className="text-sm text-gray-400">{s.l}</p><p className={`text-3xl font-bold ${s.c}`}>{s.v}</p>
             </div>
@@ -81,7 +84,8 @@ export default function PurchaseListPage() {
   const [view, setView] = useState<'customer'|'product'>('customer');
   const [expanded, setExpanded] = useState<string|null>(null);
   const dlv = (o:any) => (typeof o.note === 'string' ? o.note : '').match(/配送日期：(\d{4}-\d{2}-\d{2})/)?.[1] || (o.date_order||o.created_at||'').slice(0,10);
-  const draftOrders = orders.filter(o => o.state === 'draft' && dlv(o) === selectedDate);
+  const isDraft = (o:any) => !o.state || o.state === 'draft';
+  const draftOrders = orders.filter(o => isDraft(o) && dlv(o) === selectedDate);
   const custGroups = new Map<string,any[]>();
   for(const o of draftOrders){const l=custGroups.get(o.customer_id)||[];l.push(o);custGroups.set(o.customer_id,l);}
   const prodSummary = new Map<string,{name:string;totalQty:number;count:number}>();
@@ -713,8 +717,8 @@ const EmptySearchIcon = () => <svg xmlns="http://www.w3.org/2000/svg" width="48"
 const CheckAllIcon = () => <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><path d="m9 11 3 3L22 4"/></svg>;
 const ST: Record<string,{label:string;color:string;bg:string}> = {
   draft:{label:'草稿',color:'#92400e',bg:'#fef3c7'},sent:{label:'已送出',color:'#1e40af',bg:'#dbeafe'},
-  sale:{label:'已確認',color:'#065f46',bg:'#d1fae5'},done:{label:'完成',color:'#374151',bg:'#f3f4f6'},
-  cancel:{label:'已取消',color:'#991b1b',bg:'#fee2e2'},
+  sale:{label:'已確認',color:'#065f46',bg:'#d1fae5'},confirm:{label:'已確認',color:'#065f46',bg:'#d1fae5'},
+  done:{label:'完成',color:'#374151',bg:'#f3f4f6'},cancel:{label:'已取消',color:'#991b1b',bg:'#fee2e2'},
 };
 export default function SalesOrdersPage() {
   const nav = useNavigate();
@@ -811,7 +815,7 @@ export default function SalesOrdersPage() {
   const batchAction = async (action: string) => {
     const targetOrders = orders.filter(o => selectedOrders.has(o.id));
     if (action === 'sale') {
-      const draftOrders = targetOrders.filter(o => o.state === 'draft');
+      const draftOrders = targetOrders.filter(o => !o.state || o.state === 'draft');
       const demand: Record<string, number> = {};
       const demandNames: Record<string, string> = {};
       for (const o of draftOrders) {
@@ -845,13 +849,16 @@ export default function SalesOrdersPage() {
       if (action === 'sale' && o?.state !== 'draft') continue; // only process draft ones
       try { await db.update('sale_orders', id, {state: action}); } catch(e) {}
     }
-    setOrders(prev => prev.map(o => selectedOrders.has(o.id) && (action !== 'sale' || o.state === 'draft') ? {...o, state: action} : o));
+    setOrders(prev => prev.map(o => selectedOrders.has(o.id) && (action !== 'sale' || isDraft(o)) ? {...o, state: action} : o));
     setSelectedOrders(new Set());
   };
 
   const dlv = (o:any) => (typeof o.note === 'string' ? o.note : '').match(/配送日期：(\d{4}-\d{2}-\d{2})/)?.[1] || (o.date_order||o.created_at||'').slice(0,10);
+  const isDraft = (o:any) => !o.state || o.state === 'draft';
   const filtered = orders.filter(o => {
-    if (filter !== 'all' && o.state !== filter) return false;
+    if (filter !== 'all') {
+      if (filter === 'draft' ? !isDraft(o) : o.state !== filter) return false;
+    }
     if (dlv(o) !== selectedDate) return false;
     if (search) { const s = search.toLowerCase(); if (!(custs[o.customer_id]?.name||'').toLowerCase().includes(s) && !(o.name||'').toLowerCase().includes(s)) return false; }
     return true;
@@ -883,7 +890,7 @@ export default function SalesOrdersPage() {
         </div>
         <select className="px-3 pr-8 py-2 border border-gray-200 rounded-lg bg-white text-sm" value={filter} onChange={e=>setFilter(e.target.value)}>
           <option value="all">全部狀態</option>
-          <option value="draft">草稿（待確認）</option>
+          <option value="draft">待處理（草稿）</option>
           <option value="sent">已送出</option>
           <option value="sale">已確認</option>
           <option value="done">完成</option>
@@ -943,7 +950,7 @@ export default function SalesOrdersPage() {
                   </tr>);
                 })}</tbody></table>
               )}
-              {(o.state === 'draft' || o.state === 'sent' || !o.state) && <div className="flex gap-2 mt-3 pt-3 border-t border-gray-100">
+              {(isDraft(o) || o.state === 'sent') && <div className="flex gap-2 mt-3 pt-3 border-t border-gray-100">
                 <button onClick={()=>setConfirm({id:o.id,action:'sale'})} className="px-4 py-2 bg-primary text-white rounded-lg text-sm font-medium hover:bg-green-700 transition-colors">確認訂單</button>
                 <button onClick={()=>setConfirm({id:o.id,action:'cancel'})} className="px-4 py-2 bg-gray-100 text-red-600 rounded-lg text-sm font-medium hover:bg-red-50 transition-colors">取消訂單</button>
               </div>}

@@ -217,9 +217,10 @@ export const useStore = create<AppState>((set, get) => ({
       const customerId = useAuthStore.getState().customerId
       const orderRes = await createSaleOrder({
         customer_id: customerId || undefined,
-        date_order: new Date().toISOString(),
-        note: note || undefined,
-        state: 'draft',
+        date_order: new Date().toISOString().slice(0, 10),
+        note: deliveryDate
+          ? `配送日期：${deliveryDate}${note ? '\n' + note : ''}`
+          : (note || undefined),
       })
       const orderId = orderRes.id
 
