@@ -221,18 +221,36 @@ export async function fetchCustomers(): Promise<RawCustomer[]> {
 
 // --- Sale Order CRUD ---
 
-/** 建立銷貨單（注意：AI GO Proxy 不支援 One2many order_line，明細需另外建立） */
-export async function createSaleOrder(data: {
+/** 透過後端 /order/create 建立訂單（強制 state='draft'，state 不可由前端傳入） */
+export async function createOrderViaBackend(data: {
   customer_id?: string
-  date_order: string
+  date_order?: string
   note?: string
-  state?: string
-  client_order_ref?: string
-}): Promise<{ id: string; data: Record<string, unknown> }> {
-  return fetchProxy('sale_orders', 'POST', data as Record<string, unknown>)
+  lines: Array<{
+    product_template_id: string
+    name: string
+    product_uom_qty: number
+    price_unit?: number
+    delivery_date?: string
+  }>
+}): Promise<{ order_id: string }> {
+  const token = useAuthStore.getState().token
+  const res = await fetch('/order/create', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+    body: JSON.stringify(data),
+  })
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}))
+    throw new Error((err as any).message || '建立訂單失敗')
+  }
+  return res.json()
 }
 
-/** 建立銷貨單明細行 */
+/** 建立銷貨單明細行（admin 或特殊用途直接呼叫） */
 export async function createSaleOrderLine(data: {
   order_id: string
   product_template_id: string

@@ -17,8 +17,7 @@ import {
   fetchUomMap,
   mapCategories,
   mapProducts,
-  createSaleOrder,
-  createSaleOrderLine,
+  createOrderViaBackend,
   querySaleOrders,
   querySaleOrderLines,
   type RawSaleOrder,
@@ -212,39 +211,34 @@ export const useStore = create<AppState>((set, get) => ({
 
     set({ submitError: null })
     try {
-      // 1. 建立 sale_order（不含明細 — AI GO Proxy 不支援 One2many order_line）
       onProgress?.('建立訂單中...')
       const customerId = useAuthStore.getState().customerId
-      const orderRes = await createSaleOrder({
-        customer_id: customerId || undefined,
-        date_order: new Date().toISOString().slice(0, 10),
-        note: deliveryDate
-          ? `配送日期：${deliveryDate}${note ? '\n' + note : ''}`
-          : (note || undefined),
-      })
-      const orderId = orderRes.id
+      const orderNote = deliveryDate
+        ? `配送日期：${deliveryDate}${note ? '\n' + note : ''}`
+        : (note || undefined)
 
-      // 2. 逐一建立 sale_order_lines
-      onProgress?.(`建立明細中 (0/${cart.length})...`)
-      for (let i = 0; i < cart.length; i++) {
-        const item = cart[i]
+      const lines = cart.map(item => {
         const product = liveProducts.find(p => p.id === item.productId)
-        await createSaleOrderLine({
-          order_id: orderId,
+        return {
           product_template_id: item.productId,
           name: product ? `${product.name}${item.note ? ` (${item.note})` : ''}` : item.productId,
           product_uom_qty: item.qty,
           ...(deliveryDate ? { delivery_date: deliveryDate } : {}),
-        })
-        onProgress?.(`建立明細中 (${i + 1}/${cart.length})...`)
-      }
+        }
+      })
 
-      // 3. 清空購物車，背景刷新訂單（不阻塞）
+      const result = await createOrderViaBackend({
+        customer_id: customerId || undefined,
+        date_order: new Date().toISOString().slice(0, 10),
+        note: orderNote,
+        lines,
+      })
+
       onProgress?.('完成！')
       clearCart()
-      get().loadOrders() // fire-and-forget，不 await
+      get().loadOrders()
 
-      return orderId
+      return result.order_id
     } catch (err) {
       const msg = err instanceof Error ? err.message : '下單失敗'
       set({ submitError: msg })

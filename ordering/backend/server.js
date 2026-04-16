@@ -346,6 +346,86 @@ app.post('/order/validate', async (req, res) => {
   }
 })
 
+/**
+ * POST /order/create
+ * Body: { customer_id, date_order, note, lines: [{ product_template_id, name, product_uom_qty, price_unit?, delivery_date? }] }
+ * Header: Authorization: Bearer <token>
+ *
+ * 後端代理建單，強制 state='draft'，前端無法覆寫
+ */
+app.post('/order/create', async (req, res) => {
+  try {
+    const authHeader = req.headers['authorization'] || ''
+    const token = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : null
+    if (!token) {
+      return res.status(401).json({ error: 'UNAUTHORIZED', message: '請先登入' })
+    }
+
+    const { customer_id, date_order, note, lines } = req.body
+
+    if (!Array.isArray(lines) || lines.length === 0) {
+      return res.status(400).json({ error: 'MISSING_LINES', message: '訂單明細不可為空' })
+    }
+
+    const proxyBase = `${AIGO_BASE}/api/v1/ext/proxy`
+    const headers = {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${token}`,
+    }
+
+    // 1. 建立訂單，強制 state='draft'
+    const orderRes = await fetch(`${proxyBase}/sale_orders`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({
+        customer_id,
+        date_order: date_order || new Date().toISOString().slice(0, 10),
+        note: note || '',
+        state: 'draft',
+      }),
+    })
+    if (!orderRes.ok) {
+      const err = await orderRes.json().catch(() => ({}))
+      return res.status(orderRes.status).json({ error: 'ORDER_CREATE_FAILED', message: err.detail || '建立訂單失敗' })
+    }
+    const order = await orderRes.json()
+    const orderId = order?.id
+    if (!orderId) return res.status(500).json({ error: 'ORDER_CREATE_FAILED', message: '建立訂單失敗：無 id' })
+
+    // 2. 逐一建立明細
+    const failures = []
+    for (const line of lines) {
+      const lineRes = await fetch(`${proxyBase}/sale_order_lines`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({
+          order_id: orderId,
+          product_template_id: line.product_template_id,
+          name: line.name,
+          product_uom_qty: line.product_uom_qty,
+          ...(line.price_unit != null ? { price_unit: line.price_unit } : {}),
+          ...(line.delivery_date ? { delivery_date: line.delivery_date } : {}),
+        }),
+      })
+      if (!lineRes.ok) failures.push(line.product_template_id)
+    }
+
+    // 3. 若有明細失敗，嘗試取消訂單（best-effort rollback）
+    if (failures.length > 0) {
+      await fetch(`${proxyBase}/sale_orders/${orderId}`, {
+        method: 'PATCH', headers,
+        body: JSON.stringify({ state: 'cancel' }),
+      }).catch(() => {})
+      return res.status(500).json({ error: 'LINE_CREATE_FAILED', message: `${failures.length} 筆明細建立失敗，訂單已取消` })
+    }
+
+    res.json({ order_id: orderId })
+  } catch (err) {
+    console.error('[order/create] Error:', err.message)
+    res.status(500).json({ error: 'INTERNAL_ERROR', message: '伺服器錯誤，請稍後再試' })
+  }
+})
+
 // --- SPA 靜態檔案伺服 ---
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
