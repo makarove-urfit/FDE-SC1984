@@ -1670,17 +1670,19 @@ export default function OrdersPage({ user, cutoffTime }: { user: AppUser; cutoff
   const saveEdit = async (orderId: string, lines: any[]) => {
     setSaving(true);
     try {
-      const result = await db.runAction("update_order_lines", {
+      await db.runAction("update_order_lines", {
         order_id: orderId,
         lines: lines.map(l => ({ id: l.id, qty: editQtys[l.id] ?? Number(l.product_uom_qty || 0) })),
       });
-      const newLines = await db.query("sale_order_lines", {
-        filters: [{ column: "order_id", op: "eq", value: orderId }],
-      });
+      const [newOrders, newLines] = await Promise.all([
+        db.query("sale_orders", { filters: [{ column: "id", op: "eq", value: orderId }] }),
+        db.query("sale_order_lines", { filters: [{ column: "order_id", op: "eq", value: orderId }] }),
+      ]);
+      const newOrder = Array.isArray(newOrders) ? newOrders[0] : null;
       setItems(prev => prev.map(item =>
         item.order.id === orderId
           ? {
-              order: { ...item.order, amount_total: result?.amount_total ?? item.order.amount_total },
+              order: newOrder ?? item.order,
               lines: Array.isArray(newLines) ? newLines : item.lines,
             }
           : item
