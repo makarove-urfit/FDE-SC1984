@@ -83,7 +83,7 @@ def fetch_price_data(h: dict) -> dict:
     latest: dict = {}
     for rec in records:
         d = rec.get("data") or {}
-        pid = str(d.get("product_id", "")).strip()
+        pid = str(d.get("product_tmpl_id") or d.get("product_id") or "").strip()
         eff = str(d.get("effective_date", "")).strip()
         price = d.get("price")
         if not pid or not eff or price is None:
