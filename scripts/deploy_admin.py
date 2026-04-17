@@ -110,6 +110,9 @@ export async function query(table:string, opts?:{limit?:number;offset?:number}):
   const qs=p.toString()?'?'+p.toString():'';
   return _r(await fetch(API_BASE+'/proxy/'+APP_ID+'/'+table+qs,{headers:_h(),credentials:'include'}));
 }
+export async function queryFiltered(table:string, filters:any[], limit=500): Promise<any[]> {
+  return _r(await fetch(API_BASE+'/proxy/'+APP_ID+'/'+table+'/query',{method:'POST',headers:_h(),credentials:'include',body:JSON.stringify({filters,limit})}));
+}
 export async function update(table:string,id:string,data:Record<string,any>): Promise<any> {
   return _r(await fetch(API_BASE+'/proxy/'+APP_ID+'/'+table+'/'+id,{method:'PATCH',headers:_h(),credentials:'include',body:JSON.stringify({data})}));
 }

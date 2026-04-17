@@ -652,7 +652,7 @@ export default function ProcurementPage() {
   const recalcOrderTotals = async (orderIds: string[]) => {
     const unique = [...new Set(orderIds)].filter(Boolean);
     await Promise.all(unique.map(async (oid) => {
-      const lines = await db.query('sale_order_lines', { filters: [{ column: 'order_id', op: 'eq', value: oid }] });
+      const lines = await db.queryFiltered('sale_order_lines', [{ column: 'order_id', op: 'eq', value: oid }]);
       const total = (Array.isArray(lines) ? lines : []).reduce((s: number, l: any) =>
         s + Number(l.product_uom_qty || 0) * Number(l.price_unit || 0), 0);
       await db.update('sale_orders', oid, { amount_total: Math.round(total * 100) / 100 });
