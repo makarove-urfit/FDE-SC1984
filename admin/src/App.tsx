@@ -17,6 +17,7 @@ const SupplierMappingPage = lazy(() => import('./pages/SupplierMappingPage'))
 const OrderEditPage = lazy(() => import('./pages/OrderEditPage'))
 const DriverMappingPage = lazy(() => import('./pages/DriverMappingPage'))
 const PricePage = lazy(() => import('./pages/PricePage'))
+const PurchaseListPage = lazy(() => import('./pages/PurchaseListPage'))
 
 function LoadingFallback() {
   return <div className="min-h-screen bg-gray-50 flex items-center justify-center text-gray-400">載入中...</div>
@@ -51,6 +52,7 @@ export default function App() {
           <Route path="/order/:orderId/edit" element={<AuthGuard><OrderEditPage /></AuthGuard>} />
           <Route path="/driver-mapping" element={<AuthGuard><DriverMappingPage /></AuthGuard>} />
           <Route path="/price" element={<AuthGuard><PricePage /></AuthGuard>} />
+          <Route path="/purchase-list" element={<AuthGuard><PurchaseListPage /></AuthGuard>} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </Suspense>
