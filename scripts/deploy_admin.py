@@ -80,6 +80,7 @@ def ensure_references(h: dict, app_id: str):
         {"table_name": "product_products", "columns": ["id", "product_tmpl_id", "default_code", "barcode", "active"], "permissions": ["read", "create"]},
         {"table_name": "hr_employees", "columns": ["id", "name", "active", "job_title", "mobile_phone", "department_id"], "permissions": ["read"]},
         {"table_name": "stock_locations", "columns": ["id", "name", "usage", "active"], "permissions": ["read", "create"]},
+        {"table_name": "uom_uom", "columns": ["id", "name", "active"], "permissions": ["read"]},
     ]
     for t in tables:
         tn = t["table_name"]

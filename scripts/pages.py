@@ -108,7 +108,12 @@ function LineTable({ rows }: { rows: { id:string; name:string; qty:number; price
 
 export default function PurchaseListPage() {
   const nav = useNavigate();
-  const { orders, customers, orderLines: lines, loading, selectedDate, setSelectedDate } = useData();
+  const { orders, customers, orderLines: lines, products, uomMap, loading, selectedDate, setSelectedDate } = useData();
+  const tmplUom = useMemo(() => {
+    const m: Record<string, string> = {};
+    for (const p of products) if (p.uom_id) m[p.id] = uomMap[p.uom_id] || '';
+    return m;
+  }, [products, uomMap]);
   const [view, setView] = useState<'raw'|'customer'|'product'>('raw');
   const [priceLogs, setPriceLogs] = useState<any[]>([]);
 
@@ -182,7 +187,8 @@ export default function PurchaseListPage() {
     const map = new Map<string,{name:string;totalQty:number;uom:string}>();
     for (const l of lines.filter(l => draftOrders.some(o => o.id === l.order_id))) {
       const key = l.product_template_id||l.product_id;
-      const ex = map.get(key) || { name: l.name||'—', totalQty: 0, uom: l.product_uom||l.uom||'' };
+      const uom = tmplUom[l.product_template_id] || tmplUom[l.product_id] || '';
+      const ex = map.get(key) || { name: l.name||'—', totalQty: 0, uom };
       ex.totalQty += Number(l.product_uom_qty||0);
       map.set(key, ex);
     }

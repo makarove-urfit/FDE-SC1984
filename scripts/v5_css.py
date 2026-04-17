@@ -325,6 +325,7 @@ interface DataState {
   stockLocations: any[];
   suppliers: Record<string, any>;
   supplierInfos: any[];
+  uomMap: Record<string, string>;
   loading: boolean;
   refresh: (force?: boolean) => void;
   selectedDate: string;
@@ -336,7 +337,7 @@ const STALE_TIME = 60_000; // 60 秒
 const DataContext = createContext<DataState>({
   orders: [], customers: {}, orderLines: [], employees: [],
   products: [], productProducts: [], stockQuants: [], stockLocations: [],
-  suppliers: {}, supplierInfos: [],
+  suppliers: {}, supplierInfos: [], uomMap: {},
   loading: true, refresh: () => {},
   selectedDate: new Date().toISOString().slice(0, 10), setSelectedDate: () => {},
 });
@@ -354,6 +355,7 @@ export default function DataProvider({ children }: { children: ReactNode }) {
   const [stockLocations, setStockLocations] = useState<any[]>([]);
   const [suppliers, setSuppliers] = useState<Record<string, any>>({});
   const [supplierInfos, setSupplierInfos] = useState<any[]>([]);
+  const [uomMap, setUomMap] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
   const [searchParams, setSearchParams] = useSearchParams();
   const today = new Date().toISOString().slice(0, 10);
@@ -383,11 +385,12 @@ export default function DataProvider({ children }: { children: ReactNode }) {
         db.query('product_templates').catch(() => []),
         db.query('product_products').catch(() => [])
       ]);
-      const [sq, sups, si, slocs] = await Promise.all([
+      const [sq, sups, si, slocs, uoms] = await Promise.all([
         db.query('stock_quants').catch(() => []),
         db.query('suppliers').catch(() => []),
         db.query('product_supplierinfo').catch(() => []),
         db.query('stock_locations').catch(() => []),
+        db.query('uom_uom').catch(() => []),
       ]);
 
       setOrders(Array.isArray(so) ? so : []);
@@ -404,7 +407,10 @@ export default function DataProvider({ children }: { children: ReactNode }) {
       for (const s of (Array.isArray(sups) ? sups : [])) sm[s.id] = s;
       setSuppliers(sm);
       setSupplierInfos(Array.isArray(si) ? si : []);
-      
+      const um: Record<string, string> = {};
+      for (const u of (Array.isArray(uoms) ? uoms : [])) um[u.id] = u.name;
+      setUomMap(um);
+
       lastFetch.current = Date.now();
     } catch (e) {
       console.error('DataProvider fetch error:', e);
@@ -419,9 +425,9 @@ export default function DataProvider({ children }: { children: ReactNode }) {
   const value = useMemo(() => ({
     orders, customers, orderLines, employees,
     products, productProducts, stockQuants, stockLocations,
-    suppliers, supplierInfos, loading, refresh,
+    suppliers, supplierInfos, uomMap, loading, refresh,
     selectedDate, setSelectedDate,
-  }), [orders, customers, orderLines, employees, products, productProducts, stockQuants, stockLocations, suppliers, supplierInfos, loading, refresh, selectedDate, setSelectedDate]);
+  }), [orders, customers, orderLines, employees, products, productProducts, stockQuants, stockLocations, suppliers, supplierInfos, uomMap, loading, refresh, selectedDate, setSelectedDate]);
 
   return (
     <DataContext.Provider value={value}>
