@@ -108,10 +108,16 @@ export interface AppUser {
   display_name?: string;
 }
 
+const VALID_PATHS = ["/", "/cart", "/orders"];
+function hashPath(): string {
+  const h = window.location.hash.replace(/^#/, "");
+  return VALID_PATHS.includes(h) ? h : "/";
+}
+
 export default function App() {
   const [user, setUser] = useState<AppUser | null>(null);
   const [loading, setLoading] = useState(true);
-  const [currentPath, setCurrentPath] = useState("/");
+  const [currentPath, setCurrentPath] = useState<string>(hashPath);
   const [cart, setCart] = useState<Record<string, number>>(loadCart);
   const [uomMap, setUomMap] = useState<Record<string, string>>({});
   const [deliveryDate, setDeliveryDate] = useState<string>(getFirstAvailableDate);
@@ -146,6 +152,17 @@ export default function App() {
       }).catch(() => {});
   }, [user]);
 
+  // hash routing：同步 URL hash ↔ state
+  const navigate = (path: string) => {
+    window.location.hash = path;
+    setCurrentPath(path);
+  };
+  useEffect(() => {
+    const onHash = () => setCurrentPath(hashPath());
+    window.addEventListener("hashchange", onHash);
+    return () => window.removeEventListener("hashchange", onHash);
+  }, []);
+
   const handleLogin = (u: AppUser) => setUser(u);
 
   const handleLogout = () => {
@@ -155,7 +172,7 @@ export default function App() {
     setUser(null);
     setCart({});
     setUomMap({});
-    setCurrentPath("/");
+    navigate("/");
   };
 
   const addToCart = (productId: string, qty: number) => {
@@ -194,7 +211,7 @@ export default function App() {
 
   const pages: Record<string, React.ReactNode> = {
     "/": <CatalogPage cart={cart} addToCart={addToCart} setCartExact={setCartExact} uomMap={uomMap} deliveryDate={deliveryDate} setDeliveryDate={setDeliveryDate} />,
-    "/cart": <CartPage cart={cart} addToCart={addToCart} setCartExact={setCartExact} clearCart={clearCart} onNavigate={setCurrentPath} uomMap={uomMap} user={user} deliveryDate={deliveryDate} setDeliveryDate={setDeliveryDate} />,
+    "/cart": <CartPage cart={cart} addToCart={addToCart} setCartExact={setCartExact} clearCart={clearCart} onNavigate={navigate} uomMap={uomMap} user={user} deliveryDate={deliveryDate} setDeliveryDate={setDeliveryDate} />,
     "/orders": <OrdersPage user={user!} cutoffTime={cutoffTime} />,
   };
 
@@ -205,7 +222,7 @@ export default function App() {
         <button className="logout-btn" onClick={handleLogout}>登出</button>
       </header>
       <main className="app-page">{pages[currentPath] || pages["/"]}</main>
-      <BottomNav currentPath={currentPath} onNavigate={setCurrentPath} cartCount={cartCount} />
+      <BottomNav currentPath={currentPath} onNavigate={navigate} cartCount={cartCount} />
     </div>
   );
 }
@@ -868,7 +885,7 @@ export async function insert(table: string, data: Record<string, any>): Promise<
 
 export async function update(table: string, id: string, data: Record<string, any>): Promise<any> {
   return _r(await fetch(proxyBase + table + '/' + id, {
-    method: 'PATCH', headers: _h(), credentials: 'include', body: JSON.stringify(data),
+    method: 'PATCH', headers: _h(), credentials: 'include', body: JSON.stringify({ data }),
   }));
 }
 
