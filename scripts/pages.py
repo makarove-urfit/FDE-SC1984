@@ -138,7 +138,7 @@ export default function PurchaseListPage() {
   const draftOrders = useMemo(() =>
     orders
       .filter(o => isDraft(o) && dlv(o) === selectedDate)
-      .sort((a,b) => String(a.date_order||a.created_at||'').localeCompare(String(b.date_order||b.created_at||''))),
+      .sort((a,b) => String(b.date_order||b.created_at||'').localeCompare(String(a.date_order||a.created_at||''))),
     [orders, selectedDate]
   );
 
@@ -179,12 +179,11 @@ export default function PurchaseListPage() {
 
   // 按品項匯總：跨客戶跨訂單
   const prodSummary = useMemo(() => {
-    const map = new Map<string,{name:string;totalQty:number;orderCount:number}>();
+    const map = new Map<string,{name:string;totalQty:number;uom:string}>();
     for (const l of lines.filter(l => draftOrders.some(o => o.id === l.order_id))) {
       const key = l.product_template_id||l.product_id;
-      const ex = map.get(key) || { name: l.name||'—', totalQty: 0, orderCount: 0 };
+      const ex = map.get(key) || { name: l.name||'—', totalQty: 0, uom: l.product_uom||l.uom||'' };
       ex.totalQty += Number(l.product_uom_qty||0);
-      ex.orderCount++;
       map.set(key, ex);
     }
     return Array.from(map.entries()).sort((a,b) => b[1].totalQty - a[1].totalQty);
@@ -275,7 +274,7 @@ export default function PurchaseListPage() {
                   <th className="py-3 px-4 text-left font-medium">#</th>
                   <th className="py-3 px-4 text-left font-medium">品名</th>
                   <th className="py-3 px-4 text-right font-medium">需求總量</th>
-                  <th className="py-3 px-4 text-right font-medium">訂單筆數</th>
+                  <th className="py-3 px-4 text-right font-medium">單位</th>
                 </tr></thead>
                 <tbody>
                   {prodSummary.map(([id,d],i)=>(
@@ -283,7 +282,7 @@ export default function PurchaseListPage() {
                       <td className="py-3 px-4 text-gray-400">{i+1}</td>
                       <td className="py-3 px-4 font-medium">{d.name}</td>
                       <td className="py-3 px-4 text-right font-bold text-primary">{d.totalQty.toFixed(1)}</td>
-                      <td className="py-3 px-4 text-right text-gray-500">{d.orderCount}</td>
+                      <td className="py-3 px-4 text-right text-gray-500">{d.uom||'—'}</td>
                     </tr>
                   ))}
                 </tbody>
