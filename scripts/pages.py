@@ -598,6 +598,12 @@ export default function ProcurementPage() {
   const [items, setItems] = useState<PricingItem[]>([]);
   const [expanded, setExpanded] = useState<string[]>([]);
   const [saving, setSaving] = useState(false);
+  const [priceLogs, setPriceLogs] = useState<any[]>([]);
+
+  // 載入 x_price_log（一次性，存 raw records）
+  useEffect(() => {
+    db.queryCustom('x_price_log').then(recs => setPriceLogs(Array.isArray(recs) ? recs : [])).catch(() => {});
+  }, []);
 
   // 依選定配送日重建 PricingItem
   const olKey = orderLines.length;
@@ -609,6 +615,18 @@ export default function ProcurementPage() {
     const prodSup: Record<string,string> = {};
     for (const si of supplierInfos) { if (si.product_tmpl_id) prodSup[si.product_tmpl_id] = si.supplier_id; }
     const defaultSupId = Object.keys(suppliers)[0] || 'unknown';
+
+    // 找 x_price_log 裡屬於 selectedDate 的最新一筆（per product）
+    const logMap: Record<string, any> = {};
+    for (const rec of priceLogs) {
+      const d = rec.data || {};
+      if (d.effective_date !== selectedDate) continue;
+      const pid = String(d.product_id || '');
+      if (!pid) continue;
+      // created_at 較新的蓋掉舊的
+      if (!logMap[pid] || (rec.created_at || '') > (logMap[pid].created_at || '')) logMap[pid] = rec;
+    }
+
     const itemMap = new Map<string, PricingItem>();
     for (const l of orderLines) {
       if (typeof l.delivery_date === 'string' && l.delivery_date.slice(0, 10) !== selectedDate) continue;
@@ -618,11 +636,17 @@ export default function ProcurementPage() {
       const supId = prodSup[pid] || (supplierInfos.length === 0 ? defaultSupId : 'unknown');
       const existing = itemMap.get(pid);
       if (existing) { existing.estimatedQty += Number(l.product_uom_qty || 0); existing.actualQty = existing.estimatedQty; }
-      else { itemMap.set(pid, { productId: pid, productName: prod?.name || l.name || '—', code: prod?.default_code || '', supplierId: supId, supplierName: suppliers[supId]?.name || '未指定供應商', estimatedQty: Number(l.product_uom_qty || 0), actualQty: Number(l.product_uom_qty || 0), purchasePrice: Number(prod?.standard_price || 0), markupRate: 130, sellingPrice: Number(prod?.list_price || 0), state: Number(prod?.standard_price || 0) > 0 ? 'priced' : 'pending' }); }
+      else {
+        const log = logMap[pid]?.data;
+        const purchasePrice = log ? Number(log.purchase_price || 0) : Number(prod?.standard_price || 0);
+        const sellingPrice  = log ? Number(log.price || 0)          : Number(prod?.list_price || 0);
+        const hasPriced = sellingPrice > 0;
+        itemMap.set(pid, { productId: pid, productName: prod?.name || l.name || '—', code: prod?.default_code || '', supplierId: supId, supplierName: suppliers[supId]?.name || '未指定供應商', estimatedQty: Number(l.product_uom_qty || 0), actualQty: Number(l.product_uom_qty || 0), purchasePrice, markupRate: purchasePrice > 0 && sellingPrice > 0 ? Math.round(sellingPrice / purchasePrice * 100) : 130, sellingPrice, state: hasPriced ? 'priced' : 'pending' });
+      }
     }
     setItems(Array.from(itemMap.values()));
     setExpanded([...new Set(Array.from(itemMap.values()).map(i => i.supplierId))]);
-  }, [loading, olKey, prKey, selectedDate]);
+  }, [loading, olKey, prKey, selectedDate, priceLogs]);
 
   // 分群
   const groups = new Map<string, PricingItem[]>();
