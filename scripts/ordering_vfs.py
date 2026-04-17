@@ -1738,10 +1738,14 @@ export default function OrdersPage({ user, cutoffTime }: { user: AppUser; cutoff
                           <td>
                             {isEditing ? (
                               <input
-                                type="number" min="0" step="0.1"
+                                type="text" inputMode="decimal"
                                 value={editQtys[l.id] ?? Number(l.product_uom_qty || 0)}
-                                onChange={e => setEditQtys(prev => ({ ...prev, [l.id]: Number(e.target.value) }))}
-                                style={{ width: "64px", padding: "2px 4px", border: "1px solid #d1d5db", borderRadius: "4px", fontSize: "13px", textAlign: "right" }}
+                                onChange={e => {
+                                  const v = e.target.value;
+                                  if (/^\d*\.?\d*$/.test(v)) setEditQtys(prev => ({ ...prev, [l.id]: v as any }));
+                                }}
+                                onBlur={e => setEditQtys(prev => ({ ...prev, [l.id]: parseFloat(e.target.value) || 0 }))}
+                                style={{ width: "64px", padding: "2px 6px", border: "1px solid #d1d5db", borderRadius: "4px", fontSize: "14px", textAlign: "right" }}
                               />
                             ) : (l.product_uom_qty ?? "—")}
                           </td>
