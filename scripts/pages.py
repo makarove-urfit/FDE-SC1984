@@ -862,14 +862,10 @@ export default function ProcurementPage() {
                                   {subtotal > 0 ? `$${Math.round(subtotal).toLocaleString()}` : '—'}
                                 </td>
                                 <td className="py-2 px-3 text-center">
-                                  {isPriced ? (
-                                    <span className="text-green-600 text-xs font-medium flex items-center justify-center gap-1"><CheckIcon /> 已定</span>
-                                  ) : (
-                                    <button onClick={() => applyPricing(item.productId)} disabled={item.purchasePrice <= 0 || saving}
-                                      className={`px-2 py-1 rounded text-xs transition-colors ${item.purchasePrice > 0 ? 'bg-primary text-white hover:bg-green-700' : 'bg-gray-100 text-gray-400 cursor-not-allowed'}`}>
-                                      確認
-                                    </button>
-                                  )}
+                                  <button onClick={() => applyPricing(item.productId)} disabled={item.purchasePrice <= 0 || saving}
+                                    className={`px-2 py-1 rounded text-xs transition-colors flex items-center justify-center gap-1 ${item.purchasePrice <= 0 ? 'bg-gray-100 text-gray-400 cursor-not-allowed' : isPriced ? 'bg-green-50 text-green-700 border border-green-300 hover:bg-green-100' : 'bg-primary text-white hover:bg-green-700'}`}>
+                                    {isPriced ? <><CheckIcon /> 更新</> : '確認'}
+                                  </button>
                                 </td>
                               </tr>
                             );
