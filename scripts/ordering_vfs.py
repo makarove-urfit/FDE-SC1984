@@ -103,6 +103,8 @@ export interface CartItem {
   deliveryDate: string;
   qty: number;
   name?: string;
+  defaultCode?: string;
+  uomId?: string;
 }
 
 function loadCart(): CartItem[] {
@@ -190,7 +192,7 @@ export default function App() {
     navigate("/order");
   };
 
-  const addToCart = (productId: string, qty: number, delivDate: string, name?: string) => {
+  const addToCart = (productId: string, qty: number, delivDate: string, meta?: { name?: string; defaultCode?: string; uomId?: string }) => {
     setCart(prev => {
       const idx = prev.findIndex(i => i.productId === productId && i.deliveryDate === delivDate);
       if (idx >= 0) {
@@ -198,7 +200,7 @@ export default function App() {
         if (newQty <= 0) return prev.filter((_, i) => i !== idx);
         return prev.map((item, i) => i === idx ? { ...item, qty: newQty } : item);
       }
-      if (qty > 0) return [...prev, { productId, deliveryDate: delivDate, qty: Number(qty.toFixed(2)), name }];
+      if (qty > 0) return [...prev, { productId, deliveryDate: delivDate, qty: Number(qty.toFixed(2)), ...meta }];
       return prev;
     });
   };
@@ -1272,7 +1274,7 @@ function fmtPriceDate(iso: string): string {
 
 interface Props {
   cart: CartItem[];
-  addToCart: (id: string, qty: number, deliveryDate: string) => void;
+  addToCart: (id: string, qty: number, deliveryDate: string, meta?: { name?: string; defaultCode?: string; uomId?: string }) => void;
   setCartExact: (id: string, qty: number, deliveryDate: string) => void;
   uomMap: Record<string, string>;
   deliveryDate: string;
@@ -1293,7 +1295,7 @@ function SkeletonCard() {
 
 function ProductCard({ p, cart, addToCart, setCartExact, uomMap, deliveryDate }: {
   p: Product; cart: CartItem[];
-  addToCart: (id: string, qty: number, deliveryDate: string) => void;
+  addToCart: (id: string, qty: number, deliveryDate: string, meta?: { name?: string; defaultCode?: string; uomId?: string }) => void;
   setCartExact: (id: string, qty: number, deliveryDate: string) => void;
   uomMap: Record<string, string>;
   deliveryDate: string;
@@ -1314,14 +1316,14 @@ function ProductCard({ p, cart, addToCart, setCartExact, uomMap, deliveryDate }:
       </div>
       <div className="qty-control">
         <button className="qty-btn" disabled={qty === 0}
-          onClick={() => { if (qty > 0) addToCart(p.id, -1, deliveryDate, p.name); }}
+          onClick={() => { if (qty > 0) addToCart(p.id, -1, deliveryDate, { name: p.name, defaultCode: p.default_code, uomId: p.uom_id }); }}
         ><Minus size={14} /></button>
         <input type="number" step="1" min="0" className="qty-input" value={qty}
           onChange={e => {
             const v = Math.max(0, parseInt(e.target.value, 10) || 0);
             setCartExact(p.id, v, deliveryDate);
           }} />
-        <button className="qty-btn add" onClick={() => addToCart(p.id, 1, deliveryDate, p.name)}
+        <button className="qty-btn add" onClick={() => addToCart(p.id, 1, deliveryDate, { name: p.name, defaultCode: p.default_code, uomId: p.uom_id })}
         ><Plus size={14} /></button>
         <span className="qty-unit">{uomMap[p.uom_id ?? ""] || "件"}</span>
       </div>
@@ -1528,7 +1530,7 @@ function fmtDate(ymd: string): string {
 
 interface Props {
   cart: CartItem[];
-  addToCart: (id: string, qty: number, deliveryDate: string) => void;
+  addToCart: (id: string, qty: number, deliveryDate: string, meta?: { name?: string; defaultCode?: string; uomId?: string }) => void;
   setCartExact: (id: string, qty: number, deliveryDate: string) => void;
   clearCartDate: (date: string) => void;
   onNavigate: (p: string) => void;
@@ -1542,28 +1544,24 @@ function Toast({ msg, isError }: { msg: string; isError?: boolean }) {
 }
 
 export default function CartPage({ cart, addToCart, setCartExact, clearCartDate, onNavigate, setDeliveryDate, uomMap, user }: Props) {
-  const [products, setProducts] = useState<Record<string, any>>({});
   const [groupNotes, setGroupNotes] = useState<Record<string, string>>({});
   const [submitting, setSubmitting] = useState<string | null>(null);
   const [toast, setToast] = useState<{ msg: string; error: boolean } | null>(null);
+  const [prodMap, setProdMap] = useState<Record<string, { name: string; default_code?: string; uom_id?: string }>>({});
+
+  useEffect(() => {
+    db.query("product_templates", { filters: [{ column: "active", op: "eq", value: true }] })
+      .then(rows => {
+        const m: Record<string, { name: string; default_code?: string; uom_id?: string }> = {};
+        for (const r of Array.isArray(rows) ? rows : []) m[String(r.id)] = r;
+        setProdMap(m);
+      }).catch(() => {});
+  }, []);
 
   const showToast = (msg: string, error = false) => {
     setToast({ msg, error });
     setTimeout(() => setToast(null), 3500);
   };
-
-  // 取所有唯一 productId，批次載入商品資訊
-  const productIdsKey = useMemo(() => [...new Set(cart.map(i => i.productId))].sort().join(","), [cart]);
-  useEffect(() => {
-    const ids = [...new Set(cart.map(i => i.productId))];
-    if (ids.length === 0) return;
-    Promise.all(ids.map(id => db.fetchById("product_templates", id)))
-      .then(results => {
-        const map: Record<string, any> = {};
-        for (const p of results) if (p) map[p.id] = p;
-        setProducts(map);
-      });
-  }, [productIdsKey]);
 
   // 依配送日期分組，升冪排序（最早在上）
   const dateGroups: { date: string; items: CartItem[] }[] = useMemo(() => {
@@ -1608,7 +1606,7 @@ export default function CartPage({ cart, addToCart, setCartExact, clearCartDate,
         db.insert("sale_order_lines", {
           order_id: orderId,
           product_template_id: item.productId,
-          name: item.name || products[item.productId]?.name || item.productId,
+          name: prodMap[item.productId]?.name || item.productId,
           product_uom_qty: item.qty,
           price_unit: priceMap[item.productId]?.price ?? 0,
           delivery_date: date,
@@ -1662,14 +1660,14 @@ export default function CartPage({ cart, addToCart, setCartExact, clearCartDate,
 
             <div className="cart-list" style={{ margin: 0, borderRadius: 0 }}>
               {items.map(item => {
-                const p = products[item.productId];
+                const p = prodMap[item.productId];
                 const pi = priceMap[item.productId];
                 const subtotal = pi ? pi.price * item.qty : null;
                 return (
                   <div key={item.productId} className="cart-item" style={{ borderRadius: 0, borderLeft: "none", borderRight: "none", borderTop: "none" }}>
                     <div className="cart-item-info">
                       <span className="product-code">{p?.default_code || ""}</span>
-                      <span className="product-name">{item.name || p?.name || item.productId}</span>
+                      <span className="product-name">{p?.name || item.productId}</span>
                       {pi && subtotal !== null && (
                         <span className="cart-price-summary">
                           ${pi.price} × {item.qty} = <strong>${Math.round(subtotal * 100) / 100}</strong>
@@ -1681,7 +1679,7 @@ export default function CartPage({ cart, addToCart, setCartExact, clearCartDate,
                       <input type="number" step="0.1" className="qty-input" value={item.qty}
                         onChange={e => setCartExact(item.productId, parseFloat(e.target.value), date)} />
                       <button className="qty-btn add" onClick={() => addToCart(item.productId, 1, date)}><Plus size={14} /></button>
-                      <span className="qty-unit">{uomMap[products[item.productId]?.uom_id ?? ""] || "件"}</span>
+                      <span className="qty-unit">{uomMap[p?.uom_id ?? ""] || "件"}</span>
                       <button className="qty-btn" style={{ border: "1px solid #ef4444", color: "#ef4444" }}
                         onClick={() => setCartExact(item.productId, 0, date)}><Trash2 size={14} /></button>
                     </div>
