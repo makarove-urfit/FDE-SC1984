@@ -102,6 +102,7 @@ export interface CartItem {
   productId: string;
   deliveryDate: string;
   qty: number;
+  name?: string;
 }
 
 function loadCart(): CartItem[] {
@@ -189,7 +190,7 @@ export default function App() {
     navigate("/order");
   };
 
-  const addToCart = (productId: string, qty: number, delivDate: string) => {
+  const addToCart = (productId: string, qty: number, delivDate: string, name?: string) => {
     setCart(prev => {
       const idx = prev.findIndex(i => i.productId === productId && i.deliveryDate === delivDate);
       if (idx >= 0) {
@@ -197,7 +198,7 @@ export default function App() {
         if (newQty <= 0) return prev.filter((_, i) => i !== idx);
         return prev.map((item, i) => i === idx ? { ...item, qty: newQty } : item);
       }
-      if (qty > 0) return [...prev, { productId, deliveryDate: delivDate, qty: Number(qty.toFixed(2)) }];
+      if (qty > 0) return [...prev, { productId, deliveryDate: delivDate, qty: Number(qty.toFixed(2)), name }];
       return prev;
     });
   };
@@ -1304,14 +1305,14 @@ function ProductCard({ p, cart, addToCart, setCartExact, uomMap, deliveryDate }:
       </div>
       <div className="qty-control">
         <button className="qty-btn" disabled={qty === 0}
-          onClick={() => { if (qty > 0) addToCart(p.id, -1, deliveryDate); }}
+          onClick={() => { if (qty > 0) addToCart(p.id, -1, deliveryDate, p.name); }}
         ><Minus size={14} /></button>
         <input type="number" step="1" min="0" className="qty-input" value={qty}
           onChange={e => {
             const v = Math.max(0, parseInt(e.target.value, 10) || 0);
             setCartExact(p.id, v, deliveryDate);
           }} />
-        <button className="qty-btn add" onClick={() => addToCart(p.id, 1, deliveryDate)}
+        <button className="qty-btn add" onClick={() => addToCart(p.id, 1, deliveryDate, p.name)}
         ><Plus size={14} /></button>
         <span className="qty-unit">{uomMap[p.uom_id ?? ""] || "件"}</span>
       </div>
@@ -1603,7 +1604,7 @@ export default function CartPage({ cart, addToCart, setCartExact, clearCartDate,
         db.insert("sale_order_lines", {
           order_id: orderId,
           product_template_id: item.productId,
-          name: products[item.productId]?.name || item.productId,
+          name: item.name || products[item.productId]?.name || item.productId,
           product_uom_qty: item.qty,
           price_unit: priceMap[item.productId]?.price ?? 0,
           delivery_date: date,
@@ -1664,7 +1665,7 @@ export default function CartPage({ cart, addToCart, setCartExact, clearCartDate,
                   <div key={item.productId} className="cart-item" style={{ borderRadius: 0, borderLeft: "none", borderRight: "none", borderTop: "none" }}>
                     <div className="cart-item-info">
                       <span className="product-code">{p?.default_code || ""}</span>
-                      <span className="product-name">{p?.name || item.productId}</span>
+                      <span className="product-name">{item.name || p?.name || item.productId}</span>
                       {pi && subtotal !== null && (
                         <span className="cart-price-summary">
                           ${pi.price} × {item.qty} = <strong>${Math.round(subtotal * 100) / 100}</strong>
