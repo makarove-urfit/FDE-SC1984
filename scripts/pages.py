@@ -685,7 +685,7 @@ export default function ProcurementPage() {
 
   const applyPricing = async (pid: string) => {
     const item = items.find(i => i.productId === pid);
-    if (!item || item.purchasePrice <= 0 || item.state !== 'pending') return;
+    if (!item || item.purchasePrice <= 0) return;
     setSaving(true);
     try {
       const today = new Date().toISOString().slice(0, 10);
@@ -720,7 +720,7 @@ export default function ProcurementPage() {
   };
 
   const applyAll = async () => {
-    const priceable = items.filter(i => i.purchasePrice > 0 && i.state === 'pending');
+    const priceable = items.filter(i => i.purchasePrice > 0);
     if (priceable.length === 0) return;
     setSaving(true);
     const today = new Date().toISOString().slice(0, 10);
