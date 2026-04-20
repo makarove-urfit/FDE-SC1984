@@ -729,7 +729,7 @@ export default function ProcurementPage() {
       try {
         await db.update('product_templates', item.productId, { standard_price: item.purchasePrice, list_price: item.sellingPrice });
         // 寫入價格稽核 log
-        await db.insertCustom('x_price_log', { product_tmpl_id: item.productId, price: item.sellingPrice, purchase_price: item.purchasePrice, effective_date: today });
+        await db.insertCustom('x_price_log', { tmpl_uuid: item.productId, price: item.sellingPrice, purchase_price: item.purchasePrice, effective_date: today });
         // 同步選定日期配送的訂單明細售價
         const matchingLines = orderLines.filter((l: any) =>
           (l.product_template_id === item.productId || l.product_id === item.productId) &&
