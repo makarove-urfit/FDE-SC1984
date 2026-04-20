@@ -123,16 +123,9 @@ export interface AppUser {
 
 const VALID_PATHS = ["/order", "/cart", "/orders"];
 
-// 找出 app 的 base path（去掉尾端的 /order /cart /orders）
-const BASE_PATH = (() => {
-  const p = window.location.pathname;
-  const m = p.match(/^(.*?)\/(order|cart|orders)(\/.*)?$/);
-  return m ? m[1] : p.replace(/\/$/, "");
-})();
-
 function getPath(): string {
-  const rel = window.location.pathname.slice(BASE_PATH.length) || "/order";
-  return VALID_PATHS.includes(rel) ? rel : "/order";
+  const h = window.location.hash.replace(/^#/, "");
+  return VALID_PATHS.includes(h) ? h : "/order";
 }
 
 export default function App() {
@@ -173,15 +166,15 @@ export default function App() {
       }).catch(() => {});
   }, [user]);
 
-  // history routing：pushState + popstate
+  // hash routing：同步 URL hash ↔ state
   const navigate = (path: string) => {
-    history.pushState({}, "", BASE_PATH + path);
+    window.location.hash = path;
     setCurrentPath(path);
   };
   useEffect(() => {
-    const onPop = () => setCurrentPath(getPath());
-    window.addEventListener("popstate", onPop);
-    return () => window.removeEventListener("popstate", onPop);
+    const onHash = () => setCurrentPath(getPath());
+    window.addEventListener("hashchange", onHash);
+    return () => window.removeEventListener("hashchange", onHash);
   }, []);
 
   const handleLogin = (u: AppUser) => setUser(u);
