@@ -643,8 +643,7 @@ export default function ProcurementPage() {
         const log = logMap[pid]?.data;
         const purchasePrice = log ? Number(log.purchase_price || 0) : Number(prod?.standard_price || 0);
         const sellingPrice  = log ? Number(log.price || 0)          : Number(prod?.list_price || 0);
-        const hasPriced = sellingPrice > 0;
-        itemMap.set(pid, { productId: pid, productName: prod?.name || l.name || '—', code: prod?.default_code || '', supplierId: supId, supplierName: suppliers[supId]?.name || '未指定供應商', estimatedQty: Number(l.product_uom_qty || 0), actualQty: Number(l.product_uom_qty || 0), purchasePrice, markupRate: purchasePrice > 0 && sellingPrice > 0 ? Math.round(sellingPrice / purchasePrice * 100) : 130, sellingPrice, state: hasPriced ? 'priced' : 'pending' });
+        itemMap.set(pid, { productId: pid, productName: prod?.name || l.name || '—', code: prod?.default_code || '', supplierId: supId, supplierName: suppliers[supId]?.name || '未指定供應商', estimatedQty: Number(l.product_uom_qty || 0), actualQty: Number(l.product_uom_qty || 0), purchasePrice, markupRate: purchasePrice > 0 && sellingPrice > 0 ? Math.round(sellingPrice / purchasePrice * 100) : 130, sellingPrice, state: log ? 'priced' : 'pending' });
       }
     }
     setItems(Array.from(itemMap.values()));
