@@ -1854,9 +1854,10 @@ export default function OrdersPage({ user, cutoffTime }: { user: AppUser; cutoff
     const delivery = parseDeliveryDate(o.note || "", lines);
     const orderDate = (o.date_order || "").slice(0, 10);
     const remark = parseNote(o.note || "");
-    const total = typeof o.amount_total === "number"
-      ? o.amount_total.toLocaleString("zh-TW", { minimumFractionDigits: 0 })
-      : null;
+    const rawTotal = typeof o.amount_total === "number" && o.amount_total > 0
+      ? o.amount_total
+      : lines.reduce((sum, l) => sum + (Number(l.price_unit) || 0) * (Number(l.product_uom_qty) || 0), 0);
+    const total = rawTotal > 0 ? rawTotal.toLocaleString("zh-TW", { minimumFractionDigits: 0 }) : null;
     const isEditing = editOrderId === o.id;
     const editable = canEditOrder(o, cutoffTime, lines);
     return (
