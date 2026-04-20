@@ -604,7 +604,9 @@ export default function ProcurementPage() {
 
   // 載入 x_price_log（一次性，存 raw records）
   useEffect(() => {
-    db.queryCustom(PRICE_LOG_UUID).then(recs => setPriceLogs(Array.isArray(recs) ? recs : [])).catch(() => {});
+    db.queryCustom(PRICE_LOG_UUID)
+      .then(recs => setPriceLogs((Array.isArray(recs) ? recs : []).filter((r: any) => (r.data || {}).effective_date === selectedDate)))
+      .catch(() => {});
   }, [selectedDate]);
 
   // 依選定配送日重建 PricingItem
@@ -622,7 +624,6 @@ export default function ProcurementPage() {
     const logMap: Record<string, any> = {};
     for (const rec of priceLogs) {
       const d = rec.data || {};
-      if (d.effective_date !== selectedDate) continue;
       const pid = String(d.tmpl_uuid || d.product_tmpl_id || d.product_id || '');
       if (!pid) continue;
       // created_at 較新的蓋掉舊的
