@@ -913,6 +913,21 @@ html, :host {
   height: 1px;
   background: var(--border);
 }
+
+.past-orders-divider {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 8px 0 16px;
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+.past-orders-divider-line {
+  flex: 1;
+  height: 1px;
+  background: var(--border);
+}
 '''
 
     # ── src/auth.ts ──
@@ -1795,24 +1810,43 @@ export default function OrdersPage({ user, cutoffTime }: { user: AppUser; cutoff
     }
   };
 
-  // 依所選模式分組
-  const dateGroups = useMemo(() => {
+  const todayYMD = toYMD(new Date());
+
+  // 依所選模式分組；配送日期模式下分為 upcoming / past 兩段
+  const { upcoming, past } = useMemo(() => {
+    if (sortBy !== "delivery_date") return { upcoming: [] as { date: string; orders: OrderWithLines[] }[], past: [] };
+
     const groups: Record<string, OrderWithLines[]> = {};
     for (const item of items) {
-      const key = sortBy === "delivery_date"
-        ? (parseDeliveryDate(item.order.note || "", item.lines) || "未排程")
-        : ((item.order.date_order || "").slice(0, 10) || "未知");
+      const key = parseDeliveryDate(item.order.note || "", item.lines) || "未排程";
       if (!groups[key]) groups[key] = [];
       groups[key].push(item);
     }
-    const sortedKeys = Object.keys(groups).sort((a, b) => {
-      const isSpecial = (k: string) => k === "未排程" || k === "未知";
-      if (isSpecial(a)) return 1;
-      if (isSpecial(b)) return -1;
-      // 配送日期：升冪；下單日期：降冪
-      return sortBy === "delivery_date" ? a.localeCompare(b) : b.localeCompare(a);
-    });
-    return sortedKeys.map(key => ({ date: key, orders: groups[key] }));
+    const upcomingKeys: string[] = [];
+    const pastKeys: string[] = [];
+    for (const k of Object.keys(groups)) {
+      if (k === "未排程" || k >= todayYMD) upcomingKeys.push(k);
+      else pastKeys.push(k);
+    }
+    upcomingKeys.sort((a, b) => a === "未排程" ? 1 : b === "未排程" ? -1 : a.localeCompare(b));
+    pastKeys.sort((a, b) => b.localeCompare(a)); // 最近的過期在上
+    return {
+      upcoming: upcomingKeys.map(k => ({ date: k, orders: groups[k] })),
+      past: pastKeys.map(k => ({ date: k, orders: groups[k] })),
+    };
+  }, [items, sortBy, todayYMD]);
+
+  const dateGroups = useMemo(() => {
+    if (sortBy === "delivery_date") return [];
+    const groups: Record<string, OrderWithLines[]> = {};
+    for (const item of items) {
+      const key = (item.order.date_order || "").slice(0, 10) || "未知";
+      if (!groups[key]) groups[key] = [];
+      groups[key].push(item);
+    }
+    return Object.keys(groups)
+      .sort((a, b) => a === "未知" ? 1 : b === "未知" ? -1 : b.localeCompare(a))
+      .map(k => ({ date: k, orders: groups[k] }));
   }, [items, sortBy]);
 
   const renderOrderCard = (o: any, lines: any[]) => {
@@ -1911,18 +1945,56 @@ export default function OrdersPage({ user, cutoffTime }: { user: AppUser; cutoff
         <p className="empty-msg">尚無訂單</p>
       ) : (
         <div>
-          {dateGroups.map(({ date, orders: groupOrders }) => (
-            <div key={date} style={{ marginBottom: "16px" }}>
-              <div className="order-group-header">
-                <span>{sortBy === "delivery_date" ? "📅" : "🗓"} {fmtDateHeader(date)}</span>
-                <span style={{ fontSize: "12px" }}>{groupOrders.length} 筆</span>
-                <div className="order-group-divider" />
+          {sortBy === "delivery_date" ? (
+            <>
+              {upcoming.map(({ date, orders: groupOrders }) => (
+                <div key={date} style={{ marginBottom: "16px" }}>
+                  <div className="order-group-header">
+                    <span>📅 {fmtDateHeader(date)}</span>
+                    <span style={{ fontSize: "12px" }}>{groupOrders.length} 筆</span>
+                    <div className="order-group-divider" />
+                  </div>
+                  <div className="order-list">
+                    {groupOrders.map(({ order: o, lines }) => renderOrderCard(o, lines))}
+                  </div>
+                </div>
+              ))}
+              {past.length > 0 && (
+                <>
+                  <div className="past-orders-divider">
+                    <div className="past-orders-divider-line" />
+                    <span>以上為過去訂單</span>
+                    <div className="past-orders-divider-line" />
+                  </div>
+                  {past.map(({ date, orders: groupOrders }) => (
+                    <div key={date} style={{ marginBottom: "16px", opacity: 0.6 }}>
+                      <div className="order-group-header">
+                        <span>📅 {fmtDateHeader(date)}</span>
+                        <span style={{ fontSize: "12px" }}>{groupOrders.length} 筆</span>
+                        <div className="order-group-divider" />
+                      </div>
+                      <div className="order-list">
+                        {groupOrders.map(({ order: o, lines }) => renderOrderCard(o, lines))}
+                      </div>
+                    </div>
+                  ))}
+                </>
+              )}
+            </>
+          ) : (
+            dateGroups.map(({ date, orders: groupOrders }) => (
+              <div key={date} style={{ marginBottom: "16px" }}>
+                <div className="order-group-header">
+                  <span>🗓 {fmtDateHeader(date)}</span>
+                  <span style={{ fontSize: "12px" }}>{groupOrders.length} 筆</span>
+                  <div className="order-group-divider" />
+                </div>
+                <div className="order-list">
+                  {groupOrders.map(({ order: o, lines }) => renderOrderCard(o, lines))}
+                </div>
               </div>
-              <div className="order-list">
-                {groupOrders.map(({ order: o, lines }) => renderOrderCard(o, lines))}
-              </div>
-            </div>
-          ))}
+            ))
+          )}
         </div>
       )}
     </div>
