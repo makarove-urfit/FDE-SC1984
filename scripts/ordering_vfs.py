@@ -509,6 +509,7 @@ html, :host {
   display: flex;
   align-items: center;
   gap: 8px;
+  margin-top: 8px;
   margin-bottom: 10px;
 }
 .date-label {
@@ -535,6 +536,7 @@ html, :host {
   cursor: pointer;
   color: var(--text-muted);
   white-space: nowrap;
+  margin-top: 6px;
 }
 .date-chip-badge {
   position: absolute;
@@ -1691,7 +1693,7 @@ export default function CartPage({ cart, addToCart, setCartExact, clearCartDate,
             </div>
 
             {/* 繼續選購 — 品項最下、小計上 */}
-            <div style={{ padding: "8px 14px 0", background: "#fff" }}>
+            <div style={{ padding: "8px 14px", background: "#fff" }}>
               <button
                 onClick={() => { setDeliveryDate(date); onNavigate("/order"); }}
                 style={{ width: "100%", padding: "8px", borderRadius: "var(--radius)", border: "1px solid var(--border)", background: "#fff", color: "#6b7280", fontSize: "13px", cursor: "pointer", fontWeight: 500 }}>
