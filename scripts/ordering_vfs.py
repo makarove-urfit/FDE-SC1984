@@ -98,8 +98,21 @@ function loadUser(): AppUser | null {
   } catch { return null; }
 }
 
-function loadCart(): Record<string, number> {
-  try { return JSON.parse(localStorage.getItem(CART_KEY) || "{}"); } catch { return {}; }
+export interface CartItem {
+  productId: string;
+  deliveryDate: string;
+  qty: number;
+}
+
+function loadCart(): CartItem[] {
+  try {
+    const raw = JSON.parse(localStorage.getItem(CART_KEY) || "[]");
+    if (Array.isArray(raw)) return raw as CartItem[];
+    // 從舊格式 Record<string,number> 遷移
+    return Object.entries(raw as Record<string, number>)
+      .filter(([, q]) => q > 0)
+      .map(([productId, qty]) => ({ productId, deliveryDate: "", qty }));
+  } catch { return []; }
 }
 
 export interface AppUser {
@@ -118,7 +131,7 @@ export default function App() {
   const [user, setUser] = useState<AppUser | null>(null);
   const [loading, setLoading] = useState(true);
   const [currentPath, setCurrentPath] = useState<string>(hashPath);
-  const [cart, setCart] = useState<Record<string, number>>(loadCart);
+  const [cart, setCart] = useState<CartItem[]>(loadCart);
   const [uomMap, setUomMap] = useState<Record<string, string>>({});
   const [deliveryDate, setDeliveryDate] = useState<string>(getFirstAvailableDate);
   const cutoffTime: string = (APP_SETTINGS as any).order_cutoff_time || "";
@@ -170,35 +183,43 @@ export default function App() {
     localStorage.removeItem(CART_KEY);
     (window as any).__APP_TOKEN__ = "";
     setUser(null);
-    setCart({});
+    setCart([]);
     setUomMap({});
     navigate("/");
   };
 
-  const addToCart = (productId: string, qty: number) => {
+  const addToCart = (productId: string, qty: number, delivDate: string) => {
     setCart(prev => {
-      const cur = prev[productId] || 0;
-      const next = Number((cur + qty).toFixed(1));
-      if (next <= 0) { const { [productId]: _, ...rest } = prev; return rest; }
-      return { ...prev, [productId]: next };
+      const idx = prev.findIndex(i => i.productId === productId && i.deliveryDate === delivDate);
+      if (idx >= 0) {
+        const newQty = Number((prev[idx].qty + qty).toFixed(2));
+        if (newQty <= 0) return prev.filter((_, i) => i !== idx);
+        return prev.map((item, i) => i === idx ? { ...item, qty: newQty } : item);
+      }
+      if (qty > 0) return [...prev, { productId, deliveryDate: delivDate, qty: Number(qty.toFixed(2)) }];
+      return prev;
     });
   };
 
-  const setCartExact = (productId: string, exactQty: number) => {
+  const setCartExact = (productId: string, exactQty: number, delivDate: string) => {
     setCart(prev => {
-      const next = Number(exactQty.toFixed(1));
-      if (next <= 0 || isNaN(next)) { const { [productId]: _, ...rest } = prev; return rest; }
-      return { ...prev, [productId]: next };
+      const next = Number(exactQty.toFixed(2));
+      if (next <= 0 || isNaN(next)) return prev.filter(i => !(i.productId === productId && i.deliveryDate === delivDate));
+      const idx = prev.findIndex(i => i.productId === productId && i.deliveryDate === delivDate);
+      if (idx >= 0) return prev.map((item, i) => i === idx ? { ...item, qty: next } : item);
+      return [...prev, { productId, deliveryDate: delivDate, qty: next }];
     });
   };
+
+  const clearCartDate = (date: string) => setCart(prev => prev.filter(i => i.deliveryDate !== date));
+  const clearCart = () => setCart([]);
 
   // cart 變更時同步存 localStorage
   useEffect(() => {
     localStorage.setItem(CART_KEY, JSON.stringify(cart));
   }, [cart]);
 
-  const clearCart = () => setCart({});
-  const cartCount = Object.values(cart).reduce((a, b) => a + b, 0);
+  const cartCount = cart.reduce((s, i) => s + i.qty, 0);
 
   if (loading) return (
     <div className="loading-screen">
@@ -211,7 +232,7 @@ export default function App() {
 
   const pages: Record<string, React.ReactNode> = {
     "/": <CatalogPage cart={cart} addToCart={addToCart} setCartExact={setCartExact} uomMap={uomMap} deliveryDate={deliveryDate} setDeliveryDate={setDeliveryDate} />,
-    "/cart": <CartPage cart={cart} addToCart={addToCart} setCartExact={setCartExact} clearCart={clearCart} onNavigate={navigate} uomMap={uomMap} user={user} deliveryDate={deliveryDate} setDeliveryDate={setDeliveryDate} />,
+    "/cart": <CartPage cart={cart} addToCart={addToCart} setCartExact={setCartExact} clearCartDate={clearCartDate} onNavigate={navigate} uomMap={uomMap} user={user} />,
     "/orders": <OrdersPage user={user!} cutoffTime={cutoffTime} />,
   };
 
@@ -816,6 +837,82 @@ html, :host {
 }
 
 .product-card.skeleton { pointer-events: none; }
+
+/* CartPage date groups */
+.date-group {
+  background: #fff;
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  overflow: hidden;
+  margin-bottom: 12px;
+}
+
+.date-group-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: #f0fdf4;
+  border-bottom: 1px solid #bbf7d0;
+  padding: 10px 14px;
+  font-weight: 700;
+  font-size: 14px;
+  color: #166534;
+}
+
+.date-group-items { border-bottom: 1px solid var(--border); }
+
+.date-group-footer {
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+/* OrdersPage sort FAB */
+.sort-fab {
+  position: sticky;
+  top: 56px;
+  z-index: 20;
+  display: flex;
+  gap: 8px;
+  padding: 8px 0 4px;
+  background: var(--bg);
+}
+
+.sort-fab-btn {
+  padding: 6px 14px;
+  border-radius: 20px;
+  border: 1px solid var(--border);
+  background: #fff;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+
+.sort-fab-btn.active {
+  background: var(--primary);
+  border-color: var(--primary);
+  color: #fff;
+}
+
+/* OrdersPage date group headers */
+.order-group-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 0 8px;
+  font-size: 13px;
+  font-weight: 700;
+  color: #374151;
+}
+
+.order-group-divider {
+  flex: 1;
+  height: 1px;
+  background: var(--border);
+}
 '''
 
     # ── src/auth.ts ──
@@ -1094,6 +1191,7 @@ import * as db from "../db";
 import { Minus, Plus } from "lucide-react";
 import PRICE_DATA from "../price_data.json";
 import HOLIDAY_DATA from "../holiday_data.json";
+import { CartItem } from "../App";
 
 interface Category { id: string; name: string; active: boolean; }
 interface Product { id: string; name: string; default_code: string | null; categ_id: string | null; uom_id?: string | null; sale_ok: boolean; active: boolean; }
@@ -1128,9 +1226,9 @@ function fmtPriceDate(iso: string): string {
 }
 
 interface Props {
-  cart: Record<string, number>;
-  addToCart: (id: string, qty: number) => void;
-  setCartExact: (id: string, qty: number) => void;
+  cart: CartItem[];
+  addToCart: (id: string, qty: number, deliveryDate: string) => void;
+  setCartExact: (id: string, qty: number, deliveryDate: string) => void;
   uomMap: Record<string, string>;
   deliveryDate: string;
   setDeliveryDate: (d: string) => void;
@@ -1148,15 +1246,15 @@ function SkeletonCard() {
   );
 }
 
-function ProductCard({ p, qty, addToCart, setCartExact, uomMap }: {
-  p: Product; qty: number;
-  addToCart: (id: string, qty: number) => void;
-  setCartExact: (id: string, qty: number) => void;
+function ProductCard({ p, cart, addToCart, setCartExact, uomMap, deliveryDate }: {
+  p: Product; cart: CartItem[];
+  addToCart: (id: string, qty: number, deliveryDate: string) => void;
+  setCartExact: (id: string, qty: number, deliveryDate: string) => void;
   uomMap: Record<string, string>;
+  deliveryDate: string;
 }) {
   const priceInfo = priceMap[p.id];
-  const [localQty, setLocalQty] = React.useState(1);
-  const displayQty = qty > 0 ? qty : localQty;
+  const qty = cart.find(i => i.productId === p.id && i.deliveryDate === deliveryDate)?.qty ?? 0;
   return (
     <div className="product-card">
       <div className="product-info">
@@ -1170,20 +1268,16 @@ function ProductCard({ p, qty, addToCart, setCartExact, uomMap }: {
         </>}
       </div>
       <div className="qty-control">
-        <button className="qty-btn" onClick={() => {
-          if (qty > 0) addToCart(p.id, -1);
-          else setLocalQty(v => Math.max(1, v - 1));
-        }}><Minus size={14} /></button>
-        <input type="number" step="1" min="1" className="qty-input" value={displayQty}
+        <button className="qty-btn" disabled={qty === 0}
+          onClick={() => { if (qty > 0) addToCart(p.id, -1, deliveryDate); }}
+        ><Minus size={14} /></button>
+        <input type="number" step="1" min="0" className="qty-input" value={qty}
           onChange={e => {
-            const v = Math.max(1, parseInt(e.target.value, 10) || 1);
-            if (qty > 0) setCartExact(p.id, v);
-            else setLocalQty(v);
+            const v = Math.max(0, parseInt(e.target.value, 10) || 0);
+            setCartExact(p.id, v, deliveryDate);
           }} />
-        <button className="qty-btn add" onClick={() => {
-          if (qty > 0) addToCart(p.id, 1);
-          else addToCart(p.id, localQty);
-        }}><Plus size={14} /></button>
+        <button className="qty-btn add" onClick={() => addToCart(p.id, 1, deliveryDate)}
+        ><Plus size={14} /></button>
         <span className="qty-unit">{uomMap[p.uom_id ?? ""] || "件"}</span>
       </div>
     </div>
@@ -1343,8 +1437,8 @@ export default function CatalogPage({ cart, addToCart, setCartExact, uomMap, del
           : displayed.length === 0
             ? <p className="empty-msg">{search ? "找不到符合的商品" : "沒有商品"}</p>
             : displayed.map(p => (
-                <ProductCard key={p.id} p={p} qty={cart[p.id] || 0}
-                  addToCart={addToCart} setCartExact={setCartExact} uomMap={uomMap} />
+                <ProductCard key={p.id} p={p} cart={cart}
+                  addToCart={addToCart} setCartExact={setCartExact} uomMap={uomMap} deliveryDate={deliveryDate} />
               ))
         }
         {!showSkeleton && !searchLoading && poolLoading && (
@@ -1363,63 +1457,55 @@ export default function CatalogPage({ cart, addToCart, setCartExact, uomMap, del
 }
 """
 
-    # ── src/pages/CartPage.tsx ──（含日期選擇、假日排除）
-    vfs["src/pages/CartPage.tsx"] = r'''import React, { useState, useEffect } from "react";
+    # ── src/pages/CartPage.tsx ──（按配送日期分組，每組獨立送出）
+    vfs["src/pages/CartPage.tsx"] = r'''import React, { useState, useEffect, useMemo } from "react";
 import * as db from "../db";
 import { Minus, Plus, Trash2, Send } from "lucide-react";
 import PRICE_DATA from "../price_data.json";
-import HOLIDAY_DATA from "../holiday_data.json";
+import { CartItem, AppUser } from "../App";
 
-interface AppUser { id: string; email: string; display_name?: string; }
 const priceMap: Record<string, { price: number; effective_date: string }> = PRICE_DATA as any;
-const HOLIDAYS = new Set<string>(HOLIDAY_DATA as string[]);
 const DAY_NAMES = ["日","一","二","三","四","五","六"];
 
-function toYMD(d: Date): string {
-  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
-}
 function fmtDate(ymd: string): string {
+  if (!ymd) return "未指定";
   const [y, m, d] = ymd.split("-").map(Number);
   const dt = new Date(y, m-1, d);
   return `${ymd}（週${DAY_NAMES[dt.getDay()]}）`;
 }
 
 interface Props {
-  cart: Record<string, number>;
-  addToCart: (id: string, qty: number) => void;
-  setCartExact: (id: string, qty: number) => void;
-  clearCart: () => void;
+  cart: CartItem[];
+  addToCart: (id: string, qty: number, deliveryDate: string) => void;
+  setCartExact: (id: string, qty: number, deliveryDate: string) => void;
+  clearCartDate: (date: string) => void;
   onNavigate: (p: string) => void;
   uomMap: Record<string, string>;
   user: AppUser;
-  deliveryDate: string;
-  setDeliveryDate: (d: string) => void;
 }
 
 function Toast({ msg, isError }: { msg: string; isError?: boolean }) {
   return <div className={`toast-msg${isError ? " error" : ""}`}>{msg}</div>;
 }
 
-export default function CartPage({ cart, addToCart, setCartExact, clearCart, onNavigate, uomMap, user, deliveryDate, setDeliveryDate }: Props) {
+export default function CartPage({ cart, addToCart, setCartExact, clearCartDate, onNavigate, uomMap, user }: Props) {
   const [products, setProducts] = useState<Record<string, any>>({});
-  const [note, setNote] = useState("");
-  const [submitting, setSubmitting] = useState(false);
-  const [result, setResult] = useState<any>(null);
-  const [loadingProducts, setLoadingProducts] = useState(true);
+  const [groupNotes, setGroupNotes] = useState<Record<string, string>>({});
+  const [submitting, setSubmitting] = useState<string | null>(null);
   const [toast, setToast] = useState<{ msg: string; error: boolean } | null>(null);
 
   const showToast = (msg: string, error = false) => {
     setToast({ msg, error });
-    setTimeout(() => setToast(null), 3000);
+    setTimeout(() => setToast(null), 3500);
   };
 
-  const entries = Object.entries(cart).filter(([, qty]) => qty > 0);
-
+  // 取所有唯一 productId，批次載入商品資訊
+  const productIdsKey = useMemo(() => [...new Set(cart.map(i => i.productId))].sort().join(","), [cart]);
   useEffect(() => {
-    if (entries.length === 0) { setLoadingProducts(false); return; }
-    const cartIds = entries.map(([id]) => id);
+    const ids = [...new Set(cart.map(i => i.productId))];
+    if (ids.length === 0) return;
     Promise.all(
-      cartIds.map(id =>
+      ids.map(id =>
         db.query("product_templates", { filters: [{ column: "id", op: "eq", value: id }] })
           .then(r => (Array.isArray(r) && r.length > 0 ? r[0] : null))
           .catch(() => null)
@@ -1428,155 +1514,157 @@ export default function CartPage({ cart, addToCart, setCartExact, clearCart, onN
       const map: Record<string, any> = {};
       for (const p of results) if (p) map[p.id] = p;
       setProducts(map);
-    }).finally(() => setLoadingProducts(false));
-  }, []);
+    });
+  }, [productIdsKey]);
 
-  const handleSubmit = async () => {
-    if (entries.length === 0) return;
-    if (!deliveryDate) { showToast("請選擇配送日期", true); return; }
-    setSubmitting(true);
+  // 依配送日期分組，升冪排序（最早在上）
+  const dateGroups: { date: string; items: CartItem[] }[] = useMemo(() => {
+    const groups: Record<string, CartItem[]> = {};
+    for (const item of cart) {
+      const key = item.deliveryDate || "";
+      if (!groups[key]) groups[key] = [];
+      groups[key].push(item);
+    }
+    return Object.entries(groups)
+      .sort(([a], [b]) => {
+        if (!a) return 1;
+        if (!b) return -1;
+        return a.localeCompare(b);
+      })
+      .map(([date, items]) => ({ date, items }));
+  }, [cart]);
+
+  const handleSubmit = async (date: string) => {
+    const items = cart.filter(i => i.deliveryDate === date);
+    if (items.length === 0) return;
+    if (!date) { showToast("此組未指定配送日期，請回商品頁重新選擇日期後加入", true); return; }
+
+    setSubmitting(date);
     try {
       const custs = await db.query("customers", {
         filters: [{ column: "email", op: "eq", value: user.email }],
       });
       if (!custs || custs.length === 0) throw new Error("帳號未開通下單權限，請聯絡管理員");
       const customerId = custs[0].id;
+      const note = groupNotes[date] || "";
 
       const order = await db.insert("sale_orders", {
         customer_id: customerId,
         date_order: new Date().toISOString().slice(0, 10),
-        note: `配送日期：${deliveryDate}${note ? `\n${note}` : ""}`,
+        note: `配送日期：${date}${note ? `\n${note}` : ""}`,
       });
       const orderId = order?.id;
       if (!orderId) throw new Error("建立訂單失敗");
 
-      const lineResults = await Promise.allSettled(entries.map(([pid, qty]) =>
+      const lineResults = await Promise.allSettled(items.map(item =>
         db.insert("sale_order_lines", {
           order_id: orderId,
-          product_template_id: pid,
-          name: products[pid]?.name || pid,
-          product_uom_qty: qty,
-          price_unit: priceMap[pid]?.price ?? 0,
-          delivery_date: deliveryDate,
+          product_template_id: item.productId,
+          name: products[item.productId]?.name || item.productId,
+          product_uom_qty: item.qty,
+          price_unit: priceMap[item.productId]?.price ?? 0,
+          delivery_date: date,
         })
       ));
-      const failCount = lineResults.filter(r => r.status === "rejected" || !(r as any).value?.id).length;
-      if (failCount > 0) {
-        const apiBase = (window as any).__API_BASE__ || "/api/v1";
-        const token = (window as any).__APP_TOKEN__ || "";
-        await fetch(`${apiBase}/ext/proxy/sale_orders/${orderId}`, {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
-          credentials: "include",
-          body: JSON.stringify({ data: { state: "cancel" } }),
-        }).catch(() => {});
-        throw new Error(`${failCount} 筆明細建立失敗，訂單已取消`);
-      }
+      const failCount = lineResults.filter(r => r.status === "rejected").length;
+      if (failCount > 0) throw new Error(`${failCount} 筆明細建立失敗`);
 
-      setResult({ order_name: order.name || "訂單已成立", delivery_date: deliveryDate, items_count: entries.length });
-      clearCart();
+      clearCartDate(date);
+      showToast(`${fmtDate(date)} 訂單已送出 ✅`);
     } catch (err: any) {
       showToast("下單失敗：" + (err.message || "未知錯誤"), true);
     } finally {
-      setSubmitting(false);
+      setSubmitting(null);
     }
   };
 
-  if (result) {
+  if (cart.length === 0) {
     return (
-      <div className="result-page">
-        <div className="result-card">
-          <div className="result-icon">✅</div>
-          <h2>訂單已送出</h2>
-          <p className="result-order">訂單編號：{result.order_name || "—"}</p>
-          <p className="result-order" style={{ fontSize: "13px" }}>配送日期：{result.delivery_date || deliveryDate}</p>
-          <button className="result-btn" onClick={() => onNavigate("/orders")}>查看訂單</button>
-          <button className="result-btn secondary" onClick={() => { setResult(null); onNavigate("/"); }}>繼續點餐</button>
-        </div>
+      <div className="empty-cart">
+        <p>🛒 購物車是空的</p>
+        <button className="login-btn" onClick={() => onNavigate("/")}>去點餐</button>
       </div>
     );
   }
 
-  if (loadingProducts) return <div className="page-loading"><div className="spinner" /></div>;
-
   return (
     <div className="cart-page">
       {toast && <Toast msg={toast.msg} isError={toast.error} />}
-      {entries.length === 0 ? (
-        <div className="empty-cart">
-          <p>🛒 購物車是空的</p>
-          <button className="login-btn" onClick={() => onNavigate("/")}>去點餐</button>
-        </div>
-      ) : (
-        <>
-          <div className="cart-list">
-            {entries.map(([productId, qty]) => {
-              const p = products[productId];
-              const pi = priceMap[productId];
-              const subtotal = pi ? (pi.price * qty) : null;
-              return (
-                <div key={productId} className="cart-item">
-                  <div className="cart-item-info">
-                    <span className="product-code">{p?.default_code || ""}</span>
-                    <span className="product-name">{p?.name || productId}</span>
-                    {pi && (
-                      <span className="cart-price-summary">
-                        ${pi.price} × {qty} = <strong>${Math.round(subtotal! * 100) / 100}</strong>
-                      </span>
-                    )}
-                  </div>
-                  <div className="qty-control">
-                    <button className="qty-btn" onClick={() => addToCart(productId, -1)}><Minus size={14} /></button>
-                    <input type="number" step="0.1" className="qty-input" value={qty}
-                      onChange={e => setCartExact(productId, parseFloat(e.target.value))} />
-                    <button className="qty-btn add" onClick={() => addToCart(productId, 1)}><Plus size={14} /></button>
-                    <button className="qty-btn" style={{ border: "1px solid #ef4444", color: "#ef4444" }}
-                      onClick={() => setCartExact(productId, 0)}><Trash2 size={14} /></button>
-                    <span className="qty-unit">{uomMap[products[productId]?.uom_id ?? ""] || "件"}</span>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
+      {dateGroups.map(({ date, items }) => {
+        const isSubmitting = submitting === date;
+        const groupTotal = items.reduce((sum, item) => {
+          const pi = priceMap[item.productId];
+          return pi ? sum + pi.price * item.qty : sum;
+        }, 0);
+        const hasPrice = items.some(item => !!priceMap[item.productId]);
 
-          {(() => {
-            const total = entries.reduce((sum, [pid, qty]) => {
-              const pi = priceMap[pid];
-              return pi ? sum + pi.price * qty : sum;
-            }, 0);
-            const hasPrice = entries.some(([pid]) => !!priceMap[pid]);
-            return hasPrice ? (
-              <div className="cart-total">
-                <span>預估總計</span>
-                <strong>${Math.round(total * 100) / 100}</strong>
+        return (
+          <div key={date} className="date-group">
+            <div className="date-group-header">
+              <span>📅 {date ? fmtDate(date) : "⚠️ 未指定配送日期"}</span>
+              <span style={{ fontSize: "12px", opacity: 0.7 }}>{items.length} 項</span>
+            </div>
+
+            <div className="cart-list" style={{ margin: 0, borderRadius: 0 }}>
+              {items.map(item => {
+                const p = products[item.productId];
+                const pi = priceMap[item.productId];
+                const subtotal = pi ? pi.price * item.qty : null;
+                return (
+                  <div key={item.productId} className="cart-item" style={{ borderRadius: 0, borderLeft: "none", borderRight: "none", borderTop: "none" }}>
+                    <div className="cart-item-info">
+                      <span className="product-code">{p?.default_code || ""}</span>
+                      <span className="product-name">{p?.name || item.productId}</span>
+                      {pi && subtotal !== null && (
+                        <span className="cart-price-summary">
+                          ${pi.price} × {item.qty} = <strong>${Math.round(subtotal * 100) / 100}</strong>
+                        </span>
+                      )}
+                    </div>
+                    <div className="qty-control">
+                      <button className="qty-btn" onClick={() => addToCart(item.productId, -1, date)}><Minus size={14} /></button>
+                      <input type="number" step="0.1" className="qty-input" value={item.qty}
+                        onChange={e => setCartExact(item.productId, parseFloat(e.target.value), date)} />
+                      <button className="qty-btn add" onClick={() => addToCart(item.productId, 1, date)}><Plus size={14} /></button>
+                      <button className="qty-btn" style={{ border: "1px solid #ef4444", color: "#ef4444" }}
+                        onClick={() => setCartExact(item.productId, 0, date)}><Trash2 size={14} /></button>
+                      <span className="qty-unit">{uomMap[products[item.productId]?.uom_id ?? ""] || "件"}</span>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            {hasPrice && (
+              <div className="cart-total" style={{ borderRadius: 0, borderLeft: "none", borderRight: "none" }}>
+                <span>小計</span>
+                <strong>${Math.round(groupTotal * 100) / 100}</strong>
               </div>
-            ) : null;
-          })()}
+            )}
 
-          <div className="date-select-wrap">
-            <label>配送日期</label>
-            <p className="date-selected">{deliveryDate ? fmtDate(deliveryDate) : "未選擇（請至商品頁選擇）"}</p>
+            <div className="cart-note" style={{ borderRadius: 0, borderLeft: "none", borderRight: "none" }}>
+              <textarea placeholder="此批備註（選填）"
+                value={groupNotes[date] || ""}
+                onChange={e => setGroupNotes(prev => ({ ...prev, [date]: e.target.value }))}
+                rows={2} />
+            </div>
+
+            <button className="submit-btn" style={{ borderRadius: "0 0 var(--radius) var(--radius)" }}
+              onClick={() => handleSubmit(date)}
+              disabled={!date || isSubmitting}>
+              <Send size={18} />
+              <span>{isSubmitting ? "送出中..." : `確定送出（${items.length} 項）`}</span>
+            </button>
           </div>
-
-          <div className="cart-note">
-            <textarea placeholder="備註（選填）" value={note}
-              onChange={e => setNote(e.target.value)} rows={2} />
-          </div>
-
-          <button className="submit-btn" onClick={handleSubmit}
-            disabled={submitting || !deliveryDate}>
-            <Send size={18} />
-            <span>{submitting ? "送出中..." : `確認送出（${entries.length} 項）`}</span>
-          </button>
-        </>
-      )}
+        );
+      })}
     </div>
   );
 }
 '''
 
-    # ── src/pages/OrdersPage.tsx ──
-    vfs["src/pages/OrdersPage.tsx"] = r'''import React, { useState, useEffect } from "react";
+    # ── src/pages/OrdersPage.tsx ──（預設按配送日期分組，可切換下單日期）
+    vfs["src/pages/OrdersPage.tsx"] = r'''import React, { useState, useEffect, useMemo } from "react";
 import * as db from "../db";
 import { AppUser } from "../App";
 import { RefreshCw } from "lucide-react";
@@ -1588,10 +1676,22 @@ const STATE_COLORS: Record<string, string> = {
   draft: "#3b82f6", sent: "#3b82f6", sale: "#10b981", done: "#6b7280", cancel: "#ef4444",
 };
 
+const DAY_NAMES_O = ["日","一","二","三","四","五","六"];
+function fmtDateHeader(ymd: string): string {
+  if (!ymd || ymd === "未排程") return ymd;
+  const [y, m, d] = ymd.split("-").map(Number);
+  const dt = new Date(y, m-1, d);
+  return `${ymd}（週${DAY_NAMES_O[dt.getDay()]}）`;
+}
+
 function toYMD(d: Date): string {
   return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
 }
-function parseDeliveryDate(note: string): string {
+function parseDeliveryDate(note: string, lines: any[]): string {
+  // 優先從 lines 取
+  const fromLine = lines.find((l: any) => l.delivery_date)?.delivery_date;
+  if (fromLine) return String(fromLine).slice(0, 10);
+  // fallback 解析 note
   const m = note?.match(/配送日期：(\d{4}-\d{2}-\d{2})/);
   return m ? m[1] : "";
 }
@@ -1600,10 +1700,7 @@ function parseNote(note: string): string {
 }
 function canEditOrder(order: any, cutoffTime: string, lines: any[]): boolean {
   if (order.state !== "draft") return false;
-  // 從 note 或 lines[0].delivery_date 取配送日
-  const delivery = parseDeliveryDate(order.note || "")
-    || (lines[0]?.delivery_date ? String(lines[0].delivery_date).slice(0, 10) : "");
-  // 解析不到配送日就直接允許（不因資料缺失而鎖住）
+  const delivery = parseDeliveryDate(order.note || "", lines);
   if (!delivery) return true;
   const now = new Date();
   const todayYMD = toYMD(now);
@@ -1624,6 +1721,7 @@ export default function OrdersPage({ user, cutoffTime }: { user: AppUser; cutoff
   const [editOrderId, setEditOrderId] = useState<string | null>(null);
   const [editQtys, setEditQtys] = useState<Record<string, number>>({});
   const [saving, setSaving] = useState(false);
+  const [sortBy, setSortBy] = useState<"delivery_date" | "order_date">("delivery_date");
 
   const load = async () => {
     setLoading(true);
@@ -1640,9 +1738,11 @@ export default function OrdersPage({ user, cutoffTime }: { user: AppUser; cutoff
         filters: [{ column: "customer_id", op: "eq", value: cust.id }],
       });
       const list: any[] = Array.isArray(orders) ? orders : [];
+      // 先依下單日期降冪排序（作為次排序依據）
       list.sort((a, b) =>
         new Date(b.date_order || 0).getTime() - new Date(a.date_order || 0).getTime()
       );
+
 
       const results = await Promise.all(list.map(async o => {
         const lines = await db.query("sale_order_lines", {
@@ -1695,8 +1795,111 @@ export default function OrdersPage({ user, cutoffTime }: { user: AppUser; cutoff
     }
   };
 
+  // 依所選模式分組
+  const dateGroups = useMemo(() => {
+    const groups: Record<string, OrderWithLines[]> = {};
+    for (const item of items) {
+      const key = sortBy === "delivery_date"
+        ? (parseDeliveryDate(item.order.note || "", item.lines) || "未排程")
+        : ((item.order.date_order || "").slice(0, 10) || "未知");
+      if (!groups[key]) groups[key] = [];
+      groups[key].push(item);
+    }
+    const sortedKeys = Object.keys(groups).sort((a, b) => {
+      const isSpecial = (k: string) => k === "未排程" || k === "未知";
+      if (isSpecial(a)) return 1;
+      if (isSpecial(b)) return -1;
+      // 配送日期：升冪；下單日期：降冪
+      return sortBy === "delivery_date" ? a.localeCompare(b) : b.localeCompare(a);
+    });
+    return sortedKeys.map(key => ({ date: key, orders: groups[key] }));
+  }, [items, sortBy]);
+
+  const renderOrderCard = (o: any, lines: any[]) => {
+    const s = typeof o.state === "string" ? o.state : "";
+    const delivery = parseDeliveryDate(o.note || "", lines);
+    const orderDate = (o.date_order || "").slice(0, 10);
+    const remark = parseNote(o.note || "");
+    const total = typeof o.amount_total === "number"
+      ? o.amount_total.toLocaleString("zh-TW", { minimumFractionDigits: 0 })
+      : null;
+    const isEditing = editOrderId === o.id;
+    const editable = canEditOrder(o, cutoffTime, lines);
+    return (
+      <div key={o.id} className="order-card">
+        <div className="order-top">
+          <span className="order-name">{String(o.name || `訂單 ${String(o.id).slice(0, 8)}`)}</span>
+          <div style={{ display:"flex", alignItems:"center", gap:"6px" }}>
+            {editable && !isEditing && (
+              <button onClick={() => startEdit(o, lines)} title="修改訂單"
+                style={{ background:"none", border:"none", padding:"2px", cursor:"pointer", color:"#9ca3af", display:"flex", alignItems:"center" }}>
+                <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+              </button>
+            )}
+            <span className="order-state" style={{ background: STATE_COLORS[s] || "#999" }}>
+              {STATE_LABELS[s] || s || "—"}
+            </span>
+          </div>
+        </div>
+        <div className="order-meta">
+          <span>🗓 下單：{orderDate || "—"}</span>
+          <span>📅 配送：{delivery || "未排程"}</span>
+          {total && <span>💰 ${total}</span>}
+        </div>
+        {remark && <div className="order-remark">📝 {remark}</div>}
+        {lines.length > 0 && (
+          <table className="order-lines">
+            <thead>
+              <tr><th>品項</th><th>數量</th><th>單價</th></tr>
+            </thead>
+            <tbody>
+              {lines.map((l: any) => (
+                <tr key={l.id}>
+                  <td>{String(l.name || l.id || "")}</td>
+                  <td>
+                    {isEditing ? (
+                      <input
+                        type="text" inputMode="decimal"
+                        value={editQtys[l.id] ?? Number(l.product_uom_qty || 0)}
+                        onChange={e => {
+                          const v = e.target.value;
+                          if (/^\d*\.?\d*$/.test(v)) setEditQtys(prev => ({ ...prev, [l.id]: v as any }));
+                        }}
+                        onBlur={e => setEditQtys(prev => ({ ...prev, [l.id]: parseFloat(e.target.value) || 0 }))}
+                        style={{ width: "64px", padding: "2px 6px", border: "1px solid #d1d5db", borderRadius: "4px", fontSize: "14px", textAlign: "right" }}
+                      />
+                    ) : (l.product_uom_qty ?? "—")}
+                  </td>
+                  <td>{typeof l.price_unit === "number" ? `$${l.price_unit.toLocaleString()}` : "—"}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+        {isEditing && (
+          <div style={{ display: "flex", gap: "8px", marginTop: "8px" }}>
+            <button onClick={() => saveEdit(o.id, lines)} disabled={saving}
+              style={{ flex: 1, padding: "8px", background: "#16a34a", color: "#fff", border: "none", borderRadius: "6px", fontSize: "13px", cursor: "pointer", fontWeight: 600 }}
+            >{saving ? "儲存中..." : "儲存"}</button>
+            <button onClick={() => setEditOrderId(null)} disabled={saving}
+              style={{ flex: 1, padding: "8px", background: "#f3f4f6", border: "1px solid #d1d5db", borderRadius: "6px", fontSize: "13px", cursor: "pointer", color: "#374151" }}
+            >取消</button>
+          </div>
+        )}
+      </div>
+    );
+  };
+
   return (
     <div className="orders-page">
+      {/* 懸浮排序按鈕 */}
+      <div className="sort-fab">
+        <button className={`sort-fab-btn${sortBy === "delivery_date" ? " active" : ""}`}
+          onClick={() => setSortBy("delivery_date")}>📅 配送日期</button>
+        <button className={`sort-fab-btn${sortBy === "order_date" ? " active" : ""}`}
+          onClick={() => setSortBy("order_date")}>🗓 下單日期</button>
+      </div>
+
       <div className="orders-header">
         <h2>訂單紀錄</h2>
         <button className="refresh-btn" onClick={load} disabled={loading}><RefreshCw size={16} /></button>
@@ -1707,82 +1910,19 @@ export default function OrdersPage({ user, cutoffTime }: { user: AppUser; cutoff
       ) : !errorInfo && items.length === 0 ? (
         <p className="empty-msg">尚無訂單</p>
       ) : (
-        <div className="order-list">
-          {items.map(({ order: o, lines }) => {
-            const s = typeof o.state === "string" ? o.state : "";
-            const delivery = parseDeliveryDate(o.note || "");
-            const remark = parseNote(o.note || "");
-            const total = typeof o.amount_total === "number"
-              ? o.amount_total.toLocaleString("zh-TW", { minimumFractionDigits: 0 })
-              : null;
-            const isEditing = editOrderId === o.id;
-            const editable = canEditOrder(o, cutoffTime, lines);
-            return (
-              <div key={o.id} className="order-card">
-                <div className="order-top">
-                  <span className="order-name">{String(o.name || `訂單 ${String(o.id).slice(0, 8)}`)}</span>
-                  <div style={{ display:"flex", alignItems:"center", gap:"6px" }}>
-                    {editable && !isEditing && (
-                      <button onClick={() => startEdit(o, lines)} title="修改訂單"
-                        style={{ background:"none", border:"none", padding:"2px", cursor:"pointer", color:"#9ca3af", display:"flex", alignItems:"center" }}>
-                        <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
-                      </button>
-                    )}
-                    <span className="order-state" style={{ background: STATE_COLORS[s] || "#999" }}>
-                      {STATE_LABELS[s] || s || "—"}
-                    </span>
-                  </div>
-                </div>
-                <div className="order-meta">
-                  <span>下單：{o.date_order ? new Date(String(o.date_order)).toLocaleDateString("zh-TW") : "—"}</span>
-                  {delivery && <span>配送：{new Date(delivery).toLocaleDateString("zh-TW")}</span>}
-                  {total && <span>金額：${total}</span>}
-                </div>
-                {remark && <div className="order-remark">📝 {remark}</div>}
-                {lines.length > 0 && (
-                  <table className="order-lines">
-                    <thead>
-                      <tr><th>品項</th><th>數量</th><th>單價</th></tr>
-                    </thead>
-                    <tbody>
-                      {lines.map((l: any) => (
-                        <tr key={l.id}>
-                          <td>{String(l.name || l.id || "")}</td>
-                          <td>
-                            {isEditing ? (
-                              <input
-                                type="text" inputMode="decimal"
-                                value={editQtys[l.id] ?? Number(l.product_uom_qty || 0)}
-                                onChange={e => {
-                                  const v = e.target.value;
-                                  if (/^\d*\.?\d*$/.test(v)) setEditQtys(prev => ({ ...prev, [l.id]: v as any }));
-                                }}
-                                onBlur={e => setEditQtys(prev => ({ ...prev, [l.id]: parseFloat(e.target.value) || 0 }))}
-                                style={{ width: "64px", padding: "2px 6px", border: "1px solid #d1d5db", borderRadius: "4px", fontSize: "14px", textAlign: "right" }}
-                              />
-                            ) : (l.product_uom_qty ?? "—")}
-                          </td>
-                          <td>{typeof l.price_unit === "number" ? `$${l.price_unit.toLocaleString()}` : "—"}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                )}
-                {isEditing && (
-                  <div style={{ display: "flex", gap: "8px", marginTop: "8px" }}>
-                    <button
-                      onClick={() => saveEdit(o.id, lines)} disabled={saving}
-                      style={{ flex: 1, padding: "8px", background: "#16a34a", color: "#fff", border: "none", borderRadius: "6px", fontSize: "13px", cursor: "pointer", fontWeight: 600 }}
-                    >{saving ? "儲存中..." : "儲存"}</button>
-                    <button
-                      onClick={() => setEditOrderId(null)} disabled={saving}
-                      style={{ flex: 1, padding: "8px", background: "#f3f4f6", border: "1px solid #d1d5db", borderRadius: "6px", fontSize: "13px", cursor: "pointer", color: "#374151" }}
-                    >取消</button>
-                  </div>
-                )}
+        <div>
+          {dateGroups.map(({ date, orders: groupOrders }) => (
+            <div key={date} style={{ marginBottom: "16px" }}>
+              <div className="order-group-header">
+                <span>{sortBy === "delivery_date" ? "📅" : "🗓"} {fmtDateHeader(date)}</span>
+                <span style={{ fontSize: "12px" }}>{groupOrders.length} 筆</span>
+                <div className="order-group-divider" />
               </div>
-            );
-          })}
+              <div className="order-list">
+                {groupOrders.map(({ order: o, lines }) => renderOrderCard(o, lines))}
+              </div>
+            </div>
+          ))}
         </div>
       )}
     </div>
