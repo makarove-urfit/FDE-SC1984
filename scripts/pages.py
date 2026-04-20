@@ -603,7 +603,7 @@ export default function ProcurementPage() {
   // 載入 x_price_log（一次性，存 raw records）
   useEffect(() => {
     db.queryCustom('x_price_log').then(recs => setPriceLogs(Array.isArray(recs) ? recs : [])).catch(() => {});
-  }, []);
+  }, [selectedDate]);
 
   // 依選定配送日重建 PricingItem
   const olKey = orderLines.length;
