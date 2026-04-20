@@ -1018,7 +1018,10 @@ export async function insert(table: string, data: Record<string, any>): Promise<
 
 export async function fetchById(table: string, id: string): Promise<any | null> {
   const resp = await fetch(proxyBase + table + '/' + id, { headers: _h(), credentials: 'include' });
-  if (!resp.ok) return null;
+  if (!resp.ok) {
+    console.error(`[db.fetchById] ${table}/${id} → ${resp.status}`, await resp.text().catch(() => ''));
+    return null;
+  }
   return resp.json();
 }
 
