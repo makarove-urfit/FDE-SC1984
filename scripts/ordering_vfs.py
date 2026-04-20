@@ -232,7 +232,7 @@ export default function App() {
 
   const pages: Record<string, React.ReactNode> = {
     "/": <CatalogPage cart={cart} addToCart={addToCart} setCartExact={setCartExact} uomMap={uomMap} deliveryDate={deliveryDate} setDeliveryDate={setDeliveryDate} />,
-    "/cart": <CartPage cart={cart} addToCart={addToCart} setCartExact={setCartExact} clearCartDate={clearCartDate} onNavigate={navigate} uomMap={uomMap} user={user} />,
+    "/cart": <CartPage cart={cart} addToCart={addToCart} setCartExact={setCartExact} clearCartDate={clearCartDate} onNavigate={navigate} setDeliveryDate={setDeliveryDate} uomMap={uomMap} user={user} />,
     "/orders": <OrdersPage user={user!} cutoffTime={cutoffTime} />,
   };
 
@@ -1495,6 +1495,7 @@ interface Props {
   setCartExact: (id: string, qty: number, deliveryDate: string) => void;
   clearCartDate: (date: string) => void;
   onNavigate: (p: string) => void;
+  setDeliveryDate: (d: string) => void;
   uomMap: Record<string, string>;
   user: AppUser;
 }
@@ -1503,7 +1504,7 @@ function Toast({ msg, isError }: { msg: string; isError?: boolean }) {
   return <div className={`toast-msg${isError ? " error" : ""}`}>{msg}</div>;
 }
 
-export default function CartPage({ cart, addToCart, setCartExact, clearCartDate, onNavigate, uomMap, user }: Props) {
+export default function CartPage({ cart, addToCart, setCartExact, clearCartDate, onNavigate, setDeliveryDate, uomMap, user }: Props) {
   const [products, setProducts] = useState<Record<string, any>>({});
   const [groupNotes, setGroupNotes] = useState<Record<string, string>>({});
   const [submitting, setSubmitting] = useState<string | null>(null);
@@ -1671,12 +1672,19 @@ export default function CartPage({ cart, addToCart, setCartExact, clearCartDate,
                 rows={2} />
             </div>
 
-            <button className="submit-btn" style={{ borderRadius: "0 0 var(--radius) var(--radius)" }}
-              onClick={() => handleSubmit(date)}
-              disabled={!date || isSubmitting}>
-              <Send size={18} />
-              <span>{isSubmitting ? "送出中..." : `確定送出（${items.length} 項）`}</span>
-            </button>
+            <div style={{ display: "flex", gap: "8px", padding: "0 14px 14px", borderRadius: "0 0 var(--radius) var(--radius)", background: "#fff" }}>
+              <button className="submit-btn" style={{ flex: 1, borderRadius: "var(--radius)" }}
+                onClick={() => handleSubmit(date)}
+                disabled={!date || isSubmitting}>
+                <Send size={18} />
+                <span>{isSubmitting ? "送出中..." : `確定送出（${items.length} 項）`}</span>
+              </button>
+              <button
+                onClick={() => { setDeliveryDate(date); onNavigate("/"); }}
+                style={{ flexShrink: 0, padding: "0 14px", borderRadius: "var(--radius)", border: "1px solid var(--border)", background: "#fff", color: "#6b7280", fontSize: "13px", cursor: "pointer", fontWeight: 500, whiteSpace: "nowrap" }}>
+                繼續選購
+              </button>
+            </div>
           </div>
         );
       })}
