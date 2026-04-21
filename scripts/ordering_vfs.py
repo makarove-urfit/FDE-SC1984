@@ -99,7 +99,8 @@ function loadUser(): AppUser | null {
 }
 
 export interface CartItem {
-  productId: string;
+  productId: string;         // product_template.id
+  productProductId?: string; // product_product.id（用於 priceMap 查詢）
   deliveryDate: string;
   qty: number;
   name?: string;
@@ -192,7 +193,7 @@ export default function App() {
     navigate("/order");
   };
 
-  const addToCart = (productId: string, qty: number, delivDate: string, meta?: { name?: string; defaultCode?: string; uomId?: string }) => {
+  const addToCart = (productId: string, qty: number, delivDate: string, meta?: { name?: string; defaultCode?: string; uomId?: string; productProductId?: string }) => {
     setCart(prev => {
       const idx = prev.findIndex(i => i.productId === productId && i.deliveryDate === delivDate);
       if (idx >= 0) {
@@ -1274,7 +1275,7 @@ function fmtPriceDate(iso: string): string {
 
 interface Props {
   cart: CartItem[];
-  addToCart: (id: string, qty: number, deliveryDate: string, meta?: { name?: string; defaultCode?: string; uomId?: string }) => void;
+  addToCart: (id: string, qty: number, deliveryDate: string, meta?: { name?: string; defaultCode?: string; uomId?: string; productProductId?: string }) => void;
   setCartExact: (id: string, qty: number, deliveryDate: string) => void;
   uomMap: Record<string, string>;
   deliveryDate: string;
@@ -1293,14 +1294,16 @@ function SkeletonCard() {
   );
 }
 
-function ProductCard({ p, cart, addToCart, setCartExact, uomMap, deliveryDate }: {
+function ProductCard({ p, cart, addToCart, setCartExact, uomMap, deliveryDate, tmplToProd }: {
   p: Product; cart: CartItem[];
-  addToCart: (id: string, qty: number, deliveryDate: string, meta?: { name?: string; defaultCode?: string; uomId?: string }) => void;
+  addToCart: (id: string, qty: number, deliveryDate: string, meta?: { name?: string; defaultCode?: string; uomId?: string; productProductId?: string }) => void;
   setCartExact: (id: string, qty: number, deliveryDate: string) => void;
   uomMap: Record<string, string>;
   deliveryDate: string;
+  tmplToProd: Record<string, string>;
 }) {
-  const priceInfo = priceMap[p.id];
+  const productProductId = tmplToProd[p.id];
+  const priceInfo = priceMap[productProductId ?? p.id];
   const qty = cart.find(i => i.productId === p.id && i.deliveryDate === deliveryDate)?.qty ?? 0;
   return (
     <div className="product-card">
@@ -1316,14 +1319,14 @@ function ProductCard({ p, cart, addToCart, setCartExact, uomMap, deliveryDate }:
       </div>
       <div className="qty-control">
         <button className="qty-btn" disabled={qty === 0}
-          onClick={() => { if (qty > 0) addToCart(p.id, -1, deliveryDate, { name: p.name, defaultCode: p.default_code, uomId: p.uom_id }); }}
+          onClick={() => { if (qty > 0) addToCart(p.id, -1, deliveryDate, { name: p.name, defaultCode: p.default_code, uomId: p.uom_id, productProductId }); }}
         ><Minus size={14} /></button>
         <input type="number" step="1" min="0" className="qty-input" value={qty}
           onChange={e => {
             const v = Math.max(0, parseInt(e.target.value, 10) || 0);
             setCartExact(p.id, v, deliveryDate);
           }} />
-        <button className="qty-btn add" onClick={() => addToCart(p.id, 1, deliveryDate, { name: p.name, defaultCode: p.default_code, uomId: p.uom_id })}
+        <button className="qty-btn add" onClick={() => addToCart(p.id, 1, deliveryDate, { name: p.name, defaultCode: p.default_code, uomId: p.uom_id, productProductId })}
         ><Plus size={14} /></button>
         <span className="qty-unit">{uomMap[p.uom_id ?? ""] || "件"}</span>
       </div>
@@ -1337,6 +1340,18 @@ export default function CatalogPage({ cart, addToCart, setCartExact, uomMap, del
   const [search, setSearch] = useState("");
   const [searchResults, setSearchResults] = useState<Product[] | null>(null); // null = 無搜尋
   const [searchLoading, setSearchLoading] = useState(false);
+  const [tmplToProd, setTmplToProd] = useState<Record<string, string>>({}); // product_tmpl_id → product_product.id
+
+  useEffect(() => {
+    db.query("product_product", { filters: [{ column: "active", op: "eq", value: true }] })
+      .then(rows => {
+        const m: Record<string, string> = {};
+        for (const r of Array.isArray(rows) ? rows : []) {
+          if (r.product_tmpl_id && r.id) m[String(r.product_tmpl_id)] = String(r.id);
+        }
+        setTmplToProd(m);
+      }).catch(() => {});
+  }, []);
   const [catLoading, setCatLoading] = useState(true);
   const [tick, setTick] = useState(0);
   const flush = useCallback(() => setTick(t => t + 1), []);
@@ -1492,7 +1507,7 @@ export default function CatalogPage({ cart, addToCart, setCartExact, uomMap, del
             ? <p className="empty-msg">{search ? "找不到符合的商品" : "沒有商品"}</p>
             : displayed.map(p => (
                 <ProductCard key={p.id} p={p} cart={cart}
-                  addToCart={addToCart} setCartExact={setCartExact} uomMap={uomMap} deliveryDate={deliveryDate} />
+                  addToCart={addToCart} setCartExact={setCartExact} uomMap={uomMap} deliveryDate={deliveryDate} tmplToProd={tmplToProd} />
               ))
         }
         {!showSkeleton && !searchLoading && poolLoading && (
@@ -1530,7 +1545,7 @@ function fmtDate(ymd: string): string {
 
 interface Props {
   cart: CartItem[];
-  addToCart: (id: string, qty: number, deliveryDate: string, meta?: { name?: string; defaultCode?: string; uomId?: string }) => void;
+  addToCart: (id: string, qty: number, deliveryDate: string, meta?: { name?: string; defaultCode?: string; uomId?: string; productProductId?: string }) => void;
   setCartExact: (id: string, qty: number, deliveryDate: string) => void;
   clearCartDate: (date: string) => void;
   onNavigate: (p: string) => void;
@@ -1606,9 +1621,10 @@ export default function CartPage({ cart, addToCart, setCartExact, clearCartDate,
         db.insert("sale_order_lines", {
           order_id: orderId,
           product_template_id: item.productId,
+          ...(item.productProductId ? { product_id: item.productProductId } : {}),
           name: prodMap[item.productId]?.name || item.productId,
           product_uom_qty: item.qty,
-          price_unit: priceMap[item.productId]?.price ?? 0,
+          price_unit: priceMap[item.productProductId ?? item.productId]?.price ?? 0,
           delivery_date: date,
         })
       ));
@@ -1617,7 +1633,7 @@ export default function CartPage({ cart, addToCart, setCartExact, clearCartDate,
 
       // 回寫 amount_total
       const amount_total = items.reduce((sum, item) => {
-        const price = priceMap[item.productId]?.price ?? 0;
+        const price = priceMap[item.productProductId ?? item.productId]?.price ?? 0;
         return sum + price * item.qty;
       }, 0);
       await db.update("sale_orders", orderId, { amount_total: Math.round(amount_total * 100) / 100 });
@@ -1646,10 +1662,10 @@ export default function CartPage({ cart, addToCart, setCartExact, clearCartDate,
       {dateGroups.map(({ date, items }) => {
         const isSubmitting = submitting === date;
         const groupTotal = items.reduce((sum, item) => {
-          const pi = priceMap[item.productId];
+          const pi = priceMap[item.productProductId ?? item.productId];
           return pi ? sum + pi.price * item.qty : sum;
         }, 0);
-        const hasPrice = items.some(item => !!priceMap[item.productId]);
+        const hasPrice = items.some(item => !!(priceMap[item.productProductId ?? item.productId]));
 
         return (
           <div key={date} className="date-group">
@@ -1661,7 +1677,7 @@ export default function CartPage({ cart, addToCart, setCartExact, clearCartDate,
             <div className="cart-list" style={{ margin: 0, borderRadius: 0 }}>
               {items.map(item => {
                 const p = prodMap[item.productId];
-                const pi = priceMap[item.productId];
+                const pi = priceMap[item.productProductId ?? item.productId];
                 const subtotal = pi ? pi.price * item.qty : null;
                 return (
                   <div key={item.productId} className="cart-item" style={{ borderRadius: 0, borderLeft: "none", borderRight: "none", borderTop: "none" }}>
