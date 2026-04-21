@@ -191,7 +191,8 @@ actions/
 
 | 表名 | 主要欄位 | Ordering 權限 | Admin 權限 |
 |------|---------|--------------|-----------|
-| `product_templates` | id, name, default_code, categ_id, list_price, uom_id | read | read, update |
+| `product_templates` | id, name, default_code, categ_id, list_price, uom_id | read | read |
+| `product_products` | id, product_tmpl_id, standard_price, lst_price | read | read, update |
 | `product_categories` | id, name, parent_id | read | — |
 | `customers` | id, name, email, ref, customer_type | read, create | read, update |
 | `sale_orders` | id, name, state, date_order, customer_id, note, amount_total | read, create | read, update |
@@ -211,11 +212,17 @@ actions/
 
 ### Custom Table（x_ 前綴，tenant 層級共用）
 
-| api_slug | UUID | 欄位 | 說明 |
-|---------|------|------|------|
-| `x_price_log` | `0838e79c-...` | product_id, price, effective_date | 每日售價，deploy 時靜態 embed |
-| `x_holiday_settings` | `96d01299-...` | date, reason | 假日清單，deploy 時靜態 embed |
-| `x_app_settings` | `fc8e665a-...` | key, value, updated_at | 應用設定 |
+| 表名 | 欄位 | 說明 |
+|------|------|------|
+| `x_product_product_price_log` | product_product_id, standard_price, lst_price, updated_by, effective_date, updated_at | 採購定價記錄，每次確認價格寫一筆；Admin proxy 直接讀寫 |
+| `x_holiday_settings` | date, reason | 假日清單，deploy 時靜態 embed |
+| `x_app_settings` | key, value, updated_at | 應用設定 |
+| `x_order_audit_log` | — | 訂單稽核記錄 |
+| `x_driver_customer` | — | 司機負責客戶對應 |
+
+> **欄位設計原則**：custom table 欄位名稱對齊 `product_products` 的欄位名稱（`standard_price`、`lst_price`），以保持一致性。
+
+> **資料搬遷**：舊 `x_price_audit_log` 的資料可透過 `scripts/migrate_price_log.py` 搬遷至 `x_product_product_price_log`（`new_price → lst_price`，`standard_price` 補 0）。
 
 ---
 
@@ -227,11 +234,29 @@ Ordering App 顯示的價格為**參考價**，非最終計費價格：
 
 | 欄位 | 來源 | 意義 |
 |------|------|------|
-| `price_data.json[product_id].price` | `x_price_log` 最新一筆 | **參考報價**，deploy 時 embed，顯示於商品卡片供客戶參考 |
-| `price_data.json[product_id].effective_date` | `x_price_log.effective_date` | 該參考報價的日期（非配送日） |
 | `sale_order_lines.price_unit` | 下單時從 price_data 帶入 | 記錄下單當下的參考價 |
 
-**實際計費以配送日的市場實價為準**，由業主在配送後於 Admin 後台更新 `sale_order_lines.price_unit`。前端顯示的「參考 M/D」即為最近一次報價的日期，客戶需知悉最終金額以配送日實價為主。
+**實際計費以配送日的市場實價為準**，由業主在 Admin 採購定價頁確認後更新 `sale_order_lines.price_unit`。
+
+#### Admin 採購定價寫入鏈
+
+```
+採購定價頁（ProcurementPage / PricePage）
+  → 確認價格
+  → product_products.standard_price（成本價）
+  → product_products.lst_price（售價）
+  → x_product_product_price_log（寫入一筆記錄）
+  → 同步該配送日的 sale_order_lines.price_unit
+```
+
+#### 庫存寫入鏈
+
+```
+採購管理頁（PurchasePage）
+  → 「已採購到」按鈕
+  → purchase_order_lines.qty_received
+  → stock_quants.quantity += actualQty
+```
 
 ### 靜態資料 Deploy-time Embed
 
