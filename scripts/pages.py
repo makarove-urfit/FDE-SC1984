@@ -12,12 +12,12 @@ const LeafIcon = () => <svg xmlns="http://www.w3.org/2000/svg" width="24" height
 const ClipboardIcon = () => <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect width="8" height="4" x="8" y="2" rx="1" ry="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/></svg>;
 export default function DashboardPage() {
   const nav = useNavigate();
-  const { orders, loading, selectedDate, setSelectedDate } = useData();
-  const dlv = (o:any) => (typeof o.note === 'string' ? o.note : '').match(/配送日期：(\d{4}-\d{2}-\d{2})/)?.[1] || (o.date_order||o.created_at||'').slice(0,10);
+  const { orders, orderLines, loading, selectedDate, setSelectedDate } = useData();
   const isDraft = (o:any) => !o.state || o.state === 'draft';
   const isConfirmed = (o:any) => o.state === 'sale' || o.state === 'confirm';
-  const cd = () => orders.filter(o => isDraft(o) && dlv(o)===selectedDate).length;
-  const cs = () => orders.filter(o => isConfirmed(o) && dlv(o)===selectedDate).length;
+  const dateIds = new Set(orderLines.filter((l:any) => String(l.delivery_date||'').slice(0,10) === selectedDate).map((l:any) => { const v = l.order_id; return Array.isArray(v) ? String(v[0]) : String(v||''); }));
+  const cd = () => orders.filter(o => isDraft(o) && dateIds.has(String(o.id))).length;
+  const cs = () => orders.filter(o => isConfirmed(o) && dateIds.has(String(o.id))).length;
   if (loading) return <div className="min-h-screen bg-gray-50 flex items-center justify-center"><p className="text-gray-400">載入中...</p></div>;
   const steps = [
     {step:'1',label:'訂單接收',desc:`${cd()} 筆待處理`,href:'/admin/purchase-list',count:cd()},
@@ -40,7 +40,7 @@ export default function DashboardPage() {
       </header>
       <div className="p-6 space-y-6 max-w-6xl mx-auto">
         <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-          {[{l:'全部訂單',v:orders.filter(o=>dlv(o)===selectedDate).length,c:'text-gray-900'},{l:'待處理',v:cd(),c:'text-orange-600'},{l:'已確認',v:cs(),c:'text-blue-600'},{l:'完成',v:orders.filter(o=>o.state==='done'&&dlv(o)===selectedDate).length,c:'text-green-600'},{l:'已取消',v:orders.filter(o=>o.state==='cancel'&&dlv(o)===selectedDate).length,c:'text-red-600'}].map(s=>(
+          {[{l:'全部訂單',v:orders.filter(o=>dateIds.has(String(o.id))).length,c:'text-gray-900'},{l:'待處理',v:cd(),c:'text-orange-600'},{l:'已確認',v:cs(),c:'text-blue-600'},{l:'完成',v:orders.filter(o=>o.state==='done'&&dateIds.has(String(o.id))).length,c:'text-green-600'},{l:'已取消',v:orders.filter(o=>o.state==='cancel'&&dateIds.has(String(o.id))).length,c:'text-red-600'}].map(s=>(
             <div key={s.l} className="bg-white rounded-xl border border-gray-100 p-4">
               <p className="text-sm text-gray-400">{s.l}</p><p className={`text-3xl font-bold ${s.c}`}>{s.v}</p>
             </div>
@@ -77,6 +77,7 @@ import { useNavigate } from 'react-router-dom';
 import { useData } from '../../data/DataProvider';
 import DatePickerWithCounts from '../../components/DatePickerWithCounts';
 import * as db from '../../db';
+
 const Arrow = () => <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M19 12H5"/><path d="m12 19-7-7 7-7"/></svg>;
 const InboxIcon = () => <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#9ca3af" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="22 12 16 12 14 15 10 15 8 12 2 12"/><path d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"/></svg>;
 
@@ -118,33 +119,34 @@ export default function PurchaseListPage() {
   const [priceLogs, setPriceLogs] = useState<any[]>([]);
 
   useEffect(() => {
-    db.queryCustom(PRICE_LOG_UUID).then(data => setPriceLogs(Array.isArray(data) ? data : [])).catch(() => {});
+    db.queryFiltered('product_product_price_log', []).then(data => setPriceLogs(Array.isArray(data) ? data : [])).catch(() => {});
   }, []);
 
   const priceMap = useMemo(() => {
     const map: Record<string, number> = {};
     const sorted = [...priceLogs].sort((a: any, b: any) =>
-      String(b.data?.effective_date || b.effective_date || '').localeCompare(
-        String(a.data?.effective_date || a.effective_date || '')
-      )
+      String(b.effective_date || '').localeCompare(String(a.effective_date || ''))
     );
     for (const entry of sorted) {
-      const d = entry.data || entry;
-      const pid = d.product_id; const price = Number(d.price || 0);
-      const effDate = String(d.effective_date || '');
+      const pid = String(entry.product_product_id || ''); const price = Number(entry.lst_price || 0);
+      const effDate = String(entry.effective_date || '');
       if (pid && price > 0 && effDate <= selectedDate && !map[pid]) map[pid] = price;
     }
     return map;
   }, [priceLogs, selectedDate]);
 
-  const dlv = (o:any) => (typeof o.note === 'string' ? o.note : '').match(/配送日期：(\d{4}-\d{2}-\d{2})/)?.[1] || (o.date_order||o.created_at||'').slice(0,10);
   const isDraft = (o:any) => !o.state || o.state === 'draft';
+
+  const dateIds = useMemo(() =>
+    new Set(lines.filter((l:any) => String(l.delivery_date||'').slice(0,10) === selectedDate).map((l:any) => { const v = l.order_id; return Array.isArray(v) ? String(v[0]) : String(v||''); })),
+    [lines, selectedDate]
+  );
 
   const draftOrders = useMemo(() =>
     orders
-      .filter(o => isDraft(o) && dlv(o) === selectedDate)
+      .filter(o => isDraft(o) && dateIds.has(String(o.id)))
       .sort((a,b) => String(b.date_order||b.created_at||'').localeCompare(String(a.date_order||a.created_at||''))),
-    [orders, selectedDate]
+    [orders, dateIds]
   );
 
   const getLineRows = (orderList: any[]) =>
@@ -404,10 +406,10 @@ export default function DeliveryPage() {
   // #1 用 useEffect 同步 allOrders → 本地 state（修復 render body setState 無限迴圈）
   useEffect(() => {
     if (!loading) {
-      const dlv = (o:any) => (typeof o.note === 'string' ? o.note : '').match(/配送日期：(\d{4}-\d{2}-\d{2})/)?.[1] || (o.date_order||o.created_at||'').slice(0,10);
-      setOrders(allOrders.filter((x:any)=>['sale','done'].includes(x.state) && dlv(x)===selectedDate));
+      const dateIds = new Set(lines.filter((l:any) => String(l.delivery_date||'').slice(0,10) === selectedDate).map((l:any) => { const v = l.order_id; return Array.isArray(v) ? String(v[0]) : String(v||''); }));
+      setOrders(allOrders.filter((x:any)=>['sale','done'].includes(x.state) && dateIds.has(String(x.id))));
     }
-  }, [allOrders, loading, selectedDate]);
+  }, [allOrders, lines, loading, selectedDate]);
 
   // #3 同步全域 customers → 本地 custs（用於地址寫入後更新 UI）
   const custs = useMemo(() => ({...customers, ...localCusts}), [customers, localCusts]);
@@ -580,7 +582,6 @@ import * as db from '../../db';
 import { useData } from '../../data/DataProvider';
 import DatePickerWithCounts from '../../components/DatePickerWithCounts';
 
-const PRICE_LOG_UUID = '0838e79c-52bb-4d2a-bac8-92eaef87f691';
 ''' + _ARROW + r'''
 const CheckIcon = () => <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><path d="m9 11 3 3L22 4"/></svg>;
 const PricingIcon = () => <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>;
@@ -602,10 +603,11 @@ export default function ProcurementPage() {
   const [saving, setSaving] = useState(false);
   const [priceLogs, setPriceLogs] = useState<any[]>([]);
 
-  // 載入 x_price_log（一次性，存 raw records）
+  // 載入 x_price_log，切換日期前先清空避免舊資料殘留
   useEffect(() => {
-    db.queryCustom(PRICE_LOG_UUID)
-      .then(recs => setPriceLogs((Array.isArray(recs) ? recs : []).filter((r: any) => (r.data || {}).effective_date === selectedDate)))
+    setPriceLogs([]);
+    db.queryFiltered('product_product_price_log', [{ column: 'effective_date', op: 'eq', value: selectedDate }])
+      .then(recs => setPriceLogs(Array.isArray(recs) ? recs : []))
       .catch(() => {});
   }, [selectedDate]);
 
@@ -620,29 +622,27 @@ export default function ProcurementPage() {
     for (const si of supplierInfos) { if (si.product_tmpl_id) prodSup[si.product_tmpl_id] = si.supplier_id; }
     const defaultSupId = Object.keys(suppliers)[0] || 'unknown';
 
-    // 找 x_price_log 裡屬於 selectedDate 的最新一筆（per product）
+    // 找 product_product_price_log 裡屬於 selectedDate 的最新一筆（per product）
     const logMap: Record<string, any> = {};
     for (const rec of priceLogs) {
-      const d = rec.data || {};
-      const pid = String(d.tmpl_uuid || d.product_tmpl_id || d.product_id || '');
+      const pid = String(rec.product_product_id || '');
       if (!pid) continue;
-      // created_at 較新的蓋掉舊的
-      if (!logMap[pid] || (rec.created_at || '') > (logMap[pid].created_at || '')) logMap[pid] = rec;
+      if (!logMap[pid] || (rec.updated_at || '') > (logMap[pid].updated_at || '')) logMap[pid] = rec;
     }
 
     const itemMap = new Map<string, PricingItem>();
     for (const l of orderLines) {
       if (typeof l.delivery_date === 'string' && l.delivery_date.slice(0, 10) !== selectedDate) continue;
-      const pid = l.product_template_id || l.product_id;
+      const pid = l.product_id || l.product_template_id;
       if (!pid) continue;
       const prod = prodMap[pid];
       const supId = prodSup[pid] || (supplierInfos.length === 0 ? defaultSupId : 'unknown');
       const existing = itemMap.get(pid);
       if (existing) { existing.estimatedQty += Number(l.product_uom_qty || 0); existing.actualQty = existing.estimatedQty; }
       else {
-        const log = logMap[pid]?.data;
-        const purchasePrice = log ? Number(log.purchase_price || 0) : Number(prod?.standard_price || 0);
-        const sellingPrice  = log ? Number(log.price || 0)          : Number(prod?.list_price || 0);
+        const log = logMap[pid];
+        const purchasePrice = log ? Number(log.standard_price || 0) : Number(prod?.standard_price || 0);
+        const sellingPrice  = log ? Number(log.lst_price || 0)      : Number(prod?.lst_price || 0);
         itemMap.set(pid, { productId: pid, productName: prod?.name || l.name || '—', code: prod?.default_code || '', supplierId: supId, supplierName: suppliers[supId]?.name || '未指定供應商', estimatedQty: Number(l.product_uom_qty || 0), actualQty: Number(l.product_uom_qty || 0), purchasePrice, markupRate: purchasePrice > 0 && sellingPrice > 0 ? Math.round(sellingPrice / purchasePrice * 100) : 130, sellingPrice, state: log ? 'priced' : 'pending' });
       }
     }
@@ -674,25 +674,14 @@ export default function ProcurementPage() {
   // order_id 可能是 [uuid, name] 或純字串
   const _oid = (val: any): string => Array.isArray(val) ? String(val[0]) : String(val ?? '');
 
-  // 重取指定訂單的所有明細，重算並寫回 amount_total
-  const recalcOrderTotals = async (orderIds: string[]) => {
-    const unique = [...new Set(orderIds)].filter(Boolean);
-    await Promise.all(unique.map(async (oid) => {
-      const lines = await db.queryFiltered('sale_order_lines', [{ column: 'order_id', op: 'eq', value: oid }]);
-      const total = (Array.isArray(lines) ? lines : []).reduce((s: number, l: any) =>
-        s + Number(l.product_uom_qty || 0) * Number(l.price_unit || 0), 0);
-      await db.update('sale_orders', oid, { amount_total: Math.round(total * 100) / 100 });
-    }));
-  };
 
   const applyPricing = async (pid: string) => {
     const item = items.find(i => i.productId === pid);
     if (!item || item.purchasePrice <= 0) return;
     setSaving(true);
     try {
-      await db.update('product_templates', pid, { standard_price: item.purchasePrice, list_price: item.sellingPrice });
       // 寫入價格稽核 log
-      await db.insertCustom(PRICE_LOG_UUID, { tmpl_uuid: pid, price: item.sellingPrice, purchase_price: item.purchasePrice, effective_date: selectedDate });
+      await db.insert('product_product_price_log', { product_product_id: pid, lst_price: item.sellingPrice, standard_price: item.purchasePrice, effective_date: selectedDate, updated_at: new Date().toISOString() });
       // 同步選定日期配送的訂單明細售價
       const matchingLines = orderLines.filter((l: any) =>
         (l.product_template_id === pid || l.product_id === pid) &&
@@ -700,17 +689,13 @@ export default function ProcurementPage() {
       );
       await Promise.all(matchingLines.map((l: any) => db.update('sale_order_lines', l.id, { price_unit: item.sellingPrice })));
       // 重算受影響訂單的總金額
-      await recalcOrderTotals(matchingLines.map((l: any) => _oid(l.order_id)));
+      await db.recalcOrderTotal(matchingLines.map((l: any) => _oid(l.order_id)));
       if (item.actualQty > 0) {
-        // 確保有 product_products 變體紀錄（FK 約束）
-        let variantId = productProducts.find((v:any) => v.product_tmpl_id === pid)?.id;
-        if (!variantId) {
-          const created = await db.insert('product_products', { tmpl_uuid: pid, active: true });
-          if (created?.id) variantId = created.id;
-        }
+        const _id = (v: any) => Array.isArray(v) ? String(v[0]) : String(v || '');
+        const variantId = _id(matchingLines[0]?.product_id || orderLines.find((l:any) => l.product_template_id === pid || l.product_id === pid)?.product_id);
         if (variantId) {
           const locId = stockLocations.find((l:any) => l.usage === 'internal')?.id || stockLocations[0]?.id;
-          const sq = stockQuants.find(q => q.product_id === variantId);
+          const sq = stockQuants.find((q:any) => _id(q.product_id) === variantId);
           if (sq) { await db.update('stock_quants', sq.id, { quantity: Number(sq.quantity||0) + item.actualQty }); }
           else if (locId) { await db.insert('stock_quants', { product_id: variantId, location_id: locId, quantity: item.actualQty }); }
         }
@@ -728,9 +713,8 @@ export default function ProcurementPage() {
     const allAffectedOrderIds: string[] = [];
     for (const item of priceable) {
       try {
-        await db.update('product_templates', item.productId, { standard_price: item.purchasePrice, list_price: item.sellingPrice });
         // 寫入價格稽核 log
-        await db.insertCustom(PRICE_LOG_UUID, { tmpl_uuid: item.productId, price: item.sellingPrice, purchase_price: item.purchasePrice, effective_date: selectedDate });
+        await db.insert('product_product_price_log', { product_product_id: item.productId, lst_price: item.sellingPrice, standard_price: item.purchasePrice, effective_date: selectedDate, updated_at: new Date().toISOString() });
         // 同步選定日期配送的訂單明細售價
         const matchingLines = orderLines.filter((l: any) =>
           (l.product_template_id === item.productId || l.product_id === item.productId) &&
@@ -739,14 +723,11 @@ export default function ProcurementPage() {
         await Promise.all(matchingLines.map((l: any) => db.update('sale_order_lines', l.id, { price_unit: item.sellingPrice })));
         allAffectedOrderIds.push(...matchingLines.map((l: any) => _oid(l.order_id)));
         if (item.actualQty > 0) {
-          let variantId = productProducts.find((v:any) => v.product_tmpl_id === item.productId)?.id;
-          if (!variantId) {
-            const created = await db.insert('product_products', { product_tmpl_id: item.productId, active: true });
-            if (created?.id) variantId = created.id;
-          }
+          const _id = (v: any) => Array.isArray(v) ? String(v[0]) : String(v || '');
+          const variantId = _id(matchingLines[0]?.product_id || orderLines.find((l:any) => l.product_template_id === item.productId || l.product_id === item.productId)?.product_id);
           if (variantId) {
             const locId = stockLocations.find((l:any) => l.usage === 'internal')?.id || stockLocations[0]?.id;
-            const sq = stockQuants.find(q => q.product_id === variantId);
+            const sq = stockQuants.find((q:any) => _id(q.product_id) === variantId);
             if (sq) { await db.update('stock_quants', sq.id, { quantity: Number(sq.quantity||0) + item.actualQty }); }
             else if (locId) { await db.insert('stock_quants', { product_id: variantId, location_id: locId, quantity: item.actualQty }); }
           }
@@ -755,7 +736,7 @@ export default function ProcurementPage() {
       } catch(e) { console.error(e); }
     }
     // 所有品項更新完後，一次重算所有受影響訂單的總金額
-    await recalcOrderTotals(allAffectedOrderIds);
+    await db.recalcOrderTotal(allAffectedOrderIds);
     setSaving(false);
   };
 
@@ -906,7 +887,7 @@ const SearchIcon = () => <svg xmlns="http://www.w3.org/2000/svg" width="16" heig
 const EmptySearchIcon = () => <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#9ca3af" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>;
 const CheckAllIcon = () => <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><path d="m9 11 3 3L22 4"/></svg>;
 const ST: Record<string,{label:string;color:string;bg:string}> = {
-  draft:{label:'草稿',color:'#92400e',bg:'#fef3c7'},sent:{label:'已送出',color:'#1e40af',bg:'#dbeafe'},
+  draft:{label:'已接收',color:'#92400e',bg:'#fef3c7'},sent:{label:'已送出',color:'#1e40af',bg:'#dbeafe'},
   sale:{label:'已確認',color:'#065f46',bg:'#d1fae5'},confirm:{label:'已確認',color:'#065f46',bg:'#d1fae5'},
   done:{label:'完成',color:'#374151',bg:'#f3f4f6'},cancel:{label:'已取消',color:'#991b1b',bg:'#fee2e2'},
 };
@@ -953,7 +934,7 @@ export default function SalesOrdersPage() {
       const ol = lines.filter(l => l.order_id === confirm.id);
       let oversold = false; let msg = '';
       for (const l of ol) {
-        const pid = l.product_template_id || l.product_id; const req = Number(l.product_uom_qty||0);
+        const pid = l.product_id || l.product_template_id; const req = Number(l.product_uom_qty||0);
         const avail = stockMap[pid] || 0;
         if (avail < req) { oversold = true; msg += `[${l.name||'商品'}] 庫存不足 (需 ${req}, 餘 ${avail})\n`; }
       }
@@ -961,7 +942,7 @@ export default function SalesOrdersPage() {
       
       try {
         for (const l of ol) {
-          const pid = l.product_template_id || l.product_id; let req = Number(l.product_uom_qty||0);
+          const pid = l.product_id || l.product_template_id; let req = Number(l.product_uom_qty||0);
           const quants = stockQuants.filter(q => q.product_id === pid);
           for (const q of quants) {
             if (req <= 0) break;
@@ -991,6 +972,11 @@ export default function SalesOrdersPage() {
       await db.update('sale_order_lines', lineId, {qty_delivered: qty});
       setLocalLines(prev => ({...prev, [lineId]: {qty_delivered: qty}}));
       setEditingLine(null);
+      const ordLine = lines.find(l => l.id === lineId);
+      if (ordLine) {
+        const oid = Array.isArray(ordLine.order_id) ? String(ordLine.order_id[0]) : String(ordLine.order_id || '');
+        await db.recalcOrderTotal([oid]);
+      }
     } catch(e:any) { console.error('更新失敗:', e.message); }
   };
 
@@ -1010,7 +996,7 @@ export default function SalesOrdersPage() {
       const demandNames: Record<string, string> = {};
       for (const o of draftOrders) {
         for (const l of lines.filter(x => x.order_id === o.id)) {
-          const pid = l.product_template_id || l.product_id;
+          const pid = l.product_id || l.product_template_id;
           if (pid) { demand[pid] = (demand[pid]||0) + Number(l.product_uom_qty||0); demandNames[pid] = l.name||'商品'; }
         }
       }
@@ -1043,13 +1029,16 @@ export default function SalesOrdersPage() {
     setSelectedOrders(new Set());
   };
 
-  const dlv = (o:any) => (typeof o.note === 'string' ? o.note : '').match(/配送日期：(\d{4}-\d{2}-\d{2})/)?.[1] || (o.date_order||o.created_at||'').slice(0,10);
   const isDraft = (o:any) => !o.state || o.state === 'draft';
+  const dateIds = useMemo(() =>
+    new Set(lines.filter((l:any) => String(l.delivery_date||'').slice(0,10) === selectedDate).map((l:any) => { const v = l.order_id; return Array.isArray(v) ? String(v[0]) : String(v||''); })),
+    [lines, selectedDate]
+  );
   const filtered = orders.filter(o => {
     if (filter !== 'all') {
       if (filter === 'draft' ? !isDraft(o) : o.state !== filter) return false;
     }
-    if (dlv(o) !== selectedDate) return false;
+    if (!dateIds.has(String(o.id))) return false;
     if (search) { const s = search.toLowerCase(); if (!(custs[o.customer_id]?.name||'').toLowerCase().includes(s) && !(o.name||'').toLowerCase().includes(s)) return false; }
     return true;
   });

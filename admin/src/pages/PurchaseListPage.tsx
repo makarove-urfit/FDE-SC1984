@@ -1,6 +1,6 @@
 /**
  * 訂購清單 — 按日期列出所有銷售訂單，每筆訂單獨立顯示
- * 小計依 price_audit_log 中距配送日最近的歷史價格估算
+ * 小計依 product_product_price_log 中距配送日最近的歷史價格估算
  */
 import { useState, useMemo, useEffect } from 'react'
 import PageHeader from '../components/PageHeader'
@@ -10,8 +10,8 @@ import { TABLES } from '../api/tables'
 import { shortId } from '../utils/displayHelpers'
 
 interface PriceEntry {
-  productTmplId: string
-  newPrice: number
+  productProductId: string
+  lstPrice: number
   updatedAt: string
 }
 
@@ -22,22 +22,22 @@ export default function PurchaseListPage() {
 
   useEffect(() => { loadSales(targetDate) }, [targetDate, loadSales])
 
-  // 抓所有涉及品項的價格稽核記錄（一次性批量查詢）
+  // 抓所有涉及品項的價格記錄（一次性批量查詢）
   useEffect(() => {
     const productIds = [
-      ...new Set(saleOrders.flatMap(o => o.lines.map(l => l.productTemplateId)).filter(Boolean))
+      ...new Set(saleOrders.flatMap(o => o.lines.map(l => l.productId)).filter(Boolean))
     ]
     if (productIds.length === 0) { setPriceHistory([]); return }
 
     setPriceLoading(true)
-    db.query<any>(TABLES.PRICE_AUDIT_LOG, {
-      filters: [{ column: 'product_tmpl_id', op: 'in', value: productIds }],
-      select_columns: ['product_tmpl_id', 'new_price', 'updated_at'],
+    db.query<any>(TABLES.PRODUCT_PRODUCT_PRICE_LOG, {
+      filters: [{ column: 'product_product_id', op: 'in', value: productIds }],
+      select_columns: ['product_product_id', 'lst_price', 'updated_at'],
     })
       .then(rows => {
         setPriceHistory((rows || []).map(r => ({
-          productTmplId: String(r.product_tmpl_id),
-          newPrice: Number(r.new_price),
+          productProductId: String(r.product_product_id),
+          lstPrice: Number(r.lst_price),
           updatedAt: String(r.updated_at),
         })))
       })
@@ -49,15 +49,15 @@ export default function PurchaseListPage() {
   const effectivePriceMap = useMemo(() => {
     const byProduct: Record<string, PriceEntry[]> = {}
     for (const entry of priceHistory) {
-      if (!byProduct[entry.productTmplId]) byProduct[entry.productTmplId] = []
-      byProduct[entry.productTmplId].push(entry)
+      if (!byProduct[entry.productProductId]) byProduct[entry.productProductId] = []
+      byProduct[entry.productProductId].push(entry)
     }
     const map: Record<string, number> = {}
     for (const [pid, entries] of Object.entries(byProduct)) {
       const valid = entries
         .filter(e => e.updatedAt.slice(0, 10) <= targetDate)
         .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))
-      if (valid.length > 0) map[pid] = valid[0].newPrice
+      if (valid.length > 0) map[pid] = valid[0].lstPrice
     }
     return map
   }, [priceHistory, targetDate])
@@ -73,7 +73,7 @@ export default function PurchaseListPage() {
   const grandTotal = useMemo(() =>
     activeOrders.reduce((sum, order) => {
       return sum + order.lines.reduce((s, line) => {
-        const price = effectivePriceMap[line.productTemplateId] ?? line.unitPrice
+        const price = effectivePriceMap[line.productId] ?? line.unitPrice
         return s + Math.round(line.quantity * price)
       }, 0)
     }, 0),
@@ -94,7 +94,7 @@ export default function PurchaseListPage() {
           <div className="text-center text-gray-400 py-12">此日期尚無訂單</div>
         ) : activeOrders.map(order => {
           const linesWithPrice = order.lines.map(line => {
-            const effectivePrice = effectivePriceMap[line.productTemplateId] ?? line.unitPrice
+            const effectivePrice = effectivePriceMap[line.productId] ?? line.unitPrice
             const effectiveSubtotal = Math.round(line.quantity * effectivePrice)
             const priceChanged = effectivePrice !== line.unitPrice
             return { ...line, effectivePrice, effectiveSubtotal, priceChanged }

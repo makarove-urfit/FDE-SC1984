@@ -71,13 +71,14 @@ def ensure_references(h: dict, app_id: str):
         {"table_name": "sale_orders", "columns": ["id", "name", "state", "date_order", "customer_id", "note", "amount_untaxed", "amount_tax", "amount_total", "created_at", "client_order_ref"], "permissions": ["read", "update"]},
         {"table_name": "sale_order_lines", "columns": ["id", "order_id", "product_id", "product_template_id", "product_uom_qty", "price_unit", "name", "delivery_date", "qty_delivered", "price_subtotal", "sequence"], "permissions": ["read", "update"]},
         {"table_name": "customers", "columns": ["id", "name", "email", "phone", "customer_type", "ref", "contact_address", "short_name"], "permissions": ["read", "update"]},
-        {"table_name": "product_templates", "columns": ["id", "name", "default_code", "sale_ok", "active", "categ_id", "list_price", "standard_price", "uom_id"], "permissions": ["read", "update"]},
+        {"table_name": "product_templates", "columns": ["id", "name", "default_code", "sale_ok", "active", "categ_id", "list_price", "standard_price", "uom_id"], "permissions": ["read"]},
         {"table_name": "suppliers", "columns": ["id", "name", "ref", "phone", "contact_address", "vat", "status", "supplier_type", "active", "contact_person", "email"], "permissions": ["read", "create", "update"]},
         {"table_name": "product_supplierinfo", "columns": ["id", "supplier_id", "product_tmpl_id", "product_id", "price", "min_qty", "product_code"], "permissions": ["read", "create"]},
         {"table_name": "purchase_orders", "columns": ["id", "name", "state", "supplier_id", "date_order", "amount_total"], "permissions": ["read", "create", "update"]},
         {"table_name": "purchase_order_lines", "columns": ["id", "order_id", "product_id", "product_qty", "price_unit", "price_subtotal"], "permissions": ["read", "create", "update"]},
         {"table_name": "stock_quants", "columns": ["id", "product_id", "quantity", "reserved_quantity", "location_id"], "permissions": ["read", "create", "update"]},
-        {"table_name": "product_products", "columns": ["id", "product_tmpl_id", "default_code", "barcode", "active"], "permissions": ["read", "create"]},
+        {"table_name": "product_products", "columns": ["id", "product_tmpl_id", "default_code", "barcode", "active", "standard_price", "lst_price"], "permissions": ["read", "update"]},
+        {"table_name": "product_product_price_log", "columns": ["id", "product_product_id", "standard_price", "lst_price", "updated_by", "effective_date", "updated_at"], "permissions": ["read", "create"]},
         {"table_name": "hr_employees", "columns": ["id", "name", "active", "job_title", "mobile_phone", "department_id"], "permissions": ["read"]},
         {"table_name": "stock_locations", "columns": ["id", "name", "usage", "active"], "permissions": ["read", "create"]},
         {"table_name": "uom_uom", "columns": ["id", "name", "active"], "permissions": ["read"]},
@@ -126,6 +127,15 @@ export async function queryCustom(slug:string): Promise<any[]> {
   const resp=await fetch(API_BASE+'/data/objects/'+slug+'/records',{headers:_h(),credentials:'include'});
   if(!resp.ok) return [];
   return resp.json();
+}
+export async function recalcOrderTotal(orderIds: string[]): Promise<void> {
+  const unique = [...new Set(orderIds)].filter(Boolean);
+  await Promise.all(unique.map(async (oid) => {
+    const lines = await queryFiltered('sale_order_lines', [{ column: 'order_id', op: 'eq', value: oid }]);
+    const total = (Array.isArray(lines) ? lines : []).reduce((s: number, l: any) =>
+      s + Number(l.product_uom_qty || 0) * Number(l.price_unit || 0), 0);
+    await update('sale_orders', oid, { amount_total: Math.round(total * 100) / 100 });
+  }));
 }
 '''
 

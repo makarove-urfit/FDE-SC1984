@@ -1,6 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 
-// mock db
 const mockDb = {
   query: vi.fn(),
   update: vi.fn(),
@@ -8,32 +7,36 @@ const mockDb = {
   delete: vi.fn(),
 }
 vi.mock('../client', () => ({ db: mockDb }))
+vi.mock('../refCache', () => ({
+  getCachedProductTemplates: vi.fn().mockResolvedValue([
+    { id: 'tmpl-10', name: '商品甲' },
+    { id: 'tmpl-11', name: '商品乙' },
+  ]),
+}))
 
 const { listProducts } = await import('../products')
 
 beforeEach(() => vi.clearAllMocks())
 
-// ─── listProducts ───
-
 describe('listProducts', () => {
-  it('查詢 product_templates 表', async () => {
+  it('查詢 product_products 表', async () => {
     mockDb.query.mockResolvedValue([])
     await listProducts()
     expect(mockDb.query).toHaveBeenCalledWith(
-      'product_templates',
-      expect.anything()
+      'product_products',
+      expect.anything(),
     )
   })
 
-  it('正常時回傳包含 id, name, list_price 的陣列', async () => {
+  it('正常時回傳含 id, name, standardPrice, lstPrice 的陣列', async () => {
     mockDb.query.mockResolvedValue([
-      { id: 10, name: '商品甲', list_price: 250 },
-      { id: 11, name: '商品乙', list_price: 480 },
+      { id: 'pp-10', product_tmpl_id: 'tmpl-10', standard_price: 200, lst_price: 250 },
+      { id: 'pp-11', product_tmpl_id: 'tmpl-11', standard_price: 380, lst_price: 480 },
     ])
     const result = await listProducts()
     expect(result).toEqual([
-      { id: '10', name: '商品甲', listPrice: 250 },
-      { id: '11', name: '商品乙', listPrice: 480 },
+      { id: 'pp-10', templateId: 'tmpl-10', name: '商品甲', standardPrice: 200, lstPrice: 250 },
+      { id: 'pp-11', templateId: 'tmpl-11', name: '商品乙', standardPrice: 380, lstPrice: 480 },
     ])
   })
 
