@@ -86,7 +86,7 @@ describe('updateProductPricesWithLog', () => {
     expect(mockDb.update).toHaveBeenCalledWith('product_products', 'pp-1', { standard_price: 80, lst_price: 120 })
     expect(mockDb.update).toHaveBeenCalledWith('sale_order_lines', 'line-1', { price_unit: 120 })
     expect(mockDb.insert).toHaveBeenCalledWith(
-      'product_product_price_log',
+      'x_product_product_price_log',
       expect.objectContaining({
         product_product_id: 'pp-1',
         standard_price: 80,
@@ -120,7 +120,7 @@ describe('getPriceLog', () => {
     mockDb.query.mockResolvedValue([])
     await getPriceLog('pp-1')
     expect(mockDb.query).toHaveBeenCalledWith(
-      'product_product_price_log',
+      'x_product_product_price_log',
       expect.objectContaining({
         filters: expect.arrayContaining([
           expect.objectContaining({ column: 'product_product_id', op: 'eq', value: 'pp-1' }),

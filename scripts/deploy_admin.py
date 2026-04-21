@@ -78,7 +78,7 @@ def ensure_references(h: dict, app_id: str):
         {"table_name": "purchase_order_lines", "columns": ["id", "order_id", "product_id", "product_qty", "price_unit", "price_subtotal"], "permissions": ["read", "create", "update"]},
         {"table_name": "stock_quants", "columns": ["id", "product_id", "quantity", "reserved_quantity", "location_id"], "permissions": ["read", "create", "update"]},
         {"table_name": "product_products", "columns": ["id", "product_tmpl_id", "default_code", "barcode", "active", "standard_price", "lst_price"], "permissions": ["read", "update"]},
-        {"table_name": "product_product_price_log", "columns": ["id", "product_product_id", "standard_price", "lst_price", "updated_by", "effective_date", "updated_at"], "permissions": ["read", "create"]},
+        {"table_name": "x_product_product_price_log", "columns": ["id", "product_product_id", "standard_price", "lst_price", "updated_by", "effective_date", "updated_at"], "permissions": ["read", "create"]},
         {"table_name": "hr_employees", "columns": ["id", "name", "active", "job_title", "mobile_phone", "department_id"], "permissions": ["read"]},
         {"table_name": "stock_locations", "columns": ["id", "name", "usage", "active"], "permissions": ["read", "create"]},
         {"table_name": "uom_uom", "columns": ["id", "name", "active"], "permissions": ["read"]},
