@@ -594,7 +594,7 @@ interface PricingItem {
   productId: string; productName: string; code: string;
   supplierId: string; supplierName: string;
   estimatedQty: number; actualQty: number;
-  purchasePrice: number; markupRate: number; sellingPrice: number;
+  purchasePrice: number; sellingPrice: number;
   state: 'pending' | 'priced' | 'stocked';
 }
 
@@ -607,15 +607,13 @@ export default function ProcurementPage() {
   const [priceLogs, setPriceLogs] = useState<any[]>([]);
 
   const PRICE_LOG_UUID = '390d4f0b-9a2b-4131-a35b-67fce21286be';
-  // 載入 x_price_log，切換日期前先清空避免舊資料殘留
+  // 載入全部 price log（不篩日期），讓 logMap 拿最新一筆當預設值
   useEffect(() => {
-    setPriceLogs([]);
     db.queryCustom(PRICE_LOG_UUID).then(rows => setPriceLogs(
       (Array.isArray(rows) ? rows : [])
         .map((r: any) => r.data ? { ...r.data, id: r.id, updated_at: r.data.updated_at || r.updated_at } : r)
-        .filter((r: any) => String(r.effective_date || '').slice(0, 10) === selectedDate)
     )).catch(() => {});
-  }, [selectedDate]);
+  }, []);
 
   // 依選定配送日重建 PricingItem
   const olKey = orderLines.length;
@@ -628,7 +626,7 @@ export default function ProcurementPage() {
     for (const si of supplierInfos) { if (si.product_tmpl_id) prodSup[si.product_tmpl_id] = si.supplier_id; }
     const defaultSupId = Object.keys(suppliers)[0] || 'unknown';
 
-    // 找 product_product_price_log 裡屬於 selectedDate 的最新一筆（per product）
+    // 每個 product 取最新一筆 log（跨所有日期），作為本日定價的預設參考值
     const logMap: Record<string, any> = {};
     for (const rec of priceLogs) {
       const pid = String(rec.product_product_id || '');
@@ -647,9 +645,9 @@ export default function ProcurementPage() {
       if (existing) { existing.estimatedQty += Number(l.product_uom_qty || 0); existing.actualQty = existing.estimatedQty; }
       else {
         const log = logMap[pid];
-        const purchasePrice = log ? Number(log.standard_price || 0) : Number(prod?.standard_price || 0);
-        const sellingPrice  = log ? Number(log.lst_price || 0)      : Number(prod?.lst_price || 0);
-        itemMap.set(pid, { productId: pid, productName: prod?.name || l.name || '—', code: prod?.default_code || '', supplierId: supId, supplierName: suppliers[supId]?.name || '未指定供應商', estimatedQty: Number(l.product_uom_qty || 0), actualQty: Number(l.product_uom_qty || 0), purchasePrice, markupRate: purchasePrice > 0 && sellingPrice > 0 ? Math.round(sellingPrice / purchasePrice * 100) : 130, sellingPrice, state: log ? 'priced' : 'pending' });
+        const sellingPrice  = Number(log?.lst_price || 0);
+        const purchasePrice = sellingPrice > 0 ? Math.round(sellingPrice / 1.3 * 100) / 100 : 0;
+        itemMap.set(pid, { productId: pid, productName: prod?.name || l.name || '—', code: prod?.default_code || '', supplierId: supId, supplierName: suppliers[supId]?.name || '未指定供應商', estimatedQty: Number(l.product_uom_qty || 0), actualQty: Number(l.product_uom_qty || 0), purchasePrice, sellingPrice, state: log ? 'priced' : 'pending' });
       }
     }
     setItems(Array.from(itemMap.values()));
@@ -668,10 +666,8 @@ export default function ProcurementPage() {
     setItems(prev => prev.map(i => {
       if (i.productId !== pid) return i;
       const updated = {...i, [field]: value};
-      if (field === 'purchasePrice' || field === 'markupRate') {
-        const pp = field === 'purchasePrice' ? value : i.purchasePrice;
-        const mr = field === 'markupRate' ? value : i.markupRate;
-        updated.sellingPrice = pp > 0 ? Math.round(pp * mr / 100) : 0;
+      if (field === 'sellingPrice') {
+        updated.purchasePrice = value > 0 ? Math.round(value / 1.3 * 100) / 100 : 0;
       }
       return updated;
     }));
@@ -683,11 +679,12 @@ export default function ProcurementPage() {
 
   const applyPricing = async (pid: string) => {
     const item = items.find(i => i.productId === pid);
-    if (!item || item.purchasePrice <= 0) return;
+    if (!item || item.sellingPrice <= 0) return;
     setSaving(true);
+    const stdPrice = Math.round(item.sellingPrice / 1.3 * 100) / 100;
     try {
       // 寫入價格稽核 log
-      await db.insertCustom(PRICE_LOG_UUID, { product_product_id: pid, lst_price: item.sellingPrice, standard_price: item.purchasePrice, effective_date: selectedDate });
+      await db.insertCustom(PRICE_LOG_UUID, { product_product_id: pid, lst_price: item.sellingPrice, standard_price: stdPrice, effective_date: selectedDate });
       // 同步選定日期配送的訂單明細售價
       const matchingLines = orderLines.filter((l: any) =>
         (l.product_template_id === pid || l.product_id === pid) &&
@@ -697,14 +694,11 @@ export default function ProcurementPage() {
       // 重算受影響訂單的總金額
       await db.recalcOrderTotal(matchingLines.map((l: any) => _oid(l.order_id)));
       if (item.actualQty > 0) {
-        const _id = (v: any) => Array.isArray(v) ? String(v[0]) : String(v || '');
-        const variantId = _id(matchingLines[0]?.product_id || orderLines.find((l:any) => l.product_template_id === pid || l.product_id === pid)?.product_id);
-        if (variantId) {
-          const locId = stockLocations.find((l:any) => l.usage === 'internal')?.id || stockLocations[0]?.id;
-          const sq = stockQuants.find((q:any) => _id(q.product_id) === variantId);
-          if (sq) { await db.update('stock_quants', sq.id, { quantity: Number(sq.quantity||0) + item.actualQty }); }
-          else if (locId) { await db.insert('stock_quants', { product_id: variantId, location_id: locId, quantity: item.actualQty }); }
-        }
+        const _qid = (v: any) => Array.isArray(v) ? String(v[0]) : String(v || '');
+        const locId = stockLocations.find((l:any) => l.usage === 'internal')?.id || stockLocations[0]?.id;
+        const sq = stockQuants.find((q:any) => _qid(q.product_id) === pid);
+        if (sq) { await db.update('stock_quants', sq.id, { quantity: Number(sq.quantity||0) + item.actualQty }); }
+        else if (locId) { await db.insert('stock_quants', { product_id: pid, location_id: locId, quantity: item.actualQty }); }
       }
       setItems(prev => prev.map(i => i.productId === pid ? {...i, state: 'priced'} : i));
     } catch(e: any) { console.error('定價失敗:', e.message); }
@@ -712,15 +706,16 @@ export default function ProcurementPage() {
   };
 
   const applyAll = async () => {
-    const priceable = items.filter(i => i.purchasePrice > 0);
+    const priceable = items.filter(i => i.sellingPrice > 0);
     if (priceable.length === 0) return;
     setSaving(true);
-    const today = new Date().toISOString().slice(0, 10);
     const allAffectedOrderIds: string[] = [];
+    const _qid = (v: any) => Array.isArray(v) ? String(v[0]) : String(v || '');
     for (const item of priceable) {
+      const stdPrice = Math.round(item.sellingPrice / 1.3 * 100) / 100;
       try {
         // 寫入價格稽核 log
-        await db.insertCustom(PRICE_LOG_UUID, { product_product_id: item.productId, lst_price: item.sellingPrice, standard_price: item.purchasePrice, effective_date: selectedDate });
+        await db.insertCustom(PRICE_LOG_UUID, { product_product_id: item.productId, lst_price: item.sellingPrice, standard_price: stdPrice, effective_date: selectedDate });
         // 同步選定日期配送的訂單明細售價
         const matchingLines = orderLines.filter((l: any) =>
           (l.product_template_id === item.productId || l.product_id === item.productId) &&
@@ -729,14 +724,10 @@ export default function ProcurementPage() {
         await Promise.all(matchingLines.map((l: any) => db.update('sale_order_lines', l.id, { price_unit: item.sellingPrice })));
         allAffectedOrderIds.push(...matchingLines.map((l: any) => _oid(l.order_id)));
         if (item.actualQty > 0) {
-          const _id = (v: any) => Array.isArray(v) ? String(v[0]) : String(v || '');
-          const variantId = _id(matchingLines[0]?.product_id || orderLines.find((l:any) => l.product_template_id === item.productId || l.product_id === item.productId)?.product_id);
-          if (variantId) {
-            const locId = stockLocations.find((l:any) => l.usage === 'internal')?.id || stockLocations[0]?.id;
-            const sq = stockQuants.find((q:any) => _id(q.product_id) === variantId);
-            if (sq) { await db.update('stock_quants', sq.id, { quantity: Number(sq.quantity||0) + item.actualQty }); }
-            else if (locId) { await db.insert('stock_quants', { product_id: variantId, location_id: locId, quantity: item.actualQty }); }
-          }
+          const locId = stockLocations.find((l:any) => l.usage === 'internal')?.id || stockLocations[0]?.id;
+          const sq = stockQuants.find((q:any) => _qid(q.product_id) === item.productId);
+          if (sq) { await db.update('stock_quants', sq.id, { quantity: Number(sq.quantity||0) + item.actualQty }); }
+          else if (locId) { await db.insert('stock_quants', { product_id: item.productId, location_id: locId, quantity: item.actualQty }); }
         }
         setItems(prev => prev.map(i => i.productId === item.productId ? {...i, state: 'priced'} : i));
       } catch(e) { console.error(e); }
@@ -791,7 +782,7 @@ export default function ProcurementPage() {
               const sup = suppliers[sid];
               const isOpen = expanded.includes(sid);
               const groupPriced = groupItems.filter(i => i.state === 'priced').length;
-              const groupTotal = groupItems.reduce((s, i) => s + i.purchasePrice * i.actualQty, 0);
+              const groupTotal = groupItems.reduce((s, i) => s + i.sellingPrice * i.actualQty, 0);
               return (
                 <div key={sid} className="bg-white rounded-xl border border-gray-100 overflow-hidden">
                   <div role="button" onClick={() => toggleGroup(sid)} className="w-full px-4 py-4 flex justify-between items-center bg-white hover:bg-gray-50 cursor-pointer">
@@ -811,15 +802,14 @@ export default function ProcurementPage() {
                           <th className="py-2 px-3 text-left font-medium">品名</th>
                           <th className="py-2 px-3 text-right font-medium w-20">預估量</th>
                           <th className="py-2 px-3 text-right font-medium w-20">實際量</th>
-                          <th className="py-2 px-3 text-right font-medium w-24">進貨價</th>
-                          <th className="py-2 px-3 text-center font-medium w-16">加成%</th>
-                          <th className="py-2 px-3 text-right font-medium w-20">售價</th>
+                          <th className="py-2 px-3 text-right font-medium w-24">售價</th>
+                          <th className="py-2 px-3 text-right font-medium w-20">成本</th>
                           <th className="py-2 px-3 text-right font-medium w-24">小計</th>
                           <th className="py-2 px-3 text-center font-medium w-20">操作</th>
                         </tr></thead>
                         <tbody>
                           {groupItems.map(item => {
-                            const subtotal = item.purchasePrice * item.actualQty;
+                            const subtotal = item.sellingPrice * item.actualQty;
                             const isPriced = item.state === 'priced';
                             return (
                               <tr key={item.productId} className={`border-b border-gray-50 ${isPriced ? 'bg-green-50' : ''}`}>
@@ -834,24 +824,19 @@ export default function ProcurementPage() {
                                     className="w-16 text-right py-1 px-1.5 border border-gray-200 rounded text-sm" />
                                 </td>
                                 <td className="py-2 px-3 text-right">
-                                  <input type="number" value={item.purchasePrice || ''} step="1" min="0" placeholder="$"
-                                    onChange={e => updateItem(item.productId, 'purchasePrice', Number(e.target.value))}
+                                  <input type="number" value={item.sellingPrice || ''} step="1" min="0" placeholder="$"
+                                    onChange={e => updateItem(item.productId, 'sellingPrice', Number(e.target.value))}
                                     className="w-20 text-right py-1 px-1.5 border border-gray-200 rounded text-sm" />
                                 </td>
-                                <td className="py-2 px-3 text-center">
-                                  <input type="number" value={item.markupRate} step="5" min="100"
-                                    onChange={e => updateItem(item.productId, 'markupRate', Number(e.target.value))}
-                                    className="w-14 text-center py-1 px-1 border border-gray-200 rounded text-sm" />
-                                </td>
-                                <td className="py-2 px-3 text-right font-bold text-primary">
-                                  {item.sellingPrice > 0 ? `$${item.sellingPrice}` : '—'}
+                                <td className="py-2 px-3 text-right text-gray-400 text-sm">
+                                  {item.purchasePrice > 0 ? `$${item.purchasePrice.toFixed(0)}` : '—'}
                                 </td>
                                 <td className="py-2 px-3 text-right font-medium">
                                   {subtotal > 0 ? `$${Math.round(subtotal).toLocaleString()}` : '—'}
                                 </td>
                                 <td className="py-2 px-3 text-center">
-                                  <button onClick={() => applyPricing(item.productId)} disabled={item.purchasePrice <= 0 || saving}
-                                    className={`px-2 py-1 rounded text-xs transition-colors flex items-center justify-center gap-1 ${item.purchasePrice <= 0 ? 'bg-gray-100 text-gray-400 cursor-not-allowed' : isPriced ? 'bg-green-50 text-green-700 border border-green-300 hover:bg-green-100' : 'bg-primary text-white hover:bg-green-700'}`}>
+                                  <button onClick={() => applyPricing(item.productId)} disabled={item.sellingPrice <= 0 || saving}
+                                    className={`px-2 py-1 rounded text-xs transition-colors flex items-center justify-center gap-1 ${item.sellingPrice <= 0 ? 'bg-gray-100 text-gray-400 cursor-not-allowed' : isPriced ? 'bg-green-50 text-green-700 border border-green-300 hover:bg-green-100' : 'bg-primary text-white hover:bg-green-700'}`}>
                                     {isPriced ? <><CheckIcon /> 更新</> : '確認'}
                                   </button>
                                 </td>
