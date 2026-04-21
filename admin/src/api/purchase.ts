@@ -166,7 +166,7 @@ export const updatePurchaseOrderLine = async (
 
 /**
  * 標記品項已到貨（不可逆）
- * 寫入 qty_received，並檢查是否全部到齊
+ * 寫入 qty_received、同步累加 stock_quants，並檢查是否全部到齊
  */
 export const markLineReceived = async (
   lineId: string,
@@ -182,7 +182,31 @@ export const markLineReceived = async (
   }
   await db.update('purchase_order_lines', lineId, data)
 
-  // 2. 檢查是否所有 lines 都已到貨
+  // 2. 同步更新庫存：stock_quants.quantity += actualQty
+  const line = allLines.find(l => l.id === lineId)
+  if (line?.productId) {
+    const [quants, locations] = await Promise.all([
+      db.query('stock_quants', {
+        select_columns: ['id', 'quantity'],
+        filters: [{ column: 'product_id', op: 'eq', value: line.productId }],
+      }),
+      db.query('stock_locations', {
+        select_columns: ['id'],
+        filters: [{ column: 'usage', op: 'eq', value: 'internal' }],
+      }),
+    ])
+    const sq = quants[0]
+    if (sq) {
+      await db.update('stock_quants', String(sq.id), { quantity: Number(sq.quantity || 0) + actualQty })
+    } else {
+      const locId = locations[0]?.id
+      if (locId) {
+        await db.insert('stock_quants', { product_id: line.productId, location_id: locId, quantity: actualQty })
+      }
+    }
+  }
+
+  // 3. 檢查是否所有 lines 都已到貨
   const otherLines = allLines.filter(l => l.id !== lineId)
   const allReceived = otherLines.every(l => l.received)
   if (allReceived) {
