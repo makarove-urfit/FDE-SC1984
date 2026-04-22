@@ -63,11 +63,14 @@ export default function DashboardPage() {
     <div className="min-h-screen bg-gray-50 flex flex-col">
       <PageHeader title="管理總覽" />
 
-      <div className="p-6 max-w-[1600px] mx-auto w-full">
-        <div className="flex gap-2 border-b border-gray-200 mb-6">
+      <div className="pt-6 max-w-[1600px] mx-auto w-full px-6">
+        <div className="flex gap-1" style={{ borderBottom: '1px solid #e5e7eb' }}>
           <TabButton active={tab === 'daily'} onClick={() => setTab('daily')}>每日流程</TabButton>
           <TabButton active={tab === 'settings'} onClick={() => setTab('settings')}>基礎設定</TabButton>
         </div>
+      </div>
+
+      <div className="p-6 max-w-[1600px] mx-auto w-full">
 
         {tab === 'daily' && (
           <div className="space-y-6">
@@ -125,15 +128,36 @@ export default function DashboardPage() {
 }
 
 function TabButton({ active, onClick, children }: { active: boolean; onClick: () => void; children: React.ReactNode }) {
+  const base: React.CSSProperties = {
+    padding: '10px 28px',
+    fontSize: '14px',
+    fontWeight: 600,
+    borderTopLeftRadius: 8,
+    borderTopRightRadius: 8,
+    cursor: 'pointer',
+    marginBottom: -1,
+    transition: 'all 0.15s',
+  }
+  const activeStyle: React.CSSProperties = {
+    ...base,
+    background: '#ffffff',
+    color: '#111827',
+    borderTop: '3px solid #2563eb',
+    borderLeft: '1px solid #e5e7eb',
+    borderRight: '1px solid #e5e7eb',
+    borderBottom: '1px solid #ffffff',
+  }
+  const inactiveStyle: React.CSSProperties = {
+    ...base,
+    background: '#f3f4f6',
+    color: '#6b7280',
+    borderTop: '3px solid transparent',
+    borderLeft: '1px solid #e5e7eb',
+    borderRight: '1px solid #e5e7eb',
+    borderBottom: '1px solid #e5e7eb',
+  }
   return (
-    <button
-      onClick={onClick}
-      className={`px-5 py-2.5 text-sm font-medium border-b-2 -mb-px transition-colors ${
-        active
-          ? 'border-blue-600 text-blue-700'
-          : 'border-transparent text-gray-500 hover:text-gray-700'
-      }`}
-    >
+    <button onClick={onClick} style={active ? activeStyle : inactiveStyle}>
       {children}
     </button>
   )
