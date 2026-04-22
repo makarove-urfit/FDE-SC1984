@@ -8,6 +8,7 @@ import { useUIStore } from '../store/useUIStore'
 import {
   listProductTemplates,
   updateProductTemplateCategory,
+  updateProductTemplateSaleOk,
   type ProductTemplate,
 } from '../api/productTemplates'
 import { listProductCategories, type ProductCategory } from '../api/productCategories'
@@ -45,9 +46,9 @@ export default function ProductsPage() {
     return products.filter(p =>
       p.name.toLowerCase().includes(kw) ||
       p.defaultCode.toLowerCase().includes(kw) ||
-      p.categoryName.toLowerCase().includes(kw)
+      categoryNameOf(p).toLowerCase().includes(kw)
     )
-  }, [products, search])
+  }, [products, search, categories])
 
   const startEdit = (p: ProductTemplate) => {
     setEditingId(p.id)
@@ -68,6 +69,23 @@ export default function ProductsPage() {
     }, '儲存中...', '已更新分類')
   }
 
+  const togglePublish = async (p: ProductTemplate) => {
+    const next = !p.saleOk
+    const msg = next
+      ? `將「${p.name}」上架？客戶訂購頁會顯示此商品。`
+      : `將「${p.name}」下架？客戶訂購頁將不再顯示。`
+    if (!confirm(msg)) return
+    await withLoading(async () => {
+      await updateProductTemplateSaleOk(p.id, next)
+      await load()
+    }, '切換中...', next ? '已上架' : '已下架')
+  }
+
+  const categoryNameOf = (p: ProductTemplate): string => {
+    if (!p.categoryId) return ''
+    return categories.find(c => c.id === p.categoryId)?.name || p.categoryName || ''
+  }
+
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col">
       <PageHeader title="產品管理" showBack />
@@ -85,12 +103,13 @@ export default function ProductsPage() {
                   <th className="px-4 py-3 text-left">編碼</th>
                   <th className="px-4 py-3 text-left">品名</th>
                   <th className="px-4 py-3 text-left">分類</th>
+                  <th className="px-4 py-3 text-left">狀態</th>
                   <th className="px-4 py-3 text-right">操作</th>
                 </tr>
               </thead>
               <tbody>
                 {filtered.map(p => (
-                  <tr key={p.id} className="border-t border-gray-50 hover:bg-gray-50">
+                  <tr key={p.id} className={`border-t border-gray-50 hover:bg-gray-50 ${p.saleOk ? '' : 'opacity-60'}`}>
                     <td className="px-4 py-3 font-mono text-xs text-gray-500">{p.defaultCode || '—'}</td>
                     <td className="px-4 py-3 font-medium text-gray-800">{p.name}</td>
                     <td className="px-4 py-3">
@@ -106,13 +125,18 @@ export default function ProductsPage() {
                           ))}
                           {editingCategoryId && !categories.some(c => c.id === editingCategoryId) && (
                             <option value={editingCategoryId}>
-                              （原值 #{editingCategoryId}：{p.categoryName || '未知分類'}）
+                              （原值 #{editingCategoryId.slice(0, 8)}：{categoryNameOf(p) || '未知分類'}）
                             </option>
                           )}
                         </select>
                       ) : (
-                        <span className="text-gray-700">{p.categoryName || '—'}</span>
+                        <span className="text-gray-700">{categoryNameOf(p) || '—'}</span>
                       )}
+                    </td>
+                    <td className="px-4 py-3">
+                      <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${p.saleOk ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}>
+                        {p.saleOk ? '上架' : '下架'}
+                      </span>
                     </td>
                     <td className="px-4 py-3 text-right space-x-2">
                       {editingId === p.id ? (
@@ -121,7 +145,15 @@ export default function ProductsPage() {
                           <button onClick={cancelEdit} className="px-2 py-1 text-xs text-gray-600 hover:bg-gray-100 rounded">取消</button>
                         </>
                       ) : (
-                        <button onClick={() => startEdit(p)} className="px-2 py-1 text-xs text-blue-600 hover:bg-blue-50 rounded">編輯分類</button>
+                        <>
+                          <button onClick={() => startEdit(p)} className="px-2 py-1 text-xs text-blue-600 hover:bg-blue-50 rounded">編輯分類</button>
+                          <button
+                            onClick={() => togglePublish(p)}
+                            className={`px-2 py-1 text-xs rounded ${p.saleOk ? 'text-red-600 hover:bg-red-50' : 'text-green-700 hover:bg-green-50'}`}
+                          >
+                            {p.saleOk ? '下架' : '上架'}
+                          </button>
+                        </>
                       )}
                     </td>
                   </tr>

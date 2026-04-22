@@ -11,11 +11,12 @@ export interface ProductTemplate {
   defaultCode: string
   categoryId: string
   categoryName: string
+  saleOk: boolean
 }
 
 export async function listProductTemplates(): Promise<ProductTemplate[]> {
   const rows = await db.query<any>(TABLES.PRODUCT_TEMPLATES, {
-    select_columns: ['id', 'name', 'default_code', 'categ_id'],
+    select_columns: ['id', 'name', 'default_code', 'categ_id', 'sale_ok'],
     filters: [{ column: 'active', op: 'eq', value: true }],
   })
   return (rows || []).map((r: any) => {
@@ -27,10 +28,15 @@ export async function listProductTemplates(): Promise<ProductTemplate[]> {
       defaultCode: String(r.default_code || ''),
       categoryId: resolveId(raw),
       categoryName,
+      saleOk: Boolean(r.sale_ok),
     }
   })
 }
 
 export async function updateProductTemplateCategory(id: string, categoryId: string): Promise<void> {
   await db.update(TABLES.PRODUCT_TEMPLATES, id, { categ_id: categoryId })
+}
+
+export async function updateProductTemplateSaleOk(id: string, saleOk: boolean): Promise<void> {
+  await db.update(TABLES.PRODUCT_TEMPLATES, id, { sale_ok: saleOk })
 }

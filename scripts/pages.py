@@ -429,7 +429,7 @@ export default function StockPage() {
 
 
 def delivery() -> str:
-    return r'''import { useState, useEffect, useMemo } from 'react';
+    return r'''import { useState, useEffect, useMemo, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import * as db from '../../db';
 import { useData } from '../../data/DataProvider';
@@ -455,9 +455,25 @@ export default function DeliveryPage() {
   const [savingAddr, setSavingAddr] = useState(false);
   const [driverFilter, setDriverFilter] = useState('all');
   const [savingDriver, setSavingDriver] = useState<string|null>(null);
+  const [custToDriver, setCustToDriver] = useState<Record<string,string>>({});
+  const autoAssignedRef = useRef<Set<string>>(new Set());
 
   // #6 empMap 用 useMemo 避免每次 render 重建
   const empMap = useMemo(() => Object.fromEntries(employees.map(e=>[e.id, e])), [employees]);
+
+  // 載入 x_driver_customer → custToDriver (customerid → driverid)
+  useEffect(() => {
+    db.queryCustom('x_driver_customer').then((raw:any[]) => {
+      const map: Record<string,string> = {};
+      for (const r of (raw||[])) {
+        const d = r.data||r;
+        const cid = String(d.customerid||d.customer_id||'');
+        const did = String(d.driverid||d.driver_id||'');
+        if (cid && did) map[cid] = did;
+      }
+      setCustToDriver(map);
+    }).catch((e:any) => console.error('x_driver_customer 載入失敗:', e.message));
+  }, []);
 
   // #1 用 useEffect 同步 allOrders → 本地 state（修復 render body setState 無限迴圈）
   useEffect(() => {
@@ -488,6 +504,18 @@ export default function DeliveryPage() {
       setOrders(prev=>prev.map(o=>o.id===oid?{...o,client_order_ref:empId||null}:o));
     }catch(e:any){console.error('指派失敗:',e.message)} setSavingDriver(null);
   };
+
+  // 自動預填：x_driver_customer 有對應且訂單尚未指派司機時，自動儲存
+  useEffect(() => {
+    if (orders.length === 0 || Object.keys(custToDriver).length === 0) return;
+    for (const o of orders) {
+      const cid = String(o.customer_id||'');
+      if (!o.client_order_ref && custToDriver[cid] && !autoAssignedRef.current.has(o.id)) {
+        autoAssignedRef.current.add(o.id);
+        assignDriver(o.id, custToDriver[cid]);
+      }
+    }
+  }, [orders, custToDriver]);
 
   // 過濾
   const filteredOrders=driverFilter==='all'?orders:driverFilter==='unassigned'?orders.filter(o=>!o.client_order_ref):orders.filter(o=>o.client_order_ref===driverFilter);
@@ -595,14 +623,18 @@ export default function DeliveryPage() {
                       <div className="flex-1">
                         <p className="text-sm font-medium">{o.name||o.id}</p>
                         <p className="text-xs text-gray-400">{ol.length} 品項</p>
-                        {/* 配送負責人下拉 */}
+                        {/* 配送負責人 */}
                         <div className="flex items-center gap-1.5 mt-1.5">
                           <UserIcon />
-                          <select value={driverEmpId||''} onChange={e=>assignDriver(o.id,e.target.value)} disabled={isSavingThis||o.state==='done'}
-                            className={`text-xs px-2 pr-8 py-1 border rounded transition-colors ${driverEmp ? 'border-blue-200 bg-blue-50 text-blue-700' : 'border-gray-200 bg-white text-gray-400'}`}>
-                            <option value="">-- 選擇負責人 --</option>
-                            {employees.map(emp=>(<option key={emp.id} value={emp.id}>{emp.name}{emp.job_title?` (${emp.job_title})`:''}</option>))}
-                          </select>
+                          {o.state==='done' ? (
+                            <span className={`text-xs px-2 py-1 rounded ${driverEmp ? 'text-blue-700 bg-blue-50' : 'text-gray-400'}`}>{driverEmp?.name||'未指派'}</span>
+                          ) : (
+                            <select value={driverEmpId||''} onChange={e=>assignDriver(o.id,e.target.value)} disabled={isSavingThis}
+                              className={`text-xs px-2 pr-8 py-1 border rounded transition-colors ${driverEmp ? 'border-blue-200 bg-blue-50 text-blue-700' : 'border-gray-200 bg-white text-gray-400'}`}>
+                              <option value="">-- 選擇負責人 --</option>
+                              {employees.map(emp=>(<option key={emp.id} value={emp.id}>{emp.name}{emp.job_title?` (${emp.job_title})`:''}</option>))}
+                            </select>
+                          )}
                           {isSavingThis && <span className="text-xs text-gray-400">儲存中...</span>}
                         </div>
                       </div>
@@ -1256,7 +1288,7 @@ def products_page() -> str:
     return r'''import { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import * as db from '../../db';
-type Tmpl = { id:string; name:string; default_code:string; categ_id:any };
+type Tmpl = { id:string; name:string; default_code:string; categ_id:any; sale_ok:boolean };
 type Cat = { id:string; name:string };
 // AI GO /proxy 回傳 many2one 是純 UUID 字串（不是 Odoo 傳統的 [id, name] 陣列）
 const resolveId = (raw:any): string => {
@@ -1282,7 +1314,7 @@ export default function ProductsPage() {
         db.queryFiltered('product_templates', [{column:'active',op:'eq',value:true}]),
         db.query('product_categories'),
       ]);
-      setTmpls((ts||[]).map((r:any)=>({id:String(r.id), name:String(r.name||''), default_code:String(r.default_code||''), categ_id:r.categ_id})));
+      setTmpls((ts||[]).map((r:any)=>({id:String(r.id), name:String(r.name||''), default_code:String(r.default_code||''), categ_id:r.categ_id, sale_ok:Boolean(r.sale_ok)})));
       setCats((cs||[]).map((r:any)=>({id:String(r.id), name:String(r.name||'')})));
     } catch(e:any) { setError(e?.message||'載入失敗'); } finally { setLoading(false); }
   };
@@ -1313,6 +1345,15 @@ export default function ProductsPage() {
       setEditId(null); setEditCat('');
     } catch(e:any) { alert(e?.message||'儲存失敗'); } finally { setSaving(false); }
   };
+  const togglePublish = async (p:Tmpl) => {
+    const next = !p.sale_ok;
+    const msg = next ? `將「${p.name}」上架？上架後客戶可在訂購頁下單此商品。` : `將「${p.name}」下架？下架後客戶端將不顯示。`;
+    if (!confirm(msg)) return;
+    try {
+      await db.update('product_templates', p.id, {sale_ok: next});
+      await load();
+    } catch(e:any) { alert(e?.message||'切換失敗'); }
+  };
   return (
     <div className="min-h-screen bg-gray-50">
       <header className="bg-white border-b border-gray-200 px-6 py-4">
@@ -1330,10 +1371,11 @@ export default function ProductsPage() {
           <table className="w-full text-sm">
             <thead className="bg-gray-50 text-gray-500 text-xs"><tr>
               <th className="px-4 py-3 text-left">編碼</th><th className="px-4 py-3 text-left">品名</th>
-              <th className="px-4 py-3 text-left">分類</th><th className="px-4 py-3 text-right">操作</th>
+              <th className="px-4 py-3 text-left">分類</th><th className="px-4 py-3 text-left">狀態</th>
+              <th className="px-4 py-3 text-right">操作</th>
             </tr></thead>
             <tbody>{filtered.map(p => (
-              <tr key={p.id} className="border-t border-gray-50 hover:bg-gray-50">
+              <tr key={p.id} className={`border-t border-gray-50 hover:bg-gray-50 ${p.sale_ok ? '' : 'opacity-60'}`}>
                 <td className="px-4 py-3 text-xs text-gray-500">{p.default_code || '—'}</td>
                 <td className="px-4 py-3 font-medium text-gray-800">{p.name}</td>
                 <td className="px-4 py-3">
@@ -1347,13 +1389,23 @@ export default function ProductsPage() {
                     </select>
                   : <span className="text-gray-700">{catName(p.categ_id) || '—'}</span>}
                 </td>
+                <td className="px-4 py-3">
+                  <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${p.sale_ok ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}>
+                    {p.sale_ok ? '上架' : '下架'}
+                  </span>
+                </td>
                 <td className="px-4 py-3 text-right space-x-2">
                   {editId===p.id ?
                     <>
                       <button onClick={()=>save(p.id)} disabled={saving} className="px-2 py-1 text-xs text-white bg-blue-600 hover:bg-blue-700 rounded disabled:opacity-50">{saving?'儲存中':'儲存'}</button>
                       <button onClick={()=>{setEditId(null); setEditCat('');}} className="px-2 py-1 text-xs text-gray-600 hover:bg-gray-100 rounded">取消</button>
                     </>
-                  : <button onClick={()=>{setEditId(p.id); setEditCat(resolveId(p.categ_id));}} className="px-2 py-1 text-xs text-blue-600 hover:bg-blue-50 rounded">編輯分類</button>}
+                  : <>
+                      <button onClick={()=>{setEditId(p.id); setEditCat(resolveId(p.categ_id));}} className="px-2 py-1 text-xs text-blue-600 hover:bg-blue-50 rounded">編輯分類</button>
+                      <button onClick={()=>togglePublish(p)} className={`px-2 py-1 text-xs rounded ${p.sale_ok ? 'text-red-600 hover:bg-red-50' : 'text-green-700 hover:bg-green-50'}`}>
+                        {p.sale_ok ? '下架' : '上架'}
+                      </button>
+                    </>}
                 </td>
               </tr>
             ))}</tbody>
