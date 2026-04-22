@@ -39,6 +39,22 @@ def fetch_holiday_data(h: dict) -> list:
     return dates
 
 
+def fetch_custom_object_ids(h: dict) -> dict:
+    """列出所有 custom tables，回傳 {slug: uuid} — 前端透過 slug 存取但 AI GO 只收 UUID。"""
+    status, body = _req("GET", f"{API_BASE}/data/objects", h, timeout=30)
+    if status != 200 or not isinstance(body, list):
+        print(f"  ⚠️ 拉取 custom objects 清單失敗：{status}")
+        return {}
+    mapping = {}
+    for obj in body:
+        slug = obj.get("api_slug") or ""
+        uid = obj.get("id") or ""
+        if slug and uid:
+            mapping[slug] = uid
+    print(f"  custom objects slug→UUID：{len(mapping)} 筆")
+    return mapping
+
+
 def _req(method: str, url: str, headers: dict, data: dict = None, timeout: int = 30) -> tuple:
     body = json.dumps(data).encode() if data is not None else None
     req = urllib.request.Request(url, data=body, headers=headers, method=method)
@@ -97,9 +113,18 @@ def ensure_references(h: dict, app_id: str):
         print(f"  [{tn}] {s2}")
 
 
-def get_db_ts() -> str:
-    return r'''const API_BASE = (window as any).__API_BASE__ || '/api/v1';
+def get_db_ts(custom_ids: dict = None) -> str:
+    # 將 slug→UUID map 注入成 JS 物件字面量
+    slug_map_entries = ",\n  ".join(f'"{k}": "{v}"' for k, v in (custom_ids or {}).items())
+    slug_map_js = "{\n  " + slug_map_entries + "\n}" if slug_map_entries else "{}"
+    tmpl = r'''const API_BASE = (window as any).__API_BASE__ || '/api/v1';
 const APP_ID = (window as any).__APP_ID__ || '';
+// Custom table slug -> UUID (AI GO /data/objects only accepts UUID; slug returns 500)
+const CUSTOM_IDS: Record<string,string> = __CUSTOM_IDS__;
+function _cid(slugOrId: string): string {
+  if (slugOrId.length === 36 && slugOrId.indexOf('-') !== -1) return slugOrId;
+  return CUSTOM_IDS[slugOrId] || slugOrId;
+}
 function _h(): Record<string,string> {
   const h: Record<string,string> = {'Content-Type':'application/json'};
   const t = (window as any).__APP_TOKEN__ || '';
@@ -154,10 +179,10 @@ export async function insert(table:string,data:Record<string,any>): Promise<any>
   return _r(await fetch(API_BASE+'/proxy/'+APP_ID+'/'+table,{method:'POST',headers:_h(),credentials:'include',body:JSON.stringify({data})}));
 }
 export async function insertCustom(slug:string,data:Record<string,any>): Promise<any> {
-  return _r(await fetch(API_BASE+'/data/objects/'+slug+'/records',{method:'POST',headers:_h(),credentials:'include',body:JSON.stringify({data})}));
+  return _r(await fetch(API_BASE+'/data/objects/'+_cid(slug)+'/records',{method:'POST',headers:_h(),credentials:'include',body:JSON.stringify({data})}));
 }
 export async function queryCustom(slug:string): Promise<any[]> {
-  const resp=await fetch(API_BASE+'/data/objects/'+slug+'/records',{headers:_h(),credentials:'include'});
+  const resp=await fetch(API_BASE+'/data/objects/'+_cid(slug)+'/records',{headers:_h(),credentials:'include'});
   if(!resp.ok) return [];
   return resp.json();
 }
@@ -182,9 +207,10 @@ export async function recalcOrderTotal(orderIds: string[]): Promise<void> {
   }));
 }
 '''
+    return tmpl.replace('__CUSTOM_IDS__', slug_map_js)
 
 
-def build_vfs(holiday_data: list = None) -> dict:
+def build_vfs(holiday_data: list = None, custom_ids: dict = None) -> dict:
     vfs = {}
     vfs["package.json"] = json.dumps({
         "name": "xiong-quan-admin", "private": True, "version": "4.0.0", "type": "module",
@@ -290,7 +316,7 @@ export default class ErrorBoundary extends React.Component<React.PropsWithChildr
         '}\n'
     )
     vfs["src/App.css"] = get_app_css()
-    vfs["src/db.ts"] = get_db_ts()
+    vfs["src/db.ts"] = get_db_ts(custom_ids)
     vfs["src/components/ConfirmDialog.tsx"] = get_confirm_dialog()
     vfs["src/components/PrintProvider.tsx"] = get_print_provider()
     vfs["src/components/DatePickerWithCounts.tsx"] = get_date_picker_with_counts()
@@ -359,11 +385,12 @@ def main():
     print("\n[2/4] 設定 DB References...")
     ensure_references(h, app_id)
 
-    print("\n[2.5/4] 拉取假日資料...")
+    print("\n[2.5/4] 拉取假日資料與 custom objects 清單...")
     holiday_data = fetch_holiday_data(h)
+    custom_ids = fetch_custom_object_ids(h)
 
     print("\n[3/4] 組裝並上傳 VFS...")
-    vfs = build_vfs(holiday_data)
+    vfs = build_vfs(holiday_data, custom_ids)
     upload_vfs(h, app_id, vfs)
 
     print("\n[3.5/4] 編譯驗證...")
