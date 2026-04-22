@@ -364,6 +364,12 @@ export default function DataProvider({ children }: { children: ReactNode }) {
     setSelectedDateState(d);
     setSearchParams(prev => { const p = new URLSearchParams(prev); p.set('date', d); return p; }, { replace: true });
   }, [setSearchParams]);
+  // 路由切換後補回 ?date=，確保重整或分享連結日期一致
+  useEffect(() => {
+    if (!searchParams.get('date')) {
+      setSearchParams(prev => { const p = new URLSearchParams(prev); p.set('date', selectedDate); return p; }, { replace: true });
+    }
+  }, [searchParams, selectedDate, setSearchParams]);
   const lastFetch = useRef(0);
   const fetching = useRef(false);
 

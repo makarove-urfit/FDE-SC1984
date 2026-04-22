@@ -50,7 +50,7 @@ def login(email, password):
     return token
 
 
-def proxy_get_all(h, app_id, table, limit=1000):
+def proxy_get_all(h, app_id, table, limit=500):
     status, body = _req("GET", f"{API_BASE}/proxy/{app_id}/{table}?limit={limit}", h)
     if status != 200:
         sys.exit(f"❌ 查詢 {table} 失敗：{status} {body}")
