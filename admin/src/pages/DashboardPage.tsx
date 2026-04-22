@@ -1,8 +1,7 @@
 /**
  * Dashboard — 兩個頁籤：每日流程、基礎設定
  */
-import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useAdminStore } from '../store/useAdminStore'
 import PageHeader from '../components/PageHeader'
 
@@ -11,7 +10,12 @@ type TabKey = 'daily' | 'settings'
 export default function DashboardPage() {
   const navigate = useNavigate()
   const { saleOrders, purchaseOrders } = useAdminStore()
-  const [tab, setTab] = useState<TabKey>('daily')
+  const [searchParams, setSearchParams] = useSearchParams()
+  const tab: TabKey = searchParams.get('tab') === 'settings' ? 'settings' : 'daily'
+  const setTab = (t: TabKey) => {
+    if (t === 'daily') setSearchParams({})
+    else setSearchParams({ tab: t })
+  }
 
   const step1Count = saleOrders.filter(o => o.state === 'draft').length
   const step2Count = purchaseOrders

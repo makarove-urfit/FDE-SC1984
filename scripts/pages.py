@@ -3,8 +3,7 @@
 _ARROW = '''const Arrow = () => <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M19 12H5"/><path d="m12 19-7-7 7-7"/></svg>;'''
 
 def dashboard() -> str:
-    return r'''import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+    return r'''import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useData } from '../../data/DataProvider';
 import DatePickerWithCounts from '../../components/DatePickerWithCounts';
 const LeafIcon = () => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#16a34a" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M11 20A7 7 0 0 1 9.8 6.9C15.5 4.9 17 3.5 19 1a13 13 0 0 1 .8 13c-1 1.8-2 3.1-3.8 4.5"/><path d="M5 20c.5-1 1.4-3 2-4.5"/></svg>;
@@ -14,7 +13,9 @@ type TabKey = 'daily' | 'settings';
 export default function DashboardPage() {
   const nav = useNavigate();
   const { orders, orderLines, loading, selectedDate, setSelectedDate } = useData();
-  const [tab, setTab] = useState<TabKey>('daily');
+  const [searchParams, setSearchParams] = useSearchParams();
+  const tab: TabKey = searchParams.get('tab') === 'settings' ? 'settings' : 'daily';
+  const setTab = (t: TabKey) => { if (t === 'daily') setSearchParams({}); else setSearchParams({tab: t}); };
   const isDraft = (o:any) => !o.state || o.state === 'draft';
   const isConfirmed = (o:any) => o.state === 'sale' || o.state === 'confirm';
   const dateIds = new Set(orderLines.filter((l:any) => String(l.delivery_date||'').slice(0,10) === selectedDate).map((l:any) => { const v = l.order_id; return Array.isArray(v) ? String(v[0]) : String(v||''); }));
