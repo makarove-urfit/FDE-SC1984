@@ -2,7 +2,10 @@
 
 ## 待執行
 
-- [ ] 2026-04-22 Admin VFS — 移植剩餘頁面至 scripts/pages.py：SettingsPage（x_app_settings、x_holiday_settings 管理）、PricePage、OrderEditPage、SupplierMappingPage、DriverMappingPage（目前 admin/src 有，VFS 尚未有）；移植後 dashboard() 的基礎設定 tab 放入「關係對應」「系統」兩組
+- [ ] 2026-04-22 Admin VFS — 移植剩餘頁面至 scripts/pages.py：PricePage、OrderEditPage（admin/src 有，VFS 尚未）
+- [x] 2026-04-22 Admin VFS — SettingsPage / SupplierMappingPage / DriverMappingPage 三頁移植完成；dashboard() 基礎設定 tab 補齊「關係對應 / 系統」兩組；db.ts query/queryFiltered 改為內建分頁避免 422 limit>500
+      執行：scripts/pages.py 加 settings_page / supplier_mapping_page / driver_mapping_page 三個函式；deploy_admin.py App.tsx 加三個路由；get_db_ts() 改為分頁版
+      驗證：python3 scripts/deploy_admin.py 編譯 200 / 發布 200
 - [x] 2026-04-22 Admin VFS — Dashboard 切 tab、新增 Products/ProductCategories/CategoryBuyer 三頁
       執行：scripts/pages.py 加三個函式；dashboard() 重寫為 tab；deploy_admin.py 掛上新路由並加 product_categories reference（permissions: read/create/update/delete），product_templates 補 update 權限；db.ts 擴充 updateCustom / deleteCustom / deleteRow
       驗證：python3 scripts/deploy_admin.py 編譯 200 / 發布 200

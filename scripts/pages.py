@@ -34,6 +34,13 @@ export default function DashboardPage() {
       {label:'產品分類管理', desc:'新增/修改分類', href:'/admin/product-categories'},
       {label:'分類-買辦人對應', desc:'每個分類由誰買', href:'/admin/category-buyer'},
     ]},
+    {title:'關係對應', items:[
+      {label:'供應商-產品對應', desc:'品項誰家供', href:'/admin/supplier-mapping'},
+      {label:'司機-客戶對應', desc:'誰送哪些客戶', href:'/admin/driver-mapping'},
+    ]},
+    {title:'系統', items:[
+      {label:'系統設定', desc:'假日、截止時間', href:'/admin/settings'},
+    ]},
   ];
   return (
     <div className="min-h-screen bg-gray-50">
@@ -98,7 +105,6 @@ export default function DashboardPage() {
               </div>
             </section>
           ))}
-          <p className="text-xs text-gray-400 pt-2">（供應商-產品對應、司機-客戶對應、截止時間、假日管理等頁面將陸續上線）</p>
         </div>
       )}
     </div>
@@ -735,12 +741,15 @@ export default function ProcurementPage() {
     } catch(e: any) { console.error('定價失敗:', e.message); }
     // 庫存更新獨立 try/catch，不受定價寫入失敗影響
     try {
+      console.log('[stock] pid:', pid, 'actualQty:', item.actualQty, 'stockQuants:', stockQuants.length, 'stockLocations:', stockLocations.length);
       if (item.actualQty > 0) {
         const locId = stockLocations.find((l:any) => l.usage === 'internal')?.id || stockLocations[0]?.id;
         const sq = stockQuants.find((q:any) => _qid(q.product_id) === pid);
+        console.log('[stock] locId:', locId, 'sq:', sq);
         if (sq) { await db.update('stock_quants', sq.id, { quantity: Number(sq.quantity||0) + item.actualQty }); }
         else if (locId) { await db.insert('stock_quants', { product_id: pid, location_id: locId, quantity: item.actualQty }); }
-      }
+        else { console.warn('[stock] 找不到 locId，無法建立庫存記錄'); }
+      } else { console.warn('[stock] actualQty <= 0，跳過庫存更新'); }
     } catch(e: any) { console.error('庫存更新失敗:', e.message); }
     setSaving(false);
   };
@@ -1201,8 +1210,8 @@ export default function ProductsPage() {
     setLoading(true); setError('');
     try {
       const [ts, cs] = await Promise.all([
-        db.queryFiltered('product_templates', [{column:'active',op:'eq',value:true}], 5000),
-        db.query('product_categories', {limit:1000}),
+        db.queryFiltered('product_templates', [{column:'active',op:'eq',value:true}]),
+        db.query('product_categories'),
       ]);
       setTmpls((ts||[]).map((r:any)=>({id:String(r.id), name:String(r.name||''), default_code:String(r.default_code||''), categ_id:r.categ_id})));
       setCats((cs||[]).map((r:any)=>({id:String(r.id), name:String(r.name||'')})));
@@ -1294,7 +1303,7 @@ export default function ProductCategoriesPage() {
   const load = async () => {
     setLoading(true); setErr('');
     try {
-      const rows = await db.query('product_categories', {limit:1000});
+      const rows = await db.query('product_categories');
       setCats((rows||[]).map((r:any)=>({id:String(r.id), name:String(r.name||''), parent_id:r.parent_id})).sort((a,b)=>a.name.localeCompare(b.name, 'zh-Hant')));
     } catch(e:any) { setErr(e?.message||'載入失敗'); } finally { setLoading(false); }
   };
@@ -1419,8 +1428,8 @@ export default function CategoryBuyerPage() {
     try {
       const [rawMaps, rawCats, rawEmps] = await Promise.all([
         db.queryCustom('x_category_buyer'),
-        db.query('product_categories', {limit:1000}),
-        db.queryFiltered('hr_employees', [{column:'active',op:'eq',value:true}], 5000),
+        db.query('product_categories'),
+        db.queryFiltered('hr_employees', [{column:'active',op:'eq',value:true}]),
       ]);
       const ms: Mapping[] = (rawMaps||[]).map((r:any) => {
         const d = r.data || r;
@@ -1501,6 +1510,369 @@ export default function CategoryBuyerPage() {
                     {items.map(m => (
                       <li key={m.id} className="flex items-center justify-between px-4 py-2.5">
                         <span className="text-sm text-gray-800">{catName(m.category_id)}</span>
+                        <button onClick={()=>del(m.id)} className="px-2 py-1 text-xs text-red-600 hover:bg-red-50 rounded">刪除</button>
+                      </li>
+                    ))}
+                  </ul>
+                </section>
+              ))}
+            </div>
+        }
+      </div>
+    </div>
+  );
+}
+'''
+
+
+def settings_page() -> str:
+    return r'''import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
+import * as db from '../../db';
+type Holiday = { id:string; date:string; label:string };
+type CutoffSetting = { id:string; value:string } | null;
+const KEY_CUTOFF = 'order_cutoff_time';
+export default function SettingsPage() {
+  const nav = useNavigate();
+  const [cutoff, setCutoff] = useState<CutoffSetting>(null);
+  const [cutoffTime, setCutoffTime] = useState('14:00');
+  const [cutoffBusy, setCutoffBusy] = useState(false);
+  const [holidays, setHolidays] = useState<Holiday[]>([]);
+  const [newDate, setNewDate] = useState('');
+  const [newLabel, setNewLabel] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [err, setErr] = useState('');
+  const load = async () => {
+    setLoading(true); setErr('');
+    try {
+      const [rawSettings, rawHols] = await Promise.all([
+        db.queryCustom('x_app_settings'),
+        db.queryCustom('x_holiday_settings'),
+      ]);
+      const cu = (rawSettings||[]).find((r:any) => (r.data?.key || r.key) === KEY_CUTOFF);
+      if (cu) { const d = cu.data || cu; setCutoff({id:String(cu.id||d.id), value:String(d.value||'14:00')}); setCutoffTime(String(d.value||'14:00')); }
+      const today = new Date().toISOString().slice(0,10);
+      const hs: Holiday[] = (rawHols||[]).map((r:any) => { const d = r.data||r; return {id:String(r.id||d.id), date:String(d.date||''), label:String(d.label||d.reason||'假日')}; })
+        .filter(h => h.date && h.date >= today)
+        .sort((a,b) => a.date.localeCompare(b.date));
+      setHolidays(hs);
+    } catch(e:any) { setErr(e?.message||'載入失敗'); } finally { setLoading(false); }
+  };
+  useEffect(()=>{ load(); }, []);
+  const saveCutoff = async () => {
+    setCutoffBusy(true);
+    try {
+      const now = new Date().toISOString();
+      if (cutoff) {
+        await db.updateCustom(cutoff.id, {key: KEY_CUTOFF, value: cutoffTime, updated_at: now});
+      } else {
+        const created = await db.insertCustom('x_app_settings', {key: KEY_CUTOFF, value: cutoffTime, updated_at: now});
+        setCutoff({id: String(created?.id || ''), value: cutoffTime});
+      }
+      alert(`已儲存：${cutoffTime}`);
+    } catch(e:any) { alert(e?.message||'儲存失敗'); } finally { setCutoffBusy(false); }
+  };
+  const addHoliday = async () => {
+    if (!newDate) { alert('請選擇日期'); return; }
+    setBusy(true);
+    try {
+      await db.insertCustom('x_holiday_settings', {date: newDate, label: newLabel.trim()||'假日', created_at: new Date().toISOString()});
+      setNewDate(''); setNewLabel('');
+      await load();
+    } catch(e:any) { alert(e?.message||'新增失敗'); } finally { setBusy(false); }
+  };
+  const delHoliday = async (id:string) => {
+    if (!confirm('刪除此假日？')) return;
+    try { await db.deleteCustom(id); await load(); }
+    catch(e:any) { alert(e?.message||'刪除失敗'); }
+  };
+  const importMondays = async () => {
+    const now = new Date();
+    const y = now.getFullYear(); const m = now.getMonth();
+    const firstDay = new Date(y, m, 1);
+    const daysInMonth = new Date(y, m+1, 0).getDate();
+    const mondays: string[] = [];
+    for (let d=1; d<=daysInMonth; d++) {
+      const dt = new Date(y, m, d);
+      if (dt.getDay() === 1) {
+        const iso = `${y}-${String(m+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+        mondays.push(iso);
+      }
+    }
+    const existing = new Set(holidays.map(h => h.date));
+    const toCreate = mondays.filter(d => !existing.has(d));
+    if (toCreate.length === 0) { alert('本月週一已全數存在'); return; }
+    setBusy(true);
+    try {
+      for (const d of toCreate) {
+        await db.insertCustom('x_holiday_settings', {date: d, label: '週一公休', created_at: new Date().toISOString()});
+      }
+      await load();
+      alert(`已匯入 ${toCreate.length} 個週一假日`);
+    } catch(e:any) { alert(e?.message||'匯入失敗'); } finally { setBusy(false); }
+  };
+  return (
+    <div className="min-h-screen bg-gray-50">
+      <header className="bg-white border-b border-gray-200 px-6 py-4">
+        <div className="flex items-center gap-3 max-w-2xl mx-auto">
+          <button onClick={()=>nav('/admin')} className="text-gray-500 hover:text-gray-700 text-sm">← 返回</button>
+          <h1 className="text-xl font-bold text-gray-900">系統設定</h1>
+        </div>
+      </header>
+      <div className="p-6 max-w-2xl mx-auto space-y-6">
+        {err && <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-2 rounded-lg text-sm">{err}</div>}
+        <section className="bg-white rounded-xl border border-gray-100 p-6 space-y-4">
+          <h2 className="text-lg font-bold text-gray-900">截止時間</h2>
+          <p className="text-sm text-gray-500">超過此時間後，當日訂單將無法送出。</p>
+          {loading ? <p className="text-sm text-gray-400">載入中...</p> :
+            <div className="flex items-center gap-3">
+              <input type="time" value={cutoffTime} onChange={e=>setCutoffTime(e.target.value)} className="px-3 py-2 border border-gray-200 rounded-lg bg-gray-50 text-sm font-medium text-gray-700" />
+              <button onClick={saveCutoff} disabled={cutoffBusy} className="px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 disabled:opacity-50">{cutoffBusy?'儲存中...':'儲存'}</button>
+            </div>
+          }
+        </section>
+        <section className="bg-white rounded-xl border border-gray-100 p-6 space-y-4">
+          <div className="flex items-center justify-between">
+            <h2 className="text-lg font-bold text-gray-900">假日管理</h2>
+            <button onClick={importMondays} disabled={busy} className="px-3 py-1.5 bg-orange-100 text-orange-700 text-xs font-medium rounded-lg hover:bg-orange-200 disabled:opacity-50">匯入本月週一</button>
+          </div>
+          <p className="text-sm text-gray-500">設定後，訂購頁面的配送日期選擇器會排除這些日期。</p>
+          <div className="flex items-center gap-2 pt-1">
+            <input type="date" value={newDate} onChange={e=>setNewDate(e.target.value)} className="px-3 py-2 border border-gray-200 rounded-lg bg-gray-50 text-sm text-gray-700" />
+            <input type="text" placeholder="說明（如：元旦）" value={newLabel} onChange={e=>setNewLabel(e.target.value)} className="flex-1 px-3 py-2 border border-gray-200 rounded-lg bg-gray-50 text-sm text-gray-700" />
+            <button onClick={addHoliday} disabled={busy||!newDate} className="px-4 py-2 bg-green-600 text-white text-sm font-medium rounded-lg hover:bg-green-700 disabled:opacity-50">新增</button>
+          </div>
+          {loading ? <p className="text-sm text-gray-400">載入中...</p> :
+            holidays.length===0 ? <p className="text-sm text-gray-400">目前無假日</p> :
+            <ul className="divide-y divide-gray-100">
+              {holidays.map(h => (
+                <li key={h.id} className="flex items-center justify-between py-2.5">
+                  <div>
+                    <span className="font-medium text-gray-800 text-sm">{h.date}</span>
+                    <span className="text-gray-400 text-xs ml-2">{h.label}</span>
+                  </div>
+                  <button onClick={()=>delHoliday(h.id)} className="text-xs text-red-400 hover:text-red-600 px-2 py-1 rounded hover:bg-red-50">刪除</button>
+                </li>
+              ))}
+            </ul>
+          }
+        </section>
+      </div>
+    </div>
+  );
+}
+'''
+
+
+def supplier_mapping_page() -> str:
+    return r'''import { useState, useEffect, useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
+import * as db from '../../db';
+type Mapping = { id:string; productTmplId:string; supplierId:string };
+type Opt = { id:string; name:string };
+const resolveId = (raw:any) => Array.isArray(raw) ? String(raw[0]||'') : String(raw||'');
+export default function SupplierMappingPage() {
+  const nav = useNavigate();
+  const [maps, setMaps] = useState<Mapping[]>([]);
+  const [tmpls, setTmpls] = useState<Opt[]>([]);
+  const [sups, setSups] = useState<Opt[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [err, setErr] = useState('');
+  const [showForm, setShowForm] = useState(false);
+  const [tmplId, setTmplId] = useState('');
+  const [supId, setSupId] = useState('');
+  const [busy, setBusy] = useState(false);
+  const load = async () => {
+    setLoading(true); setErr('');
+    try {
+      const [rawMaps, rawTmpls, rawSups] = await Promise.all([
+        db.query('product_supplierinfo'),
+        db.queryFiltered('product_templates', [{column:'active',op:'eq',value:true}]),
+        db.queryFiltered('suppliers', [{column:'active',op:'eq',value:true}]),
+      ]);
+      setMaps((rawMaps||[]).map((r:any)=>({id:String(r.id), productTmplId:resolveId(r.product_tmpl_id), supplierId:resolveId(r.supplier_id)})));
+      setTmpls((rawTmpls||[]).map((r:any)=>({id:String(r.id), name:String(r.name||'')})).sort((a,b)=>a.name.localeCompare(b.name,'zh-Hant')));
+      setSups((rawSups||[]).map((r:any)=>({id:String(r.id), name:String(r.name||'')})).sort((a,b)=>a.name.localeCompare(b.name,'zh-Hant')));
+    } catch(e:any) { setErr(e?.message||'載入失敗'); } finally { setLoading(false); }
+  };
+  useEffect(()=>{ load(); }, []);
+  const tmplName = (id:string) => tmpls.find(t=>t.id===id)?.name || id;
+  const supName = (id:string) => sups.find(s=>s.id===id)?.name || id;
+  const add = async () => {
+    if (!tmplId || !supId) { alert('請選擇產品與供應商'); return; }
+    setBusy(true);
+    try { await db.insert('product_supplierinfo', {product_tmpl_id: tmplId, supplier_id: supId}); setTmplId(''); setSupId(''); setShowForm(false); await load(); }
+    catch(e:any) { alert(e?.message||'新增失敗'); } finally { setBusy(false); }
+  };
+  const del = async (id:string) => {
+    if (!confirm('刪除此對應？')) return;
+    try { await db.deleteRow('product_supplierinfo', id); await load(); }
+    catch(e:any) { alert(e?.message||'刪除失敗'); }
+  };
+  const grouped = useMemo(() => {
+    const m = new Map<string, Mapping[]>();
+    maps.forEach(x => { const arr = m.get(x.supplierId)||[]; arr.push(x); m.set(x.supplierId, arr); });
+    return Array.from(m.entries()).sort(([a],[b]) => supName(a).localeCompare(supName(b),'zh-Hant'));
+  }, [maps, sups]);
+  return (
+    <div className="min-h-screen bg-gray-50">
+      <header className="bg-white border-b border-gray-200 px-6 py-4">
+        <div className="flex items-center justify-between max-w-5xl mx-auto">
+          <div className="flex items-center gap-3">
+            <button onClick={()=>nav('/admin')} className="text-gray-500 hover:text-gray-700 text-sm">← 返回</button>
+            <h1 className="text-xl font-bold text-gray-900">供應商-產品對應</h1>
+          </div>
+          <button onClick={()=>setShowForm(v=>!v)} className="px-3 py-1.5 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700">+ 新增對應</button>
+        </div>
+      </header>
+      <div className="p-6 max-w-5xl mx-auto space-y-4">
+        {err && <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-2 rounded-lg text-sm">{err}</div>}
+        {showForm && (
+          <div className="bg-white rounded-xl border border-gray-100 p-4 space-y-3">
+            <p className="font-medium text-gray-700">新增對應</p>
+            <div className="flex gap-3 flex-wrap">
+              <select value={tmplId} onChange={e=>setTmplId(e.target.value)} className="border border-gray-200 rounded px-3 py-1.5 text-sm bg-white flex-1 min-w-48">
+                <option value="">選擇產品...</option>
+                {tmpls.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+              </select>
+              <select value={supId} onChange={e=>setSupId(e.target.value)} className="border border-gray-200 rounded px-3 py-1.5 text-sm bg-white flex-1 min-w-48">
+                <option value="">選擇供應商...</option>
+                {sups.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+              </select>
+              <button onClick={add} disabled={busy} className="px-4 py-1.5 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 disabled:opacity-50">確認新增</button>
+              <button onClick={()=>setShowForm(false)} className="px-4 py-1.5 bg-gray-100 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-200">取消</button>
+            </div>
+          </div>
+        )}
+        {loading ? <p className="text-gray-400 text-center py-12">載入中...</p> :
+          maps.length===0 ?
+            <div className="bg-white rounded-xl border border-gray-100 text-center text-gray-400 py-12">尚無供應商-產品對應</div>
+          :
+            <div className="space-y-4">
+              {grouped.map(([sid, items]) => (
+                <section key={sid} className="bg-white rounded-xl border border-gray-100 overflow-hidden">
+                  <header className="bg-gray-50 px-4 py-2.5 border-b border-gray-100">
+                    <p className="font-semibold text-gray-800">{supName(sid)}</p>
+                    <p className="text-xs text-gray-400">供應 {items.length} 項產品</p>
+                  </header>
+                  <ul className="divide-y divide-gray-50">
+                    {items.map(m => (
+                      <li key={m.id} className="flex items-center justify-between px-4 py-2.5">
+                        <span className="text-sm text-gray-800">{tmplName(m.productTmplId)}</span>
+                        <button onClick={()=>del(m.id)} className="px-2 py-1 text-xs text-red-600 hover:bg-red-50 rounded">刪除</button>
+                      </li>
+                    ))}
+                  </ul>
+                </section>
+              ))}
+            </div>
+        }
+      </div>
+    </div>
+  );
+}
+'''
+
+
+def driver_mapping_page() -> str:
+    return r'''import { useState, useEffect, useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
+import * as db from '../../db';
+type Mapping = { id:string; driver_id:string; customer_id:string };
+type Opt = { id:string; name:string };
+export default function DriverMappingPage() {
+  const nav = useNavigate();
+  const [maps, setMaps] = useState<Mapping[]>([]);
+  const [drivers, setDrivers] = useState<Opt[]>([]);
+  const [customers, setCustomers] = useState<Opt[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [err, setErr] = useState('');
+  const [showForm, setShowForm] = useState(false);
+  const [driverId, setDriverId] = useState('');
+  const [customerId, setCustomerId] = useState('');
+  const [busy, setBusy] = useState(false);
+  const load = async () => {
+    setLoading(true); setErr('');
+    try {
+      const [rawMaps, rawDrvs, rawCusts] = await Promise.all([
+        db.queryCustom('x_driver_customer'),
+        db.queryFiltered('hr_employees', [{column:'active',op:'eq',value:true}]),
+        db.queryFiltered('customers', []),
+      ]);
+      const ms: Mapping[] = (rawMaps||[]).map((r:any) => { const d = r.data||r; return {id:String(r.id||d.id), driver_id:String(d.driver_id||''), customer_id:String(d.customer_id||'')}; });
+      setMaps(ms);
+      setDrivers((rawDrvs||[]).map((r:any)=>({id:String(r.id), name:String(r.name||'')})).sort((a,b)=>a.name.localeCompare(b.name,'zh-Hant')));
+      setCustomers((rawCusts||[]).map((r:any)=>({id:String(r.id), name:String(r.name||`#${r.id}`)})).sort((a,b)=>a.name.localeCompare(b.name,'zh-Hant')));
+    } catch(e:any) { setErr(e?.message||'載入失敗'); } finally { setLoading(false); }
+  };
+  useEffect(()=>{ load(); }, []);
+  const drvName = (id:string) => drivers.find(d=>d.id===id)?.name || `#${id}`;
+  const custName = (id:string) => customers.find(c=>c.id===id)?.name || `#${id}`;
+  const add = async () => {
+    if (!driverId || !customerId) { alert('請選擇司機與客戶'); return; }
+    setBusy(true);
+    try {
+      await db.insertCustom('x_driver_customer', {driver_id: driverId, customer_id: customerId, created_at: new Date().toISOString()});
+      setDriverId(''); setCustomerId(''); setShowForm(false);
+      await load();
+    } catch(e:any) { alert(e?.message||'新增失敗'); } finally { setBusy(false); }
+  };
+  const del = async (id:string) => {
+    if (!confirm('刪除此對應？')) return;
+    try { await db.deleteCustom(id); await load(); }
+    catch(e:any) { alert(e?.message||'刪除失敗'); }
+  };
+  const grouped = useMemo(() => {
+    const m = new Map<string, Mapping[]>();
+    maps.forEach(x => { const arr = m.get(x.driver_id)||[]; arr.push(x); m.set(x.driver_id, arr); });
+    return Array.from(m.entries()).sort(([a],[b]) => drvName(a).localeCompare(drvName(b),'zh-Hant'));
+  }, [maps, drivers]);
+  return (
+    <div className="min-h-screen bg-gray-50">
+      <header className="bg-white border-b border-gray-200 px-6 py-4">
+        <div className="flex items-center justify-between max-w-5xl mx-auto">
+          <div className="flex items-center gap-3">
+            <button onClick={()=>nav('/admin')} className="text-gray-500 hover:text-gray-700 text-sm">← 返回</button>
+            <h1 className="text-xl font-bold text-gray-900">司機-客戶對應</h1>
+          </div>
+          <button onClick={()=>setShowForm(v=>!v)} className="px-3 py-1.5 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700">+ 新增對應</button>
+        </div>
+      </header>
+      <div className="p-6 max-w-5xl mx-auto space-y-4">
+        {err && <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-2 rounded-lg text-sm">{err}</div>}
+        {showForm && (
+          <div className="bg-white rounded-xl border border-gray-100 p-4 space-y-3">
+            <p className="font-medium text-gray-700">新增司機-客戶對應</p>
+            <div className="flex gap-3 flex-wrap">
+              <select value={driverId} onChange={e=>setDriverId(e.target.value)} className="border border-gray-200 rounded px-3 py-1.5 text-sm bg-white flex-1 min-w-48">
+                <option value="">選擇司機...</option>
+                {drivers.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
+              </select>
+              <select value={customerId} onChange={e=>setCustomerId(e.target.value)} className="border border-gray-200 rounded px-3 py-1.5 text-sm bg-white flex-1 min-w-48">
+                <option value="">選擇客戶...</option>
+                {customers.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+              </select>
+              <button onClick={add} disabled={busy} className="px-4 py-1.5 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 disabled:opacity-50">確認新增</button>
+              <button onClick={()=>setShowForm(false)} className="px-4 py-1.5 bg-gray-100 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-200">取消</button>
+            </div>
+          </div>
+        )}
+        {loading ? <p className="text-gray-400 text-center py-12">載入中...</p> :
+          maps.length===0 ?
+            <div className="bg-white rounded-xl border border-gray-100 text-center text-gray-400 py-12">尚無司機-客戶對應</div>
+          :
+            <div className="space-y-4">
+              {grouped.map(([did, items]) => (
+                <section key={did} className="bg-white rounded-xl border border-gray-100 overflow-hidden">
+                  <header className="bg-gray-50 px-4 py-2.5 border-b border-gray-100">
+                    <p className="font-semibold text-gray-800">{drvName(did)}</p>
+                    <p className="text-xs text-gray-400">負責 {items.length} 位客戶</p>
+                  </header>
+                  <ul className="divide-y divide-gray-50">
+                    {items.map(m => (
+                      <li key={m.id} className="flex items-center justify-between px-4 py-2.5">
+                        <span className="text-sm text-gray-800">{custName(m.customer_id)}</span>
                         <button onClick={()=>del(m.id)} className="px-2 py-1 text-xs text-red-600 hover:bg-red-50 rounded">刪除</button>
                       </li>
                     ))}

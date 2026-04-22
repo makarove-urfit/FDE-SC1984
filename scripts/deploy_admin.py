@@ -18,6 +18,7 @@ from v5_css import get_app_css, get_confirm_dialog, get_print_provider, get_data
 from pages import (
     dashboard, purchase_list, stock, delivery, procurement, sales_orders,
     products_page, product_categories_page, category_buyer_page,
+    settings_page, supplier_mapping_page, driver_mapping_page,
 )
 
 HOLIDAY_UUID = "96d01299-1d33-4ca7-b437-4bf5c78dfdcf"
@@ -109,13 +110,42 @@ async function _r(resp: Response): Promise<any> {
   if (!resp.ok) { const b=await resp.json().catch(()=>({})); throw new Error(b.detail||'API Error ('+resp.status+')'); }
   return resp.json();
 }
-export async function query(table:string, opts?:{limit?:number;offset?:number}): Promise<any[]> {
-  const p=new URLSearchParams(); if(opts?.limit)p.set('limit',String(opts.limit)); if(opts?.offset)p.set('offset',String(opts.offset));
-  const qs=p.toString()?'?'+p.toString():'';
-  return _r(await fetch(API_BASE+'/proxy/'+APP_ID+'/'+table+qs,{headers:_h(),credentials:'include'}));
+const PAGE_MAX = 500;
+async function _fetchPage(table:string, limit:number, offset:number): Promise<any[]> {
+  const p=new URLSearchParams(); p.set('limit',String(limit)); p.set('offset',String(offset));
+  return _r(await fetch(API_BASE+'/proxy/'+APP_ID+'/'+table+'?'+p.toString(),{headers:_h(),credentials:'include'}));
 }
-export async function queryFiltered(table:string, filters:any[], limit=500): Promise<any[]> {
-  return _r(await fetch(API_BASE+'/proxy/'+APP_ID+'/'+table+'/query',{method:'POST',headers:_h(),credentials:'include',body:JSON.stringify({filters,limit})}));
+async function _fetchPageFiltered(table:string, filters:any[], limit:number, offset:number): Promise<any[]> {
+  return _r(await fetch(API_BASE+'/proxy/'+APP_ID+'/'+table+'/query',{method:'POST',headers:_h(),credentials:'include',body:JSON.stringify({filters, limit, offset})}));
+}
+export async function query(table:string, opts?:{limit?:number;offset?:number}): Promise<any[]> {
+  // 單次請求：呼叫端指定 limit <= 500 或同時指定 offset，就單頁拿回
+  if (opts?.limit !== undefined && opts.limit <= PAGE_MAX) return _fetchPage(table, opts.limit, opts.offset||0);
+  if (opts?.offset !== undefined) return _fetchPage(table, PAGE_MAX, opts.offset);
+  // 自動分頁：拉到資料用盡
+  let all: any[] = []; let offset = 0;
+  while (true) {
+    const page = await _fetchPage(table, PAGE_MAX, offset);
+    if (!Array.isArray(page) || page.length === 0) break;
+    all = all.concat(page);
+    if (page.length < PAGE_MAX) break;
+    offset += PAGE_MAX;
+    if (opts?.limit !== undefined && all.length >= opts.limit) return all.slice(0, opts.limit);
+  }
+  return all;
+}
+export async function queryFiltered(table:string, filters:any[], limit?:number): Promise<any[]> {
+  if (limit !== undefined && limit <= PAGE_MAX) return _fetchPageFiltered(table, filters, limit, 0);
+  let all: any[] = []; let offset = 0;
+  while (true) {
+    const page = await _fetchPageFiltered(table, filters, PAGE_MAX, offset);
+    if (!Array.isArray(page) || page.length === 0) break;
+    all = all.concat(page);
+    if (page.length < PAGE_MAX) break;
+    offset += PAGE_MAX;
+    if (limit !== undefined && all.length >= limit) return all.slice(0, limit);
+  }
+  return all;
 }
 export async function update(table:string,id:string,data:Record<string,any>): Promise<any> {
   return _r(await fetch(API_BASE+'/proxy/'+APP_ID+'/'+table+'/'+id,{method:'PATCH',headers:_h(),credentials:'include',body:JSON.stringify({data})}));
@@ -230,6 +260,9 @@ export default class ErrorBoundary extends React.Component<React.PropsWithChildr
         'import ProductsPage from "./pages/admin/ProductsPage";\n'
         'import ProductCategoriesPage from "./pages/admin/ProductCategoriesPage";\n'
         'import CategoryBuyerPage from "./pages/admin/CategoryBuyerPage";\n'
+        'import SettingsPage from "./pages/admin/SettingsPage";\n'
+        'import SupplierMappingPage from "./pages/admin/SupplierMappingPage";\n'
+        'import DriverMappingPage from "./pages/admin/DriverMappingPage";\n'
         '\n'
         'export default function App() {\n'
         '  return (\n'
@@ -245,6 +278,9 @@ export default class ErrorBoundary extends React.Component<React.PropsWithChildr
         '      <Route path="/admin/products" element={<ProductsPage />} />\n'
         '      <Route path="/admin/product-categories" element={<ProductCategoriesPage />} />\n'
         '      <Route path="/admin/category-buyer" element={<CategoryBuyerPage />} />\n'
+        '      <Route path="/admin/supplier-mapping" element={<SupplierMappingPage />} />\n'
+        '      <Route path="/admin/driver-mapping" element={<DriverMappingPage />} />\n'
+        '      <Route path="/admin/settings" element={<SettingsPage />} />\n'
         '      <Route path="*" element={<Navigate to="/" replace />} />\n'
         '    </Routes>\n'
         '    </DataProvider>\n'
@@ -266,6 +302,9 @@ export default class ErrorBoundary extends React.Component<React.PropsWithChildr
     vfs["src/pages/admin/ProductsPage.tsx"] = products_page()
     vfs["src/pages/admin/ProductCategoriesPage.tsx"] = product_categories_page()
     vfs["src/pages/admin/CategoryBuyerPage.tsx"] = category_buyer_page()
+    vfs["src/pages/admin/SettingsPage.tsx"] = settings_page()
+    vfs["src/pages/admin/SupplierMappingPage.tsx"] = supplier_mapping_page()
+    vfs["src/pages/admin/DriverMappingPage.tsx"] = driver_mapping_page()
     vfs["src/pages/_manifest.json"] = json.dumps({"/": {"title": "管理後台", "order": 0}},
                                                    ensure_ascii=False, indent=2)
     vfs["src/holiday_data.json"] = json.dumps(holiday_data or [], ensure_ascii=False)
