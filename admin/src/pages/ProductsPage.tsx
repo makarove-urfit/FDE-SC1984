@@ -33,6 +33,12 @@ export default function ProductsPage() {
     withLoading(load, '載入產品中...').catch(() => toast('error', '載入失敗'))
   }, [])
 
+  useEffect(() => {
+    if (!editingId) return
+    const p = products.find(x => x.id === editingId)
+    setEditingCategoryId(p?.categoryId || '')
+  }, [editingId, products])
+
   const filtered = useMemo(() => {
     const kw = search.trim().toLowerCase()
     if (!kw) return products
@@ -98,6 +104,11 @@ export default function ProductsPage() {
                           {categories.map(c => (
                             <option key={c.id} value={c.id}>{c.name}</option>
                           ))}
+                          {editingCategoryId && !categories.some(c => c.id === editingCategoryId) && (
+                            <option value={editingCategoryId}>
+                              （原值 #{editingCategoryId}：{p.categoryName || '未知分類'}）
+                            </option>
+                          )}
                         </select>
                       ) : (
                         <span className="text-gray-700">{p.categoryName || '—'}</span>

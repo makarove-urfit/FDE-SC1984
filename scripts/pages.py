@@ -1258,7 +1258,12 @@ import { useNavigate } from 'react-router-dom';
 import * as db from '../../db';
 type Tmpl = { id:string; name:string; default_code:string; categ_id:any };
 type Cat = { id:string; name:string };
-const resolveId = (raw:any) => Array.isArray(raw) ? String(raw[0]||'') : String(raw||'');
+const resolveId = (raw:any): string => {
+  if (raw === null || raw === undefined || raw === false) return '';
+  if (Array.isArray(raw)) return String(raw[0] ?? '');
+  if (typeof raw === 'object' && raw !== null && 'id' in raw) return String((raw as any).id ?? '');
+  return String(raw);
+};
 const resolveName = (raw:any) => Array.isArray(raw) && raw.length >= 2 ? String(raw[1]) : '';
 export default function ProductsPage() {
   const nav = useNavigate();
@@ -1282,6 +1287,12 @@ export default function ProductsPage() {
     } catch(e:any) { setError(e?.message||'載入失敗'); } finally { setLoading(false); }
   };
   useEffect(()=>{ load(); }, []);
+  // 當 editId 或 tmpls 改變時，重算 editCat，避免 stale state
+  useEffect(() => {
+    if (!editId) return;
+    const p = tmpls.find(x => x.id === editId);
+    setEditCat(p ? resolveId(p.categ_id) : '');
+  }, [editId, tmpls]);
   const filtered = useMemo(()=>{
     const kw = search.trim().toLowerCase();
     const sorted = [...tmpls].sort((a,b)=>a.name.localeCompare(b.name, 'zh-Hant'));
@@ -1324,6 +1335,9 @@ export default function ProductsPage() {
                     <select value={editCat} onChange={e=>setEditCat(e.target.value)} className="border border-gray-200 rounded px-2 py-1 text-sm bg-white">
                       <option value="">（不設定）</option>
                       {cats.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                      {editCat && !cats.some(c => c.id === editCat) && (
+                        <option value={editCat}>（原值 #{editCat}：{resolveName(p.categ_id) || '未知分類'}）</option>
+                      )}
                     </select>
                   : <span className="text-gray-700">{resolveName(p.categ_id) || '—'}</span>}
                 </td>
