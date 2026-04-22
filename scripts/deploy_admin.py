@@ -123,7 +123,9 @@ const APP_ID = (window as any).__APP_ID__ || '';
 const CUSTOM_IDS: Record<string,string> = __CUSTOM_IDS__;
 function _cid(slugOrId: string): string {
   if (slugOrId.length === 36 && slugOrId.indexOf('-') !== -1) return slugOrId;
-  return CUSTOM_IDS[slugOrId] || slugOrId;
+  const uuid = CUSTOM_IDS[slugOrId];
+  if (!uuid) throw new Error(`Custom table "${slugOrId}" 尚未建立（請在 AI GO 後台 Data Objects 建立此表後重新部署）`);
+  return uuid;
 }
 function _h(): Record<string,string> {
   const h: Record<string,string> = {'Content-Type':'application/json'};

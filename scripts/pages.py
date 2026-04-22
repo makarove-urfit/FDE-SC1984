@@ -1318,23 +1318,6 @@ export default function ProductsPage() {
       <div className="p-6 max-w-6xl mx-auto space-y-4">
         <input type="text" value={search} onChange={e=>setSearch(e.target.value)} placeholder="搜尋品名、編碼或分類" className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg bg-white" />
         {error && <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-2 rounded-lg text-sm">{error}</div>}
-        {!loading && (
-          <details className="bg-yellow-50 border border-yellow-200 rounded-lg px-3 py-2 text-xs text-gray-700">
-            <summary className="cursor-pointer font-semibold text-yellow-800">🔍 診斷資訊（debug）</summary>
-            <div className="mt-2 space-y-1 font-mono">
-              <p><strong>cats.length:</strong> {cats.length}</p>
-              <p><strong>cats 前 5 筆:</strong> {JSON.stringify(cats.slice(0,5))}</p>
-              <p><strong>tmpls 前 3 筆的 categ_id raw:</strong></p>
-              <ul className="pl-4">
-                {tmpls.slice(0,3).map(t => (
-                  <li key={t.id}>
-                    #{t.id} {t.name} → raw: <code>{JSON.stringify(t.categ_id)}</code>, resolveId = <code>"{resolveId(t.categ_id)}"</code>, in cats? <strong>{cats.some(c => c.id === resolveId(t.categ_id)) ? '✓' : '✗'}</strong>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          </details>
-        )}
         {loading ? <p className="text-gray-400 text-center py-12">載入中...</p> :
         <div className="bg-white rounded-xl border border-gray-100 overflow-hidden">
           {filtered.length===0 ? <div className="text-center text-gray-400 py-12">無產品</div> :
