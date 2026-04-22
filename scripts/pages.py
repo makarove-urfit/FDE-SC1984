@@ -1258,13 +1258,13 @@ import { useNavigate } from 'react-router-dom';
 import * as db from '../../db';
 type Tmpl = { id:string; name:string; default_code:string; categ_id:any };
 type Cat = { id:string; name:string };
+// AI GO /proxy 回傳 many2one 是純 UUID 字串（不是 Odoo 傳統的 [id, name] 陣列）
 const resolveId = (raw:any): string => {
   if (raw === null || raw === undefined || raw === false) return '';
   if (Array.isArray(raw)) return String(raw[0] ?? '');
   if (typeof raw === 'object' && raw !== null && 'id' in raw) return String((raw as any).id ?? '');
   return String(raw);
 };
-const resolveName = (raw:any) => Array.isArray(raw) && raw.length >= 2 ? String(raw[1]) : '';
 export default function ProductsPage() {
   const nav = useNavigate();
   const [tmpls, setTmpls] = useState<Tmpl[]>([]);
@@ -1293,12 +1293,18 @@ export default function ProductsPage() {
     const p = tmpls.find(x => x.id === editId);
     setEditCat(p ? resolveId(p.categ_id) : '');
   }, [editId, tmpls]);
+  const catName = (raw:any): string => {
+    const id = resolveId(raw);
+    if (!id) return '';
+    const arrName = Array.isArray(raw) && raw.length >= 2 ? String(raw[1]) : '';
+    return cats.find(c => c.id === id)?.name || arrName;
+  };
   const filtered = useMemo(()=>{
     const kw = search.trim().toLowerCase();
     const sorted = [...tmpls].sort((a,b)=>a.name.localeCompare(b.name, 'zh-Hant'));
     if (!kw) return sorted;
-    return sorted.filter(p => p.name.toLowerCase().includes(kw) || p.default_code.toLowerCase().includes(kw) || resolveName(p.categ_id).toLowerCase().includes(kw));
-  }, [tmpls, search]);
+    return sorted.filter(p => p.name.toLowerCase().includes(kw) || p.default_code.toLowerCase().includes(kw) || catName(p.categ_id).toLowerCase().includes(kw));
+  }, [tmpls, search, cats]);
   const save = async (id:string) => {
     setSaving(true);
     try {
@@ -1336,10 +1342,10 @@ export default function ProductsPage() {
                       <option value="">（不設定）</option>
                       {cats.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
                       {editCat && !cats.some(c => c.id === editCat) && (
-                        <option value={editCat}>（原值 #{editCat}：{resolveName(p.categ_id) || '未知分類'}）</option>
+                        <option value={editCat}>（原值 #{editCat.slice(0,8)}：{catName(p.categ_id) || '未知分類'}）</option>
                       )}
                     </select>
-                  : <span className="text-gray-700">{resolveName(p.categ_id) || '—'}</span>}
+                  : <span className="text-gray-700">{catName(p.categ_id) || '—'}</span>}
                 </td>
                 <td className="px-4 py-3 text-right space-x-2">
                   {editId===p.id ?
@@ -1880,7 +1886,8 @@ export default function DriverMappingPage() {
         db.queryFiltered('hr_employees', [{column:'active',op:'eq',value:true}]),
         db.queryFiltered('customers', []),
       ]);
-      const ms: Mapping[] = (rawMaps||[]).map((r:any) => { const d = r.data||r; return {id:String(r.id||d.id), driver_id:String(d.driver_id||''), customer_id:String(d.customer_id||'')}; });
+      // AI GO 建此 table 時把底線壓掉（實際欄位 driverid / customerid）
+      const ms: Mapping[] = (rawMaps||[]).map((r:any) => { const d = r.data||r; return {id:String(r.id||d.id), driver_id:String(d.driverid||d.driver_id||''), customer_id:String(d.customerid||d.customer_id||'')}; });
       setMaps(ms);
       setDrivers((rawDrvs||[]).map((r:any)=>({id:String(r.id), name:String(r.name||'')})).sort((a,b)=>a.name.localeCompare(b.name,'zh-Hant')));
       setCustomers((rawCusts||[]).map((r:any)=>({id:String(r.id), name:String(r.name||`#${r.id}`)})).sort((a,b)=>a.name.localeCompare(b.name,'zh-Hant')));
@@ -1893,7 +1900,7 @@ export default function DriverMappingPage() {
     if (!driverId || !customerId) { alert('請選擇司機與客戶'); return; }
     setBusy(true);
     try {
-      await db.insertCustom('x_driver_customer', {driver_id: driverId, customer_id: customerId, created_at: new Date().toISOString()});
+      await db.insertCustom('x_driver_customer', {driverid: driverId, customerid: customerId, createdat: new Date().toISOString()});
       setDriverId(''); setCustomerId(''); setShowForm(false);
       await load();
     } catch(e:any) { alert(e?.message||'新增失敗'); } finally { setBusy(false); }
