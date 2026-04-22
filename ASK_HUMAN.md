@@ -2,11 +2,8 @@
 
 ## 待確認
 
-- [ ] 2026-04-22 x_category_buyer custom table 建立
-      - 需在 AI GO 平台建立 custom table `x_category_buyer`
-      - 欄位：`category_id`（product_categories.id，string）、`employee_id`（hr_employees.id，string）、`created_by`、`created_at`
-      - 前端 CategoryBuyerPage 已完成，但需 table 建好後才能實際運作
-      - 建好後請告知，將加入 AGENT_PLAN「已完成」
+- [x] 2026-04-22 x_category_buyer custom table 已建立並上線
+      前端 CategoryBuyerPage 已隨 deploy_admin.py 發布至 admin.apps.ai-go.app
 
 - [ ] 2026-04-02 `syncOrderLinePrices` 的 state filter 實作方式確認
       - 問題：AI GO proxy 不支援 JOIN，無法在 SQL 層過濾「進行中訂單」

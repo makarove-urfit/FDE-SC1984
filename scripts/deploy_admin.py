@@ -15,7 +15,10 @@ import json, sys, os, urllib.request, urllib.error
 
 sys.path.insert(0, os.path.dirname(__file__))
 from v5_css import get_app_css, get_confirm_dialog, get_print_provider, get_data_provider, get_date_picker_with_counts
-from pages import dashboard, purchase_list, stock, delivery, procurement, sales_orders
+from pages import (
+    dashboard, purchase_list, stock, delivery, procurement, sales_orders,
+    products_page, product_categories_page, category_buyer_page,
+)
 
 HOLIDAY_UUID = "96d01299-1d33-4ca7-b437-4bf5c78dfdcf"
 
@@ -71,7 +74,8 @@ def ensure_references(h: dict, app_id: str):
         {"table_name": "sale_orders", "columns": ["id", "name", "state", "date_order", "customer_id", "note", "amount_untaxed", "amount_tax", "amount_total", "created_at", "client_order_ref"], "permissions": ["read", "update"]},
         {"table_name": "sale_order_lines", "columns": ["id", "order_id", "product_id", "product_template_id", "product_uom_qty", "price_unit", "name", "delivery_date", "qty_delivered", "price_subtotal", "sequence"], "permissions": ["read", "update"]},
         {"table_name": "customers", "columns": ["id", "name", "email", "phone", "customer_type", "ref", "contact_address", "short_name"], "permissions": ["read", "update"]},
-        {"table_name": "product_templates", "columns": ["id", "name", "default_code", "sale_ok", "active", "categ_id", "list_price", "standard_price", "uom_id"], "permissions": ["read"]},
+        {"table_name": "product_templates", "columns": ["id", "name", "default_code", "sale_ok", "active", "categ_id", "list_price", "standard_price", "uom_id"], "permissions": ["read", "update"]},
+        {"table_name": "product_categories", "columns": ["id", "name", "parent_id"], "permissions": ["read", "create", "update", "delete"]},
         {"table_name": "suppliers", "columns": ["id", "name", "ref", "phone", "contact_address", "vat", "status", "supplier_type", "active", "contact_person", "email"], "permissions": ["read", "create", "update"]},
         {"table_name": "product_supplierinfo", "columns": ["id", "supplier_id", "product_tmpl_id", "product_id", "price", "min_qty", "product_code"], "permissions": ["read", "create"]},
         {"table_name": "purchase_orders", "columns": ["id", "name", "state", "supplier_id", "date_order", "amount_total"], "permissions": ["read", "create", "update"]},
@@ -126,6 +130,17 @@ export async function queryCustom(slug:string): Promise<any[]> {
   const resp=await fetch(API_BASE+'/data/objects/'+slug+'/records',{headers:_h(),credentials:'include'});
   if(!resp.ok) return [];
   return resp.json();
+}
+export async function updateCustom(recordId:string,data:Record<string,any>): Promise<any> {
+  return _r(await fetch(API_BASE+'/data/records/'+recordId,{method:'PATCH',headers:_h(),credentials:'include',body:JSON.stringify({data})}));
+}
+export async function deleteCustom(recordId:string): Promise<void> {
+  const resp=await fetch(API_BASE+'/data/records/'+recordId,{method:'DELETE',headers:_h(),credentials:'include'});
+  if(!resp.ok) { const b=await resp.json().catch(()=>({})); throw new Error(b.detail||'Delete failed ('+resp.status+')'); }
+}
+export async function deleteRow(table:string,id:string): Promise<void> {
+  const resp=await fetch(API_BASE+'/proxy/'+APP_ID+'/'+table+'/'+id,{method:'DELETE',headers:_h(),credentials:'include'});
+  if(!resp.ok) { const b=await resp.json().catch(()=>({})); throw new Error(b.detail||'Delete failed ('+resp.status+')'); }
 }
 export async function recalcOrderTotal(orderIds: string[]): Promise<void> {
   const unique = [...new Set(orderIds)].filter(Boolean);
@@ -212,6 +227,9 @@ export default class ErrorBoundary extends React.Component<React.PropsWithChildr
         'import StockPage from "./pages/admin/StockPage";\n'
         'import SalesOrdersPage from "./pages/admin/SalesOrdersPage";\n'
         'import DeliveryPage from "./pages/admin/DeliveryPage";\n'
+        'import ProductsPage from "./pages/admin/ProductsPage";\n'
+        'import ProductCategoriesPage from "./pages/admin/ProductCategoriesPage";\n'
+        'import CategoryBuyerPage from "./pages/admin/CategoryBuyerPage";\n'
         '\n'
         'export default function App() {\n'
         '  return (\n'
@@ -224,6 +242,9 @@ export default class ErrorBoundary extends React.Component<React.PropsWithChildr
         '      <Route path="/admin/stock" element={<StockPage />} />\n'
         '      <Route path="/admin/sales-orders" element={<SalesOrdersPage />} />\n'
         '      <Route path="/admin/delivery" element={<DeliveryPage />} />\n'
+        '      <Route path="/admin/products" element={<ProductsPage />} />\n'
+        '      <Route path="/admin/product-categories" element={<ProductCategoriesPage />} />\n'
+        '      <Route path="/admin/category-buyer" element={<CategoryBuyerPage />} />\n'
         '      <Route path="*" element={<Navigate to="/" replace />} />\n'
         '    </Routes>\n'
         '    </DataProvider>\n'
@@ -242,6 +263,9 @@ export default class ErrorBoundary extends React.Component<React.PropsWithChildr
     vfs["src/pages/admin/StockPage.tsx"] = stock()
     vfs["src/pages/admin/SalesOrdersPage.tsx"] = sales_orders()
     vfs["src/pages/admin/DeliveryPage.tsx"] = delivery()
+    vfs["src/pages/admin/ProductsPage.tsx"] = products_page()
+    vfs["src/pages/admin/ProductCategoriesPage.tsx"] = product_categories_page()
+    vfs["src/pages/admin/CategoryBuyerPage.tsx"] = category_buyer_page()
     vfs["src/pages/_manifest.json"] = json.dumps({"/": {"title": "管理後台", "order": 0}},
                                                    ensure_ascii=False, indent=2)
     vfs["src/holiday_data.json"] = json.dumps(holiday_data or [], ensure_ascii=False)

@@ -3,16 +3,18 @@
 _ARROW = '''const Arrow = () => <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M19 12H5"/><path d="m12 19-7-7 7-7"/></svg>;'''
 
 def dashboard() -> str:
-    return r'''import { useState, useEffect } from 'react';
+    return r'''import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useData } from '../../data/DataProvider';
 import DatePickerWithCounts from '../../components/DatePickerWithCounts';
-const Arrow = () => <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M19 12H5"/><path d="m12 19-7-7 7-7"/></svg>;
 const LeafIcon = () => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#16a34a" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M11 20A7 7 0 0 1 9.8 6.9C15.5 4.9 17 3.5 19 1a13 13 0 0 1 .8 13c-1 1.8-2 3.1-3.8 4.5"/><path d="M5 20c.5-1 1.4-3 2-4.5"/></svg>;
 const ClipboardIcon = () => <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect width="8" height="4" x="8" y="2" rx="1" ry="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/></svg>;
+const SettingsIcon = () => <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>;
+type TabKey = 'daily' | 'settings';
 export default function DashboardPage() {
   const nav = useNavigate();
   const { orders, orderLines, loading, selectedDate, setSelectedDate } = useData();
+  const [tab, setTab] = useState<TabKey>('daily');
   const isDraft = (o:any) => !o.state || o.state === 'draft';
   const isConfirmed = (o:any) => o.state === 'sale' || o.state === 'confirm';
   const dateIds = new Set(orderLines.filter((l:any) => String(l.delivery_date||'').slice(0,10) === selectedDate).map((l:any) => { const v = l.order_id; return Array.isArray(v) ? String(v[0]) : String(v||''); }));
@@ -26,6 +28,13 @@ export default function DashboardPage() {
     {step:'4',label:'銷貨單',desc:`${cs()} 筆已確認`,href:'/admin/sales-orders',count:cs()},
     {step:'5',label:'配送管理',desc:'出貨追蹤',href:'/admin/delivery',count:0},
   ];
+  const settingsGroups: {title:string; items:{label:string;desc:string;href:string;disabled?:boolean}[]}[] = [
+    {title:'商品設定', items:[
+      {label:'產品管理', desc:'編輯產品分類', href:'/admin/products'},
+      {label:'產品分類管理', desc:'新增/修改分類', href:'/admin/product-categories'},
+      {label:'分類-買辦人對應', desc:'每個分類由誰買', href:'/admin/category-buyer'},
+    ]},
+  ];
   return (
     <div className="min-h-screen bg-gray-50">
       <header className="bg-white border-b border-gray-200 px-6 py-4">
@@ -38,33 +47,60 @@ export default function DashboardPage() {
         </div>
         <p className="text-sm text-gray-400">{selectedDate} 總覽</p>
       </header>
-      <div className="p-6 space-y-6 max-w-6xl mx-auto">
-        <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-          {[{l:'全部訂單',v:orders.filter(o=>dateIds.has(String(o.id))).length,c:'text-gray-900'},{l:'待處理',v:cd(),c:'text-orange-600'},{l:'已確認',v:cs(),c:'text-blue-600'},{l:'完成',v:orders.filter(o=>o.state==='done'&&dateIds.has(String(o.id))).length,c:'text-green-600'},{l:'已取消',v:orders.filter(o=>o.state==='cancel'&&dateIds.has(String(o.id))).length,c:'text-red-600'}].map(s=>(
-            <div key={s.l} className="bg-white rounded-xl border border-gray-100 p-4">
-              <p className="text-sm text-gray-400">{s.l}</p><p className={`text-3xl font-bold ${s.c}`}>{s.v}</p>
-            </div>
-          ))}
-        </div>
-        <div className="bg-white rounded-xl border border-gray-100 p-6">
-          <div className="flex items-center gap-2 mb-4">
-            <ClipboardIcon />
-            <h2 className="font-bold text-gray-900">{selectedDate} 作業流程</h2>
-          </div>
-          <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
-            {steps.map(s=>(
-              <button key={s.label} onClick={()=>nav(s.href)} className="rounded-xl border border-gray-100 bg-white hover:bg-gray-50 p-4 text-left transition-colors">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs text-gray-400 font-medium bg-gray-100 rounded-full w-5 h-5 flex items-center justify-center">{s.step}</span>
-                  {s.count>0&&<span className="w-6 h-6 rounded-full bg-primary text-white text-xs flex items-center justify-center font-bold">{s.count}</span>}
-                </div>
-                <p className="font-medium mt-1 text-gray-900 text-sm">{s.label}</p>
-                <p className="text-xs text-gray-400 mt-0.5">{s.desc}</p>
-              </button>
-            ))}
-          </div>
+      <div className="px-6 pt-4 max-w-6xl mx-auto">
+        <div className="flex gap-2 border-b border-gray-200">
+          <button onClick={()=>setTab('daily')} className={`px-5 py-2.5 text-sm font-medium border-b-2 -mb-px ${tab==='daily' ? 'border-green-600 text-green-700' : 'border-transparent text-gray-500 hover:text-gray-700'}`}>
+            <span className="inline-flex items-center gap-1.5"><ClipboardIcon />每日流程</span>
+          </button>
+          <button onClick={()=>setTab('settings')} className={`px-5 py-2.5 text-sm font-medium border-b-2 -mb-px ${tab==='settings' ? 'border-green-600 text-green-700' : 'border-transparent text-gray-500 hover:text-gray-700'}`}>
+            <span className="inline-flex items-center gap-1.5"><SettingsIcon />基礎設定</span>
+          </button>
         </div>
       </div>
+      {tab==='daily' && (
+        <div className="p-6 space-y-6 max-w-6xl mx-auto">
+          <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+            {[{l:'全部訂單',v:orders.filter(o=>dateIds.has(String(o.id))).length,c:'text-gray-900'},{l:'待處理',v:cd(),c:'text-orange-600'},{l:'已確認',v:cs(),c:'text-blue-600'},{l:'完成',v:orders.filter(o=>o.state==='done'&&dateIds.has(String(o.id))).length,c:'text-green-600'},{l:'已取消',v:orders.filter(o=>o.state==='cancel'&&dateIds.has(String(o.id))).length,c:'text-red-600'}].map(s=>(
+              <div key={s.l} className="bg-white rounded-xl border border-gray-100 p-4">
+                <p className="text-sm text-gray-400">{s.l}</p><p className={`text-3xl font-bold ${s.c}`}>{s.v}</p>
+              </div>
+            ))}
+          </div>
+          <div className="bg-white rounded-xl border border-gray-100 p-6">
+            <h2 className="font-bold text-gray-900 mb-4">{selectedDate} 作業流程</h2>
+            <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+              {steps.map(s=>(
+                <button key={s.label} onClick={()=>nav(s.href)} className="rounded-xl border border-gray-100 bg-white hover:bg-gray-50 p-4 text-left transition-colors">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs text-gray-400 font-medium bg-gray-100 rounded-full w-5 h-5 flex items-center justify-center">{s.step}</span>
+                    {s.count>0&&<span className="w-6 h-6 rounded-full bg-primary text-white text-xs flex items-center justify-center font-bold">{s.count}</span>}
+                  </div>
+                  <p className="font-medium mt-1 text-gray-900 text-sm">{s.label}</p>
+                  <p className="text-xs text-gray-400 mt-0.5">{s.desc}</p>
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+      {tab==='settings' && (
+        <div className="p-6 space-y-6 max-w-6xl mx-auto">
+          {settingsGroups.map(g => (
+            <section key={g.title}>
+              <h2 className="text-sm font-bold text-gray-500 uppercase tracking-wider mb-3">{g.title}</h2>
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                {g.items.map(it => (
+                  <button key={it.href} onClick={()=>!it.disabled&&nav(it.href)} disabled={it.disabled} className={`rounded-xl border border-gray-100 bg-white p-4 text-left transition-colors ${it.disabled ? 'opacity-50 cursor-not-allowed' : 'hover:bg-gray-50'}`}>
+                    <p className="font-semibold text-gray-800">{it.label}</p>
+                    <p className="text-xs text-gray-400 mt-0.5">{it.desc}</p>
+                  </button>
+                ))}
+              </div>
+            </section>
+          ))}
+          <p className="text-xs text-gray-400 pt-2">（供應商-產品對應、司機-客戶對應、截止時間、假日管理等頁面將陸續上線）</p>
+        </div>
+      )}
     </div>
   );
 }
@@ -637,7 +673,8 @@ export default function ProcurementPage() {
     const itemMap = new Map<string, PricingItem>();
     for (const l of orderLines) {
       if (typeof l.delivery_date === 'string' && l.delivery_date.slice(0, 10) !== selectedDate) continue;
-      const pid = l.product_id || l.product_template_id;
+      const _pid = (v: any) => Array.isArray(v) ? String(v[0]) : String(v || '');
+      const pid = _pid(l.product_id) || _pid(l.product_template_id);
       if (!pid) continue;
       const prod = prodMap[pid];
       const supId = prodSup[pid] || (supplierInfos.length === 0 ? defaultSupId : 'unknown');
@@ -682,26 +719,29 @@ export default function ProcurementPage() {
     if (!item || item.sellingPrice <= 0) return;
     setSaving(true);
     const stdPrice = Math.round(item.sellingPrice / 1.3 * 100) / 100;
+    const _qid = (v: any) => Array.isArray(v) ? String(v[0]) : String(v || '');
     try {
       // 寫入價格稽核 log
       await db.insertCustom(PRICE_LOG_UUID, { product_product_id: pid, lst_price: item.sellingPrice, standard_price: stdPrice, effective_date: selectedDate });
       // 同步選定日期配送的訂單明細售價
       const matchingLines = orderLines.filter((l: any) =>
-        (l.product_template_id === pid || l.product_id === pid) &&
+        (_qid(l.product_template_id) === pid || _qid(l.product_id) === pid) &&
         typeof l.delivery_date === 'string' && l.delivery_date.slice(0, 10) === selectedDate
       );
       await Promise.all(matchingLines.map((l: any) => db.update('sale_order_lines', l.id, { price_unit: item.sellingPrice })));
       // 重算受影響訂單的總金額
       await db.recalcOrderTotal(matchingLines.map((l: any) => _oid(l.order_id)));
+      setItems(prev => prev.map(i => i.productId === pid ? {...i, state: 'priced'} : i));
+    } catch(e: any) { console.error('定價失敗:', e.message); }
+    // 庫存更新獨立 try/catch，不受定價寫入失敗影響
+    try {
       if (item.actualQty > 0) {
-        const _qid = (v: any) => Array.isArray(v) ? String(v[0]) : String(v || '');
         const locId = stockLocations.find((l:any) => l.usage === 'internal')?.id || stockLocations[0]?.id;
         const sq = stockQuants.find((q:any) => _qid(q.product_id) === pid);
         if (sq) { await db.update('stock_quants', sq.id, { quantity: Number(sq.quantity||0) + item.actualQty }); }
         else if (locId) { await db.insert('stock_quants', { product_id: pid, location_id: locId, quantity: item.actualQty }); }
       }
-      setItems(prev => prev.map(i => i.productId === pid ? {...i, state: 'priced'} : i));
-    } catch(e: any) { console.error('定價失敗:', e.message); }
+    } catch(e: any) { console.error('庫存更新失敗:', e.message); }
     setSaving(false);
   };
 
@@ -718,7 +758,7 @@ export default function ProcurementPage() {
         await db.insertCustom(PRICE_LOG_UUID, { product_product_id: item.productId, lst_price: item.sellingPrice, standard_price: stdPrice, effective_date: selectedDate });
         // 同步選定日期配送的訂單明細售價
         const matchingLines = orderLines.filter((l: any) =>
-          (l.product_template_id === item.productId || l.product_id === item.productId) &&
+          (_qid(l.product_template_id) === item.productId || _qid(l.product_id) === item.productId) &&
           typeof l.delivery_date === 'string' && l.delivery_date.slice(0, 10) === selectedDate
         );
         await Promise.all(matchingLines.map((l: any) => db.update('sale_order_lines', l.id, { price_unit: item.sellingPrice })));
@@ -1133,6 +1173,343 @@ export default function SalesOrdersPage() {
         message={confirm?.action==='sale'?'確認後訂單將進入已確認狀態。':'取消後訂單將被標記為已取消。'}
         confirmText={confirm?.action==='sale'?'確認':'取消訂單'} variant={confirm?.action==='cancel'?'danger':'info'}
         onConfirm={doAction} onCancel={()=>setConfirm(null)} />
+    </div>
+  );
+}
+'''
+
+
+def products_page() -> str:
+    return r'''import { useState, useEffect, useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
+import * as db from '../../db';
+type Tmpl = { id:string; name:string; default_code:string; categ_id:any };
+type Cat = { id:string; name:string };
+const resolveId = (raw:any) => Array.isArray(raw) ? String(raw[0]||'') : String(raw||'');
+const resolveName = (raw:any) => Array.isArray(raw) && raw.length >= 2 ? String(raw[1]) : '';
+export default function ProductsPage() {
+  const nav = useNavigate();
+  const [tmpls, setTmpls] = useState<Tmpl[]>([]);
+  const [cats, setCats] = useState<Cat[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+  const [search, setSearch] = useState('');
+  const [editId, setEditId] = useState<string|null>(null);
+  const [editCat, setEditCat] = useState('');
+  const [saving, setSaving] = useState(false);
+  const load = async () => {
+    setLoading(true); setError('');
+    try {
+      const [ts, cs] = await Promise.all([
+        db.queryFiltered('product_templates', [{column:'active',op:'eq',value:true}], 5000),
+        db.query('product_categories', {limit:1000}),
+      ]);
+      setTmpls((ts||[]).map((r:any)=>({id:String(r.id), name:String(r.name||''), default_code:String(r.default_code||''), categ_id:r.categ_id})));
+      setCats((cs||[]).map((r:any)=>({id:String(r.id), name:String(r.name||'')})));
+    } catch(e:any) { setError(e?.message||'載入失敗'); } finally { setLoading(false); }
+  };
+  useEffect(()=>{ load(); }, []);
+  const filtered = useMemo(()=>{
+    const kw = search.trim().toLowerCase();
+    const sorted = [...tmpls].sort((a,b)=>a.name.localeCompare(b.name, 'zh-Hant'));
+    if (!kw) return sorted;
+    return sorted.filter(p => p.name.toLowerCase().includes(kw) || p.default_code.toLowerCase().includes(kw) || resolveName(p.categ_id).toLowerCase().includes(kw));
+  }, [tmpls, search]);
+  const save = async (id:string) => {
+    setSaving(true);
+    try {
+      await db.update('product_templates', id, {categ_id: editCat || false});
+      await load();
+      setEditId(null); setEditCat('');
+    } catch(e:any) { alert(e?.message||'儲存失敗'); } finally { setSaving(false); }
+  };
+  return (
+    <div className="min-h-screen bg-gray-50">
+      <header className="bg-white border-b border-gray-200 px-6 py-4">
+        <div className="flex items-center gap-3 max-w-6xl mx-auto">
+          <button onClick={()=>nav('/admin')} className="text-gray-500 hover:text-gray-700 text-sm">← 返回</button>
+          <h1 className="text-xl font-bold text-gray-900">產品管理</h1>
+        </div>
+      </header>
+      <div className="p-6 max-w-6xl mx-auto space-y-4">
+        <input type="text" value={search} onChange={e=>setSearch(e.target.value)} placeholder="搜尋品名、編碼或分類" className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg bg-white" />
+        {error && <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-2 rounded-lg text-sm">{error}</div>}
+        {loading ? <p className="text-gray-400 text-center py-12">載入中...</p> :
+        <div className="bg-white rounded-xl border border-gray-100 overflow-hidden">
+          {filtered.length===0 ? <div className="text-center text-gray-400 py-12">無產品</div> :
+          <table className="w-full text-sm">
+            <thead className="bg-gray-50 text-gray-500 text-xs"><tr>
+              <th className="px-4 py-3 text-left">編碼</th><th className="px-4 py-3 text-left">品名</th>
+              <th className="px-4 py-3 text-left">分類</th><th className="px-4 py-3 text-right">操作</th>
+            </tr></thead>
+            <tbody>{filtered.map(p => (
+              <tr key={p.id} className="border-t border-gray-50 hover:bg-gray-50">
+                <td className="px-4 py-3 text-xs text-gray-500">{p.default_code || '—'}</td>
+                <td className="px-4 py-3 font-medium text-gray-800">{p.name}</td>
+                <td className="px-4 py-3">
+                  {editId===p.id ?
+                    <select value={editCat} onChange={e=>setEditCat(e.target.value)} className="border border-gray-200 rounded px-2 py-1 text-sm bg-white">
+                      <option value="">（不設定）</option>
+                      {cats.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                    </select>
+                  : <span className="text-gray-700">{resolveName(p.categ_id) || '—'}</span>}
+                </td>
+                <td className="px-4 py-3 text-right space-x-2">
+                  {editId===p.id ?
+                    <>
+                      <button onClick={()=>save(p.id)} disabled={saving} className="px-2 py-1 text-xs text-white bg-blue-600 hover:bg-blue-700 rounded disabled:opacity-50">{saving?'儲存中':'儲存'}</button>
+                      <button onClick={()=>{setEditId(null); setEditCat('');}} className="px-2 py-1 text-xs text-gray-600 hover:bg-gray-100 rounded">取消</button>
+                    </>
+                  : <button onClick={()=>{setEditId(p.id); setEditCat(resolveId(p.categ_id));}} className="px-2 py-1 text-xs text-blue-600 hover:bg-blue-50 rounded">編輯分類</button>}
+                </td>
+              </tr>
+            ))}</tbody>
+          </table>}
+        </div>}
+      </div>
+    </div>
+  );
+}
+'''
+
+
+def product_categories_page() -> str:
+    return r'''import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
+import * as db from '../../db';
+type Cat = { id:string; name:string; parent_id:any };
+const resolveId = (raw:any) => Array.isArray(raw) ? String(raw[0]||'') : String(raw||'');
+export default function ProductCategoriesPage() {
+  const nav = useNavigate();
+  const [cats, setCats] = useState<Cat[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [err, setErr] = useState('');
+  const [showForm, setShowForm] = useState(false);
+  const [newName, setNewName] = useState('');
+  const [newParent, setNewParent] = useState('');
+  const [editId, setEditId] = useState<string|null>(null);
+  const [editName, setEditName] = useState('');
+  const [editParent, setEditParent] = useState('');
+  const [busy, setBusy] = useState(false);
+  const load = async () => {
+    setLoading(true); setErr('');
+    try {
+      const rows = await db.query('product_categories', {limit:1000});
+      setCats((rows||[]).map((r:any)=>({id:String(r.id), name:String(r.name||''), parent_id:r.parent_id})).sort((a,b)=>a.name.localeCompare(b.name, 'zh-Hant')));
+    } catch(e:any) { setErr(e?.message||'載入失敗'); } finally { setLoading(false); }
+  };
+  useEffect(()=>{ load(); }, []);
+  const add = async () => {
+    if (!newName.trim()) { alert('請輸入分類名稱'); return; }
+    setBusy(true);
+    try {
+      const payload: any = {name: newName.trim()};
+      if (newParent) payload.parent_id = newParent;
+      await db.insert('product_categories', payload);
+      setNewName(''); setNewParent(''); setShowForm(false);
+      await load();
+    } catch(e:any) { alert(e?.message||'新增失敗'); } finally { setBusy(false); }
+  };
+  const save = async (id:string) => {
+    if (!editName.trim()) { alert('請輸入分類名稱'); return; }
+    setBusy(true);
+    try {
+      await db.update('product_categories', id, {name: editName.trim(), parent_id: editParent || false});
+      setEditId(null);
+      await load();
+    } catch(e:any) { alert(e?.message||'儲存失敗'); } finally { setBusy(false); }
+  };
+  const del = async (id:string) => {
+    if (!confirm('確定刪除？仍有產品使用時可能失敗。')) return;
+    try { await db.deleteRow('product_categories', id); await load(); }
+    catch(e:any) { alert(e?.message||'刪除失敗，可能仍有產品使用此分類'); }
+  };
+  const pname = (pid:string) => pid ? (cats.find(c=>c.id===pid)?.name || pid) : '—';
+  return (
+    <div className="min-h-screen bg-gray-50">
+      <header className="bg-white border-b border-gray-200 px-6 py-4">
+        <div className="flex items-center justify-between max-w-5xl mx-auto">
+          <div className="flex items-center gap-3">
+            <button onClick={()=>nav('/admin')} className="text-gray-500 hover:text-gray-700 text-sm">← 返回</button>
+            <h1 className="text-xl font-bold text-gray-900">產品分類管理</h1>
+          </div>
+          <button onClick={()=>setShowForm(v=>!v)} className="px-3 py-1.5 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700">+ 新增分類</button>
+        </div>
+      </header>
+      <div className="p-6 max-w-5xl mx-auto space-y-4">
+        {err && <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-2 rounded-lg text-sm">{err}</div>}
+        {showForm && (
+          <div className="bg-white rounded-xl border border-gray-100 p-4 space-y-3">
+            <p className="font-medium text-gray-700">新增分類</p>
+            <div className="flex gap-3 flex-wrap">
+              <input type="text" placeholder="分類名稱" value={newName} onChange={e=>setNewName(e.target.value)} className="border border-gray-200 rounded px-3 py-1.5 text-sm flex-1 min-w-40" />
+              <select value={newParent} onChange={e=>setNewParent(e.target.value)} className="border border-gray-200 rounded px-3 py-1.5 text-sm bg-white min-w-40">
+                <option value="">（無上層分類）</option>
+                {cats.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+              </select>
+              <button onClick={add} disabled={busy} className="px-4 py-1.5 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 disabled:opacity-50">確認新增</button>
+              <button onClick={()=>setShowForm(false)} className="px-4 py-1.5 bg-gray-100 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-200">取消</button>
+            </div>
+          </div>
+        )}
+        {loading ? <p className="text-gray-400 text-center py-12">載入中...</p> :
+        <div className="bg-white rounded-xl border border-gray-100 overflow-hidden">
+          {cats.length===0 ? <div className="text-center text-gray-400 py-12">尚無分類資料</div> :
+          <table className="w-full text-sm">
+            <thead className="bg-gray-50 text-gray-500 text-xs"><tr>
+              <th className="px-4 py-3 text-left">ID</th><th className="px-4 py-3 text-left">分類名稱</th>
+              <th className="px-4 py-3 text-left">上層分類</th><th className="px-4 py-3 text-right">操作</th>
+            </tr></thead>
+            <tbody>{cats.map(c => (
+              <tr key={c.id} className="border-t border-gray-50 hover:bg-gray-50">
+                <td className="px-4 py-3 text-xs text-gray-400">{c.id}</td>
+                <td className="px-4 py-3 font-medium text-gray-800">
+                  {editId===c.id ? <input type="text" value={editName} onChange={e=>setEditName(e.target.value)} className="border border-gray-200 rounded px-2 py-1 text-sm w-full" /> : c.name}
+                </td>
+                <td className="px-4 py-3 text-gray-700">
+                  {editId===c.id ?
+                    <select value={editParent} onChange={e=>setEditParent(e.target.value)} className="border border-gray-200 rounded px-2 py-1 text-sm bg-white">
+                      <option value="">（無上層分類）</option>
+                      {cats.filter(x=>x.id!==c.id).map(x => <option key={x.id} value={x.id}>{x.name}</option>)}
+                    </select>
+                  : pname(resolveId(c.parent_id))}
+                </td>
+                <td className="px-4 py-3 text-right space-x-2">
+                  {editId===c.id ?
+                    <>
+                      <button onClick={()=>save(c.id)} disabled={busy} className="px-2 py-1 text-xs text-white bg-blue-600 hover:bg-blue-700 rounded disabled:opacity-50">儲存</button>
+                      <button onClick={()=>setEditId(null)} className="px-2 py-1 text-xs text-gray-600 hover:bg-gray-100 rounded">取消</button>
+                    </>
+                  : <>
+                      <button onClick={()=>{setEditId(c.id); setEditName(c.name); setEditParent(resolveId(c.parent_id));}} className="px-2 py-1 text-xs text-blue-600 hover:bg-blue-50 rounded">編輯</button>
+                      <button onClick={()=>del(c.id)} className="px-2 py-1 text-xs text-red-600 hover:bg-red-50 rounded">刪除</button>
+                    </>}
+                </td>
+              </tr>
+            ))}</tbody>
+          </table>}
+        </div>}
+      </div>
+    </div>
+  );
+}
+'''
+
+
+def category_buyer_page() -> str:
+    return r'''import { useState, useEffect, useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
+import * as db from '../../db';
+type Mapping = { id:string; category_id:string; employee_id:string };
+type Cat = { id:string; name:string };
+type Emp = { id:string; name:string };
+export default function CategoryBuyerPage() {
+  const nav = useNavigate();
+  const [maps, setMaps] = useState<Mapping[]>([]);
+  const [cats, setCats] = useState<Cat[]>([]);
+  const [emps, setEmps] = useState<Emp[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [err, setErr] = useState('');
+  const [showForm, setShowForm] = useState(false);
+  const [catId, setCatId] = useState('');
+  const [empId, setEmpId] = useState('');
+  const [busy, setBusy] = useState(false);
+  const load = async () => {
+    setLoading(true); setErr('');
+    try {
+      const [rawMaps, rawCats, rawEmps] = await Promise.all([
+        db.queryCustom('x_category_buyer'),
+        db.query('product_categories', {limit:1000}),
+        db.queryFiltered('hr_employees', [{column:'active',op:'eq',value:true}], 5000),
+      ]);
+      const ms: Mapping[] = (rawMaps||[]).map((r:any) => {
+        const d = r.data || r;
+        return {id:String(r.id||d.id||''), category_id:String(d.category_id||''), employee_id:String(d.employee_id||'')};
+      });
+      setMaps(ms);
+      setCats((rawCats||[]).map((r:any)=>({id:String(r.id), name:String(r.name||'')})));
+      setEmps((rawEmps||[]).map((r:any)=>({id:String(r.id), name:String(r.name||'')})));
+    } catch(e:any) { setErr(e?.message||'載入失敗'); } finally { setLoading(false); }
+  };
+  useEffect(()=>{ load(); }, []);
+  const catName = (id:string) => cats.find(c=>c.id===id)?.name || id;
+  const empName = (id:string) => emps.find(e=>e.id===id)?.name || id;
+  const add = async () => {
+    if (!catId || !empId) { alert('請選擇分類與買辦人'); return; }
+    setBusy(true);
+    try {
+      await db.insertCustom('x_category_buyer', {
+        category_id: catId, employee_id: empId,
+        created_at: new Date().toISOString(),
+      });
+      setCatId(''); setEmpId(''); setShowForm(false);
+      await load();
+    } catch(e:any) { alert(e?.message||'新增失敗'); } finally { setBusy(false); }
+  };
+  const del = async (id:string) => {
+    if (!confirm('確定刪除此對應？')) return;
+    try { await db.deleteCustom(id); await load(); }
+    catch(e:any) { alert(e?.message||'刪除失敗'); }
+  };
+  const grouped = useMemo(() => {
+    const m = new Map<string, Mapping[]>();
+    maps.forEach(x => { const arr = m.get(x.employee_id)||[]; arr.push(x); m.set(x.employee_id, arr); });
+    return Array.from(m.entries()).sort(([a],[b]) => empName(a).localeCompare(empName(b), 'zh-Hant'));
+  }, [maps, emps]);
+  return (
+    <div className="min-h-screen bg-gray-50">
+      <header className="bg-white border-b border-gray-200 px-6 py-4">
+        <div className="flex items-center justify-between max-w-5xl mx-auto">
+          <div className="flex items-center gap-3">
+            <button onClick={()=>nav('/admin')} className="text-gray-500 hover:text-gray-700 text-sm">← 返回</button>
+            <h1 className="text-xl font-bold text-gray-900">分類-買辦人對應</h1>
+          </div>
+          <button onClick={()=>setShowForm(v=>!v)} className="px-3 py-1.5 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700">+ 新增對應</button>
+        </div>
+      </header>
+      <div className="p-6 max-w-5xl mx-auto space-y-4">
+        {err && <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-2 rounded-lg text-sm">{err}</div>}
+        {showForm && (
+          <div className="bg-white rounded-xl border border-gray-100 p-4 space-y-3">
+            <p className="font-medium text-gray-700">新增對應</p>
+            <div className="flex gap-3 flex-wrap">
+              <select value={catId} onChange={e=>setCatId(e.target.value)} className="border border-gray-200 rounded px-3 py-1.5 text-sm bg-white flex-1 min-w-48">
+                <option value="">選擇分類...</option>
+                {cats.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+              </select>
+              <select value={empId} onChange={e=>setEmpId(e.target.value)} className="border border-gray-200 rounded px-3 py-1.5 text-sm bg-white flex-1 min-w-48">
+                <option value="">選擇買辦人（員工）...</option>
+                {emps.map(e => <option key={e.id} value={e.id}>{e.name}</option>)}
+              </select>
+              <button onClick={add} disabled={busy} className="px-4 py-1.5 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 disabled:opacity-50">確認新增</button>
+              <button onClick={()=>setShowForm(false)} className="px-4 py-1.5 bg-gray-100 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-200">取消</button>
+            </div>
+          </div>
+        )}
+        {loading ? <p className="text-gray-400 text-center py-12">載入中...</p> :
+          maps.length===0 ?
+            <div className="bg-white rounded-xl border border-gray-100 text-center text-gray-400 py-12">尚無分類-買辦人對應資料</div>
+          :
+            <div className="space-y-4">
+              {grouped.map(([eid, items]) => (
+                <section key={eid} className="bg-white rounded-xl border border-gray-100 overflow-hidden">
+                  <header className="bg-gray-50 px-4 py-2.5 border-b border-gray-100">
+                    <p className="font-semibold text-gray-800">{empName(eid)}</p>
+                    <p className="text-xs text-gray-400">負責 {items.length} 個分類</p>
+                  </header>
+                  <ul className="divide-y divide-gray-50">
+                    {items.map(m => (
+                      <li key={m.id} className="flex items-center justify-between px-4 py-2.5">
+                        <span className="text-sm text-gray-800">{catName(m.category_id)}</span>
+                        <button onClick={()=>del(m.id)} className="px-2 py-1 text-xs text-red-600 hover:bg-red-50 rounded">刪除</button>
+                      </li>
+                    ))}
+                  </ul>
+                </section>
+              ))}
+            </div>
+        }
+      </div>
     </div>
   );
 }
