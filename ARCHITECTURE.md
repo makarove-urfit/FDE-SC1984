@@ -34,10 +34,11 @@
 1. **原生優先**：能用 Odoo/AI GO 既有表的欄位，絕不新建 custom table。
 2. **擴充走 `custom_data` JSONB**：每個業務表都有 `custom_data` 欄位，用來放「1-1 延伸屬性」（如客戶的預設司機、tag 的負責人）。取代 `x_*_rel` 類型的 1-1 對應表。
 3. **Audit 走原生 endpoint**：AI GO 內建 `audit_logs` + DB trigger，所有業務表的 INSERT/UPDATE/DELETE 自動記錄。前端透過 `GET /api/v1/audit` 查詢，不自建歷史表。
-4. **保留的 custom table 必須在本文件明列理由**（目前僅 `x_holiday_settings` 尚未能完全下架，詳見 §0.11）。
+4. **保留的 custom table 必須在本文件明列理由**（目標：0 張；所有既有 x_* 皆有下架計畫，見 §1.2）。
 5. **頁籤即 path**：tab 狀態由 URL path 驅動（`/admin/daily`、`/admin/settings`），子頁位於 tab path 底下（`/admin/settings/products`），可分享、可 bookmark、瀏覽器上下一頁可切換。
 6. **出貨流程走 `stock_pickings`**：司機 = `stock_pickings.user_id`；不自建司機↔客戶對應表，以「客戶區域 tag + tag 的預設司機 (JSONB)」驅動 picking 自動帶司機。
 7. **採購員歸屬走兩層 SSOT 鏈**：`品項.custom_data.default_supplier_id` → `supplier.custom_data.default_buyer_id`。分類 (`product_categories`) 不承載採購員資訊。
+8. **兩 App refs 白名單完全獨立**：Ordering App 與 Admin App 各自維護自己的 `refs`（AI GO 是 app 層級權限），**不共用**。Ordering 只註冊客戶端需要的表（且多為 read），Admin 註冊業主端所有業務表（含 suppliers/purchase/stock）。想把 customers 給 Admin 寫，只影響 Admin refs；不會讓 Ordering 也能寫。
 
 ---
 
@@ -278,12 +279,19 @@
 - Odoo 原生 key-value 表
 - 用於存「下單截止時間」等全站設定，**取代自建 `x_app_settings`**
 
-### 0.15 Holiday（假日）
+### 0.15 Holiday（假日 / 不配送日）
 
-- **待定**。候選：
-  - (A) `hr_leave_mandatory_days` — 原生「全公司強制休假」，語意最接近；需驗證副作用（會不會觸發 HR 請假流程）
-  - (B) 保留 `x_holiday_settings` custom table（目前做法）
-- 若 (A) 驗證後可用，則該 custom table 可下架。
+- **定案：使用 `hr_leave_mandatory_days`**（Odoo `hr.leave.mandatory.day` 原生「全公司強制休假」）
+- **欄位**：
+  - `name` VARCHAR — 名稱（「中秋連假」、「颱風天」、「週一公休」）
+  - `start_date` DATE — 開始日
+  - `end_date` DATE — 結束日（與 start 同天代表單日）
+  - `color` INTEGER — 顯示色
+  - `custom_data` JSONB
+- **優於舊 `x_holiday_settings` 之處**：支援**日期區間**（連假一筆而非三筆）
+- **副作用風險**：此表原設計用於 HR 請假模組，若未來啟用 hr_leaves 流程可能觸發員工強制請假記錄；**本專案不啟用 HR 模組，故無影響**（若後續規劃啟用，需重新評估）
+- **Ordering 端用法**：`deploy_ordering.py` 拉 `hr_leave_mandatory_days`，展開 `[start_date..end_date]` 為日期陣列 embed 為 `holiday_data.json`；配送日期選擇器排除這些日期
+- **Admin 端用法**：`SettingsPage` 以日期區間形式編輯（start/end picker），而非單日逐筆建立
 
 ---
 
@@ -305,33 +313,78 @@
 | PurchaseOrder | `purchase_orders` | `purchase_order_lines` | 全原生 |
 | AuditLog | `audit_logs`（專屬 API，不走 proxy） | — | 全原生 |
 | 系統設定 | `ir_config_parameters` | — | 全原生 |
-| 假日 | `hr_leave_mandatory_days` / `x_holiday_settings` | — | **待決定** |
+| 假日 | `hr_leave_mandatory_days` | — | 全原生（支援日期區間；本專案不啟用 HR 模組無副作用） |
 
-### 1.1 `deploy_admin.py` `ensure_references` 需維護的表
+### 1.1 refs 白名單（兩 app 各自獨立）
 
-目前已註冊：`sale_orders`, `sale_order_lines`, `customers`, `product_templates`, `suppliers`, `product_supplierinfo`, `purchase_orders`, `purchase_order_lines`, `stock_quants`, `product_products`, `hr_employees`, `stock_locations`, `uom_uom`, `product_categories`, `crm_tags`。
+兩個 Custom App 各自在 deploy script 裡呼叫 `ensure_references` 維護自己的白名單。**Ordering 只給客戶端需要的讀權限；Admin 給業主端完整的 CRUD**。
 
-**需新增**：
-- `customer_contacts`（客戶分店/子聯絡人）
-- `customer_tags`, `customer_tag_rel`, `customer_tag_prices`（客戶標籤 / 區域）
-- `customer_levels`（客戶等級）
-- `hr_departments`, `hr_jobs`, `hr_employee_categories`（員工組織）
-- `stock_pickings`, `stock_moves`, `stock_picking_types`, `stock_picking_batches`, `delivery_carriers`（出貨流程）
-- `ir_config_parameters`（系統設定）
-- （`hr_leave_mandatory_days` 若採方案 A 則加）
+#### 1.1.a Admin App (`deploy_admin.py`)
 
-### 1.2 `product_templates` 權限應升級為
+| 表 | 目標 permissions | 用途 |
+|---|---|---|
+| `sale_orders` | read, update | 確認 / 取消 / 編輯訂單 |
+| `sale_order_lines` | read, update | 編輯明細、標記 delivered |
+| `customers` | read, create, update | 客戶管理頁 CRUD |
+| `customer_contacts` ★ | read, create, update, delete | 聯絡人子表 |
+| `customer_tags` ★ | read, create, update, delete | 區域/等級/屬性標籤 |
+| `customer_tag_rel` ★ | read, create, delete | 客戶打 tag |
+| `customer_tag_prices` ★ | read, create, update, delete | tag 專屬定價（預留） |
+| `customer_levels` ★ | read, create, update, delete | 客戶等級 |
+| `product_templates` | **read, create, update** | 產品管理（**補 create**） |
+| `product_products` | read, update | 庫存計價擴充 |
+| `product_categories` | read, create, update, delete | 分類管理 |
+| `product_supplierinfo` | read, create, delete | 商品↔供應商（備援多供應商） |
+| `suppliers` | read, create, update | 供應商管理 |
+| `supplier_contacts` ★ | read, create, update, delete | 供應商聯絡人 |
+| `purchase_orders` | read, create, update | 採購單 |
+| `purchase_order_lines` | read, create, update | 採購明細 |
+| `stock_pickings` ★ | read, create, update | **出貨單（取代 x_driver_customer 的流程）** |
+| `stock_moves` ★ | read, create, update | 出貨移動明細 |
+| `stock_picking_types` ★ | read | 出貨類型（outgoing/incoming） |
+| `stock_picking_batches` ★ | read, create, update | 排車批次 |
+| `stock_quants` | read, create, update | 庫存 |
+| `stock_locations` | read, create | 倉庫位置 |
+| `delivery_carriers` ★ | read, create, update | 承運商 |
+| `hr_employees` | read, **update** | 員工管理（**補 update**） |
+| `hr_departments` ★ | read, create, update | 部門（階層） |
+| `hr_jobs` ★ | read, create, update | 職位 |
+| `hr_employee_categories` ★ | read, create, update, delete | 員工角色標籤 |
+| `hr_leave_mandatory_days` ★ | read, create, update, delete | **假日 / 不配送日** |
+| `ir_config_parameters` ★ | read, create, update | 系統設定（**取代 x_app_settings**） |
+| `uom_uom` | read | 度量單位 |
+| `crm_tags` | read | 既有商機標籤（保留） |
 
-`["read", "create", "update"]`（目前只有 read+update，無法在 admin 新增商品）
+★ = 尚未註冊，Phase 1 需補
 
-### 1.3 Custom Table 清單
+#### 1.1.b Ordering App (`deploy_ordering.py`)
+
+| 表 | 目標 permissions | 用途 |
+|---|---|---|
+| `customers` | read, create | 客戶註冊 / 登入比對 |
+| `customer_tags` ★ | read | 顯示區域／屬性供客戶選 |
+| `customer_tag_rel` ★ | read | 客戶的 tag |
+| `customer_tag_prices` ★ | read | 若啟用標籤專屬價 |
+| `product_templates` | read | 商品列表 |
+| `product_products` | read | 商品 variants |
+| `product_categories` | read | 商品分類導航 |
+| `sale_orders` | read, create | 下單 / 查自己歷史訂單 |
+| `sale_order_lines` | read, create | 下單明細 |
+| `uom_uom` | read | 單位顯示 |
+| `crm_tags` | read | 既有保留 |
+
+★ = 尚未註冊
+**Ordering 絕不應有** `suppliers`, `purchase_*`, `stock_*`, `hr_*`, `ir_config_parameters` — 客戶端不該看到這些。
+**假日** 由 `deploy_ordering.py` 以 admin token 另從 `hr_leave_mandatory_days` 拉取，展開為 `holiday_data.json` 靜態 embed，**不暴露為 Ordering proxy 查詢**（維持「客戶端只能間接取得非敏感資料」原則）。
+
+### 1.2 Custom Table 清單
 
 | Custom Table | 目前存在 | 保留理由 / 下架計畫 |
 |---|---|---|
 | `x_product_product_price_log` | ✅ | **下架**，改用 `/api/v1/audit?table_name=product_products` |
 | `x_order_audit_log` | 📋 原規劃未實作 | **不需要**，改用 `/api/v1/audit?table_name=sale_orders` |
 | `x_app_settings` | ✅ | **下架**，改用 `ir_config_parameters` |
-| `x_holiday_settings` | ✅ | 暫保留；驗證 `hr_leave_mandatory_days` 能否取代 |
+| `x_holiday_settings` | ✅ | **下架**，改用 `hr_leave_mandatory_days`（原生支援日期區間；無副作用，因本專案不啟用 HR 請假流程） |
 | `x_driver_customer` | ✅ | **下架**，改用 `customer_tags.custom_data.default_driver_id` + `stock_pickings.user_id` |
 | `x_category_buyer` | ✅ | **下架**，採購員改走 `品項 → 主供應商 → supplier.custom_data.default_buyer_id` 鏈（§0.4 + §0.8），與分類脫鉤 |
 | `x_supplier_buyer`（未建） | — | **不建**，改用 `suppliers.custom_data.default_buyer_id`（SSOT） |
@@ -341,16 +394,16 @@
 
 ## 2. API 介面 與 操作資料表
 
-本系統前端 API 分三層：
+本系統前端 API 分幾層。**每個 app 只能用到「自己 refs 白名單」內的表**（見 §1.1）：
 
-| 層 | 基底 | 認證 | 用途 |
-|---|---|---|---|
-| Proxy | `/api/v1/proxy/{app_id}/{table}` | Admin Bearer | Admin 頁面 CRUD 原生業務表 |
-| Open Proxy | `/api/v1/open/proxy/{table}` | API Key | admin/src 本機開發預覽 |
-| Ext Proxy | `/api/v1/ext/proxy/{table}` | Custom App User Bearer | Ordering 前端 |
-| Custom Data | `/api/v1/data/objects/{uuid}/records` | Admin Bearer | Custom table (x_*)；**只接受 UUID，slug 會 500** |
-| Audit | `/api/v1/audit` | Admin Bearer (`system.audit_log` 權限) | 稽核記錄查詢 |
-| Server Action | `/api/v1/ext/actions/{slug}/{action}` | Custom App User Bearer | 後端 Python 動作 |
+| 層 | 基底 | 認證 | 誰會用 | refs 檢查 |
+|---|---|---|---|---|
+| Proxy | `/api/v1/proxy/{app_id}/{table}` | Admin Bearer | Admin 前端 CRUD | 受 `refs/apps/{app_id}` 白名單約束 |
+| Open Proxy | `/api/v1/open/proxy/{table}` | API Key | admin/src 本機開發預覽 | 同上 |
+| Ext Proxy | `/api/v1/ext/proxy/{table}` | Custom App User Bearer | **Ordering 前端** | 受 Ordering app 的 refs 白名單約束（因此 Ordering 絕看不到 suppliers/purchase/stock） |
+| Custom Data | `/api/v1/data/objects/{uuid}/records` | Admin Bearer | Admin 前端（**只接受 UUID，slug 會 500**） | 由 `data/objects` 的 app_id 決定歸屬 |
+| Audit | `/api/v1/audit` | Admin Bearer (`system.audit_log` 權限) | Admin 稽核頁面 | tenant 範圍；不跨 app |
+| Server Action | `/api/v1/ext/actions/{slug}/{action}` | Custom App User Bearer | Ordering 或 Admin 對應 action | Action 內部用 `ctx.db`，**不受 refs 限制**（完整 DB 權限） |
 
 ### 2.1 Customer
 
@@ -506,7 +559,7 @@ Admin 首頁路由架構：
 | **PurchaseOrder** | `PurchasePage` / `ProcurementPage` (VFS) | ✅ 已做 | 採購管理；**補：建立時自動帶 default_buyer** |
 | **AuditLog** | inline drawer 於任一頁（點「歷史」按鈕） | ★ 待做 | 呼叫 `/api/v1/audit` 顯示某記錄或某表的變更 |
 | **IrConfigParameter** | `SettingsPage`（截止時間） | 🔄 改資料源從 `x_app_settings` → `ir_config_parameters` | 讀/寫截止時間 |
-| **Holiday** | `SettingsPage`（假日管理） | 🔄 驗證後可能改資料源 | 假日列表、新增、刪除 |
+| **Holiday** | `SettingsPage`（假日管理） | 🔄 改資料源從 `x_holiday_settings` → `hr_leave_mandatory_days` | 以日期區間（start/end）編輯；列表、新增、刪除 |
 
 ### 3.2 元件重用 / 新增
 
@@ -554,7 +607,7 @@ Admin 首頁路由架構：
 
 ### Phase 4 — 系統設定遷移
 1. `SettingsPage` 截止時間改用 `ir_config_parameters`；舊 `x_app_settings` 資料搬遷
-2. 驗證 `hr_leave_mandatory_days` 是否可取代 `x_holiday_settings`（評估副作用）
+2. 資料搬遷：舊 `x_holiday_settings` 的單日記錄轉為 `hr_leave_mandatory_days`（start=end=原 date），reason→name
 3. 資料驗證通過後，AI GO 後台刪除不再使用的 custom table
 
 ---
