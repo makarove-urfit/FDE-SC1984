@@ -55,6 +55,7 @@ export default function OrdersPage({ user, cutoffTime }: { user: AppUser; cutoff
   const [editOrderId, setEditOrderId] = useState<string | null>(null);
   const [editQtys, setEditQtys] = useState<Record<string, number>>({});
   const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState("");
   const [sortBy, setSortBy] = useState<"delivery_date" | "order_date">("delivery_date");
 
   const load = async () => {
@@ -122,8 +123,9 @@ export default function OrdersPage({ user, cutoffTime }: { user: AppUser; cutoff
           : item
       ));
       setEditOrderId(null);
+      setSaveError("");
     } catch (err: any) {
-      alert("儲存失敗：" + (err.message || "未知錯誤"));
+      setSaveError("儲存失敗：" + (err.message || "未知錯誤"));
     } finally {
       setSaving(false);
     }
@@ -259,6 +261,7 @@ export default function OrdersPage({ user, cutoffTime }: { user: AppUser; cutoff
         <button className="refresh-btn" onClick={load} disabled={loading}><RefreshCw size={16} /></button>
       </div>
       {errorInfo && <div className="error-box">無法讀取訂單：{errorInfo}</div>}
+      {saveError && <div className="error-box" style={{ marginBottom: 8 }}>{saveError}</div>}
       {loading ? (
         <div className="page-loading"><div className="spinner" /></div>
       ) : !errorInfo && items.length === 0 ? (

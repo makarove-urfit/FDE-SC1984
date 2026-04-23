@@ -37,17 +37,17 @@ export async function query(table: string, opts?: {
   return _r(await fetch(proxyBase + table + qs, { headers: _h(), credentials: 'include' }));
 }
 
-/** 新增（data 必須包在 { data: {...} } 內） */
+/** 新增 */
 export async function insert(table: string, data: Record<string, any>): Promise<any> {
   return _r(await fetch(proxyBase + table, {
-    method: 'POST', headers: _h(), credentials: 'include', body: JSON.stringify({ data }),
+    method: 'POST', headers: _h(), credentials: 'include', body: JSON.stringify(data),
   }));
 }
 
-/** 更新（PUT + { data: {...} }） */
+/** 更新（PATCH） */
 export async function update(table: string, id: string, data: Record<string, any>): Promise<any> {
   return _r(await fetch(proxyBase + table + '/' + id, {
-    method: 'PUT', headers: _h(), credentials: 'include', body: JSON.stringify({ data }),
+    method: 'PATCH', headers: _h(), credentials: 'include', body: JSON.stringify(data),
   }));
 }
 

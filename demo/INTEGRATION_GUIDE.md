@@ -5,157 +5,245 @@ fetched: 2026-04-23
 
 # AI GO Integration Guide
 
-## Core API Architecture
-
-The AI GO platform provides three distinct proxy endpoints for data access, each with different authentication mechanisms and use cases:
-
-### Authentication Models
-
-- **API Key (Server-to-Server):** Format `sk_live_` + 64 hex characters, transmitted via `X-API-Key` header for backend integrations.
-- **Custom App User Token:** Bearer token authentication for frontend-facing applications, obtained through registration/login endpoints.
-- **Tenant Isolation:** All data queries automatically enforce row-level filtering by `tenant_id`.
+> **唯一參考標準之一。** 此文件 + `demo/` 資料夾是本專案所有實作的依據。
 
 ---
 
-## System Data Tables (Proxy)
+## 三種 Proxy 對照
 
-### Endpoints
+| 特性 | Internal Proxy | External Proxy | Open Proxy |
+|------|----------------|----------------|-----------|
+| URL 前綴 | `/api/v1/proxy/{app_id}/` | `/api/v1/ext/proxy/` | `/api/v1/open/proxy/` |
+| 認證 | Supabase JWT | Custom App Token (Bearer) | API Key (`X-API-Key`) |
+| app_id in path | ✅ | ❌ | ❌ |
+| Reference 版本 | Live | **Published snapshot** | **Published snapshot** |
+| limit 上限 | 500 | 1000 | 1000 |
 
-| Method | URL | Description |
-|--------|-----|-------------|
-| GET | `/api/v1/ext/proxy/{table}?limit=&offset=` | 簡易查詢 |
-| POST | `/api/v1/ext/proxy/{table}/query` | 進階查詢（filter / order_by） |
-| POST | `/api/v1/ext/proxy/{table}` | 新增（body: `{ data: {...} }`） |
-| PUT | `/api/v1/ext/proxy/{table}/{row_id}` | 更新（body: `{ data: {...} }`，merge mode） |
-| DELETE | `/api/v1/ext/proxy/{table}/{row_id}` | 刪除 |
+---
 
-> **注意**: 內部 App 使用 `/api/v1/proxy/{app_id}/`；外部 Custom App 使用 `/api/v1/ext/proxy/`。
+## Custom App User 認證
 
-### Advanced Query Body
+**登入：**
+```
+POST /api/v1/custom-app-auth/{app_slug}/login
+{ "email": "user@example.com", "password": "..." }
+```
 
-```json
+**Token 規格：**
+- Access Token TTL：15 分鐘（900 秒）
+- Refresh Token TTL：7 天
+- Refresh 機制：Token Rotation（舊 token 立即失效）
+
+**Refresh：**
+```
+POST /api/v1/custom-app-auth/{app_slug}/refresh
+{ "refresh_token": "..." }
+```
+
+**OAuth（LINE）：**
+```
+GET /api/v1/custom-app-oauth/{app_slug}/auth-providers
+GET /api/v1/custom-app-oauth/{app_slug}/line/authorize
+```
+
+---
+
+## Open Proxy API（系統表，API Key 認證）
+
+### 簡易查詢
+
+```
+GET /api/v1/open/proxy/{table}?limit=100&offset=0
+```
+
+### 進階查詢
+
+```
+POST /api/v1/open/proxy/{table}/query
+
 {
   "filters": [
-    { "column": "status", "op": "eq", "value": "active" }
+    { "column": "status", "op": "eq", "value": "active" },
+    { "column": "amount_total", "op": "gte", "value": 1000 }
   ],
   "order_by": [{ "column": "created_at", "direction": "desc" }],
+  "search": "keyword",
+  "search_columns": ["name", "email"],
   "select_columns": ["id", "name", "email"],
   "limit": 50,
-  "offset": 0
+  "offset": 0,
+  "count_only": false
 }
 ```
 
-### Supported Filter Operators
+### Filter Operators
 
-`eq` `ne` `gt` `gte` `lt` `lte` `like` `ilike` `in` `is_null` `is_not_null`
+| Operator | SQL | Value Type |
+|----------|-----|-----------|
+| `eq` | = | any |
+| `ne` | != | any |
+| `gt` | > | number/string |
+| `gte` | >= | number/string |
+| `lt` | < | number/string |
+| `lte` | <= | number/string |
+| `like` | LIKE | string |
+| `ilike` | ILIKE | string |
+| `is_null` | IS NULL | N/A |
+| `is_not_null` | IS NOT NULL | N/A |
+| `in` | IN (...) | array |
 
-Multiple filters use AND logic only; OR / nested grouping not supported.
+**Multiple filters → AND only；不支援 OR / nested grouping。**
 
-### Known Limitations (from field testing)
-
-- Boolean filter（`value: true/false`）在某些表（如 `product_product`）會導致 500，需在 Python action 側過濾或改前端過濾
-- `x_` 前綴的 Odoo 自訂模型透過 `/ext/proxy/` 可能返回 500（即使已登記 ref），應改用 server-side action 取得
-
----
-
-## Custom Tables (AI-Go JSONB Dynamic Tables)
-
-Access via `/api/v1/open/data/objects` — separate from Odoo proxy tables.
-
-```
-GET    /api/v1/open/data/objects
-GET    /api/v1/open/data/objects/{obj_id}/records
-POST   /api/v1/open/data/objects/{obj_id}/records
-PATCH  /api/v1/open/data/records/{record_id}
-DELETE /api/v1/open/data/records/{record_id}
-```
-
-Body format: `{ "data": { "field": "value" } }`
-
----
-
-## Reference System
-
-Before accessing a table, apps must declare references:
+### 新增記錄
 
 ```
-POST /api/v1/refs/apps/{app_id}
+POST /api/v1/open/proxy/{table}
+
 {
-  "table_name": "customers",
-  "columns": ["name", "email", "phone"],
-  "permissions": ["read", "create", "update"]
+  "name": "New Customer",
+  "email": "new@example.com"
 }
 ```
 
-Permission mapping: `read` → GET/query, `create` → POST, `update` → PUT/PATCH, `delete` → DELETE.
+Response 201: `{ "id": "uuid", "created_at": "...", "data": {...} }`
 
----
+> `tenant_id` 由系統自動注入。
 
-## Server-Side Actions
+### 更新記錄
 
-Actions run in a Python sandbox with `ctx.db` access (can reach all tables including x_ tables).
+```
+PATCH /api/v1/open/proxy/{table}/{row_id}
 
-### Action URL
-
-| App Type | URL Format |
-|----------|-----------|
-| External Custom App | `/api/v1/ext/actions/{APP_SLUG}/{action_name}` |
-| Internal App | `/api/v1/actions/run/{app_id}/{action_name}` |
-
-> **重要**: External app 的正確格式是 `/ext/actions/{APP_SLUG}/{action_name}`，  
-> **不是** `/ext/actions/run/{action_name}`（會 500）。
-
-### Frontend Call
-
-```typescript
-const resp = await fetch(`/api/v1/ext/actions/${appSlug}/${actionName}`, {
-  method: 'POST',
-  headers: { 'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json' },
-  body: JSON.stringify({ params: { key: 'value' } }),
-});
-const result = await resp.json();
-// result.data 為 action 回傳的 JSON
+{
+  "name": "Updated Name"
+}
 ```
 
-### Action Implementation (Python)
+Response 200: `{ "id": "uuid", "updated": true }`
 
-```python
-def execute(ctx):
-    rows = ctx.db.query("some_table", limit=100)
-    ctx.response.json({ "rows": rows })
+### 刪除記錄
+
+```
+DELETE /api/v1/open/proxy/{table}/{row_id}
 ```
 
-`ctx.db` 支援：`query(table, limit=N)`、`insert(table, data)`、`update(table, id, data)`。
+Response 204 No Content
 
----
+### 自動型別轉換
 
-## Type Auto-Conversion
+| 輸入格式 | 轉換目標 |
+|----------|---------|
+| `YYYY-MM-DD`（正好 10 字） | `date` |
+| ISO string 含 `T` | `datetime` |
+| JSON object/array | `jsonb` |
+| UUID 格式字串（`_id` 欄位） | `uuid` |
+| 空字串 `""`（`_id` 欄位） | `NULL` |
 
-Proxy automatically casts:
-- `YYYY-MM-DD` string → `date`
-- ISO timestamp string → `datetime`
-- UUID-format string in `*_id` fields → UUID
-- Empty string in ID fields → `NULL`
+### Approval Workflow
 
----
-
-## Field Name Constraints
-
-Only `^[a-zA-Z_][a-zA-Z0-9_]*$` pattern allowed (prevents SQL injection).
-
----
-
-## Approval Workflow
-
-Write operations hitting approval conditions return:
-
+寫入操作可能被 approval workflow 攔截：
 ```json
 {
   "id": "uuid",
   "updated": false,
   "approval_status": "pending",
-  "approval_request_id": "uuid"
+  "approval_request_id": "uuid",
+  "approval_message": "This update requires approval (2 levels)"
 }
 ```
+必須判斷 `approval_status === "pending"` 避免誤判為成功。
 
-Proxy operations do NOT trigger Odoo business document workflows (e.g. auto invoice creation).
+---
+
+## Custom Table API（AI-Go JSONB 動態表，API Key 認證）
+
+與系統表不同：不需要 reference whitelist，schema 由 CustomField 定義，資料以 JSONB 儲存。
+
+```
+GET    /api/v1/open/data/objects               列出所有自訂表
+GET    /api/v1/open/data/objects/{id}/records  列出記錄（id 或 api_slug）
+POST   /api/v1/open/data/objects/{id}/records  新增記錄
+PATCH  /api/v1/open/data/records/{record_id}   更新記錄（merge mode）
+DELETE /api/v1/open/data/records/{record_id}   刪除記錄
+```
+
+新增 / 更新 body 格式：`{ "data": { "field": "value" } }`
+
+**Field Types：** `text` `number` `date` `relation`
+
+---
+
+## Reference 管理
+
+```
+POST /api/v1/refs/apps/{app_id}
+{
+  "table_name": "customers",
+  "columns": ["id", "name", "email"],
+  "permissions": ["read", "create", "update"]
+}
+
+PATCH /api/v1/refs/{ref_id}
+{ "columns": [...], "permissions": [...] }
+```
+
+Permission 對應：`read` → GET/query，`create` → POST，`update` → PATCH，`delete` → DELETE
+
+---
+
+## 安全驗證流程（每次 Proxy 呼叫）
+
+1. Reference whitelist 檢查
+2. CRUD permission 檢查
+3. Blacklist 表檢查（14 個核心系統表永久封鎖）
+4. Column whitelist 驗證
+5. Field name regex 驗證（`^[a-zA-Z_][a-zA-Z0-9_]*$`）
+6. Operator whitelist 驗證
+7. Tenant isolation 注入（自動 `WHERE tenant_id = :tid`）
+8. 系統欄位保護
+
+---
+
+## 查詢限制
+
+| 限制 | 說明 | 繞行方法 |
+|------|------|---------|
+| 無 OR 條件 | Filters 只支援 AND | 用 `search` 做多欄位 OR，或多次查詢後合併 |
+| 無 nested 條件 | 不能 `(A AND B) OR C` | 分拆多次查詢 |
+| 無 JOIN | 單表查詢 | 分別查詢，app 側合併 |
+| 無聚合函數 | 無 SUM/AVG/GROUP BY | 拿原始資料，app 側計算 |
+| 無 BETWEEN | 只有單一 operator | 組合 `gte` + `lte` |
+| limit 上限 | GET 500, Open 1000 | 用 offset 分頁 |
+| 無 cursor pagination | 只有 limit+offset | 搭配 order_by 確保一致性 |
+
+---
+
+## HTTP 狀態碼
+
+| Code | 含義 | 常見原因 |
+|------|------|---------|
+| 200 | 成功 | |
+| 201 | 已建立 | |
+| 204 | 無內容 | 成功刪除 |
+| 400 | Bad Request | filter 欄位無效、permission 格式錯誤 |
+| 401 | 未認證 | API Key 無效/缺少 |
+| 403 | 禁止 | 缺少 reference、操作未授權、reference 未發布 |
+| 404 | 找不到 | 資源不存在 |
+| 500 | 伺服器錯誤 | |
+
+**常見錯誤訊息：**
+
+| 訊息 | 原因 | 解法 |
+|------|------|------|
+| "App not authorized to access table '{table}'" | 未建立 Reference | 建立 Reference 或改用 `/open/data/` |
+| "Reference for table '{table}' not published" | Reference 未發布 | 在 integration 管理發布 |
+| "App not authorized to perform '{op}' on table '{table}'" | 操作未在 permissions | 新增操作到 permissions |
+| "Unauthorized filter field: {col}" | 欄位未授權 | 加入 Reference columns |
+
+---
+
+## 重要警告
+
+⚠️ **Proxy API 不觸發 Workflow 自動化** — 透過 Proxy 更新 `state` 不會自動產生出貨通知、發票等文件，需手動 INSERT。
+
+⚠️ **Approval Workflow 攔截** — 有審批規則的表可能返回 `approval_status: "pending"` 而非標準成功回應。
