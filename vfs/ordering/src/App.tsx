@@ -103,9 +103,16 @@ export default function App() {
         for (const u of Array.isArray(res) ? res : []) map[String(u.id)] = u.name;
         setUomMap(map);
       }).catch(() => {});
-    db.runAction("get_config", {}).then((result: any) => {
-      setTmplToProd(result.tmpl_to_prod || {});
-    }).catch(() => {});
+    db.query("product_product", { filters: [{ column: "active", op: "eq", value: true }] })
+      .then((rows: any[]) => {
+        const map: Record<string, string> = {};
+        for (const r of rows) {
+          const raw = r.product_tmpl_id;
+          const tmplId = String(Array.isArray(raw) ? raw[0] : (raw ?? ""));
+          if (tmplId && r.id) map[tmplId] = String(r.id);
+        }
+        setTmplToProd(map);
+      }).catch(() => {});
   }, [user]);
 
   // hash routing：同步 URL hash ↔ state
