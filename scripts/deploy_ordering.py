@@ -72,6 +72,7 @@ def ensure_references(h: dict, app_id: str):
 
 
 PRICE_LOG_UUID = "390d4f0b-9a2b-4131-a35b-67fce21286be"
+HOLIDAY_UUID = "96d01299-1d33-4ca7-b437-4bf5c78dfdcf"
 
 
 def fetch_price_data(h: dict) -> dict:
@@ -94,6 +95,25 @@ def fetch_price_data(h: dict) -> dict:
             latest[pid] = {"price": price, "effective_date": eff}
     print(f"  x_product_product_price_log：{len(records)} 筆記錄，{len(latest)} 個商品有效價格")
     return latest
+
+
+def fetch_holiday_data(h: dict) -> list:
+    """從 x_holiday_settings 拉未來假日，回傳 ["YYYY-MM-DD", ...]。
+    Custom Table（JSONB）只能用 admin bearer 透過 /data/objects/ 存取。"""
+    import datetime
+    today = datetime.date.today().isoformat()
+    status, body = _req("GET", f"{API_BASE}/data/objects/{HOLIDAY_UUID}/records", h, timeout=30)
+    if status != 200:
+        print(f"  ⚠️ 拉取 x_holiday_settings 失敗：{status}，假日清單為空")
+        return []
+    records = body if isinstance(body, list) else []
+    dates = [
+        str(rec.get("data", {}).get("date", ""))
+        for rec in records
+        if str(rec.get("data", {}).get("date", "")) >= today
+    ]
+    print(f"  x_holiday_settings：{len(records)} 筆記錄，{len(dates)} 個未來假日")
+    return dates
 
 
 APP_SETTINGS_UUID = "fc8e665a-9156-400d-8c6a-a9c2c6f4574e"
@@ -189,10 +209,11 @@ def main():
 
     print("\n[2.5/4] 拉取靜態資料...")
     price_data = fetch_price_data(h)
+    holiday_dates = fetch_holiday_data(h)
     app_settings = fetch_app_settings(h)
 
     print("\n[3/4] 組裝並上傳 VFS...")
-    vfs = build_vfs(price_data, app_settings)
+    vfs = build_vfs(price_data, holiday_dates, app_settings)
     upload_vfs(h, app_id, vfs)
 
     print("\n[3.5/4] 編譯驗證...")

@@ -13,16 +13,18 @@
 import json
 
 
-def build_vfs(price_data: dict = None, app_settings: dict = None) -> dict:
+def build_vfs(price_data: dict = None, holiday_dates: list = None, app_settings: dict = None) -> dict:
     """回傳完整的 VFS dict。
     price_data: {product_id: {price, effective_date}}
+    holiday_dates: ["YYYY-MM-DD", ...] 未來假日列表（deploy 時用 admin bearer 拉，bake 進 JSON）
     app_settings: {key: value}
 
-    假日（x_holiday_settings）由前端在 runtime 透過 db.query 取得，
-    不再於部署時烘焙成靜態 JSON — admin 新增假日後即時生效。
+    x_holiday_settings 是 Custom Table（JSONB），custom-app-user bearer 無法存取
+    /data/objects/ — 必須在部署時用 admin bearer 拉取後烘焙成靜態 JSON。
     """
     vfs = {}
     vfs["src/price_data.json"] = json.dumps(price_data or {}, ensure_ascii=False)
+    vfs["src/holiday_data.json"] = json.dumps(holiday_dates or [], ensure_ascii=False)
     vfs["src/app_settings.json"] = json.dumps(app_settings or {}, ensure_ascii=False)
 
     # ── package.json ──
@@ -69,6 +71,7 @@ import OrdersPage from "./pages/OrdersPage";
 import BottomNav from "./components/BottomNav";
 import * as db from "./db";
 import APP_SETTINGS from "./app_settings.json";
+import HOLIDAY_DATA from "./holiday_data.json";
 
 function toYMD(d: Date): string {
   return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
@@ -137,8 +140,9 @@ export default function App() {
   const [currentPath, setCurrentPath] = useState<string>(getPath);
   const [cart, setCart] = useState<CartItem[]>(loadCart);
   const [uomMap, setUomMap] = useState<Record<string, string>>({});
-  const [holidays, setHolidays] = useState<Set<string> | null>(null);
-  const [deliveryDate, setDeliveryDate] = useState<string>("");
+  const HOLIDAY_SET = new Set<string>(HOLIDAY_DATA as string[]);
+  const [holidays] = useState<Set<string>>(HOLIDAY_SET);
+  const [deliveryDate, setDeliveryDate] = useState<string>(() => getFirstAvailableDate(HOLIDAY_SET));
   const cutoffTime: string = (APP_SETTINGS as any).order_cutoff_time || "";
 
   useEffect(() => {
@@ -168,30 +172,6 @@ export default function App() {
         for (const u of Array.isArray(res) ? res : []) map[String(u.id)] = u.name;
         setUomMap(map);
       }).catch(() => {});
-  }, [user]);
-
-  // 登入後載入假日清單（runtime fetch，admin 新增假日後下次進頁面即反映）
-  // x_holiday_settings 是 Custom Table（JSONB），必須用 queryCustom + UUID，不能用 db.query
-  useEffect(() => {
-    if (!user) return;
-    const today = new Date().toISOString().slice(0, 10);
-    db.queryCustom("96d01299-1d33-4ca7-b437-4bf5c78dfdcf")
-      .then(res => {
-        const rows = Array.isArray(res) ? res : [];
-        const s = new Set<string>(
-          rows
-            .map((r: any) => String((r.data || r).date || "").slice(0, 10))
-            .filter(d => d >= today)
-        );
-        setHolidays(s);
-        setDeliveryDate(prev => prev || getFirstAvailableDate(s));
-      })
-      .catch(() => {
-        // 拉失敗則退回空集合（不 filter），至少讓使用者能下單
-        const s = new Set<string>();
-        setHolidays(s);
-        setDeliveryDate(prev => prev || getFirstAvailableDate(s));
-      });
   }, [user]);
 
   // hash routing：同步 URL hash ↔ state
@@ -1307,7 +1287,7 @@ interface Props {
   uomMap: Record<string, string>;
   deliveryDate: string;
   setDeliveryDate: (d: string) => void;
-  holidays: Set<string> | null;
+  holidays: Set<string>;
 }
 
 function SkeletonCard() {
@@ -1383,7 +1363,7 @@ export default function CatalogPage({ cart, addToCart, setCartExact, uomMap, del
   const [catLoading, setCatLoading] = useState(true);
   const [tick, setTick] = useState(0);
   const flush = useCallback(() => setTick(t => t + 1), []);
-  const availableDates = holidays ? getAvailableDates(holidays) : [];
+  const availableDates = getAvailableDates(holidays);
 
   const poolRef = useRef<Map<string, Product>>(new Map());
   const catDataRef = useRef<Record<string, CatData>>({});
@@ -1496,9 +1476,7 @@ export default function CatalogPage({ cart, addToCart, setCartExact, uomMap, del
         <div className="date-row">
           <span className="date-label">配送日期</span>
           <div className="date-chips">
-            {holidays === null ? (
-              <span className="date-chips-loading">載入日期中...</span>
-            ) : availableDates.map(d => {
+            {availableDates.map(d => {
               const dateQty = cart.filter(i => i.deliveryDate === d).reduce((s, i) => s + i.qty, 0);
               return (
                 <button key={d} className={`date-chip${deliveryDate === d ? " active" : ""}`}
