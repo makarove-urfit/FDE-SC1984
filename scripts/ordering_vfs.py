@@ -171,14 +171,17 @@ export default function App() {
   }, [user]);
 
   // 登入後載入假日清單（runtime fetch，admin 新增假日後下次進頁面即反映）
+  // x_holiday_settings 是 Custom Table（JSONB），必須用 queryCustom + UUID，不能用 db.query
   useEffect(() => {
     if (!user) return;
     const today = new Date().toISOString().slice(0, 10);
-    db.query("x_holiday_settings", { filters: [{ column: "date", op: "gte", value: today }] })
+    db.queryCustom("96d01299-1d33-4ca7-b437-4bf5c78dfdcf")
       .then(res => {
         const rows = Array.isArray(res) ? res : [];
         const s = new Set<string>(
-          rows.map((r: any) => String(r.date || "").slice(0, 10)).filter(Boolean)
+          rows
+            .map((r: any) => String((r.data || r).date || "").slice(0, 10))
+            .filter(d => d >= today)
         );
         setHolidays(s);
         setDeliveryDate(prev => prev || getFirstAvailableDate(s));

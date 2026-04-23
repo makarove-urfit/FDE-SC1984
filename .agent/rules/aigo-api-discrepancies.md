@@ -101,13 +101,38 @@ const proxyBase = API_BASE + '/ext/proxy/';
 
 | | Odoo Proxy | Custom Table |
 |---|---|---|
-| 端點 | `/api/v1/proxy/{app_id}/{table}` 或 `/api/v1/ext/proxy/{table}` | `/api/v1/data/objects/{slug}/records` |
+| 端點 | `/api/v1/proxy/{app_id}/{table}` 或 `/api/v1/ext/proxy/{table}` | `/api/v1/data/objects/{uuid}/records` |
 | 資料存放 | Odoo PostgreSQL 實體表 | JSONB（`data` 欄位） |
 | 回傳格式 | 扁平欄位 `{ id, col1, col2, ... }` | 包裝 `{ id, data: { field1, field2 }, created_at, updated_at }` |
 | 引用白名單 | 需要 | 不需要 |
 | 建表方式 | 需在 Odoo 後台建 model | `POST /api/v1/data/objects` |
 
-**常見錯誤**：對 Custom Table slug 打 `/proxy/` 會收到 `500 relation does not exist`。
+**常見錯誤**：對 Custom Table 打 `/ext/proxy/` 或 `/proxy/` 會收到 `500 relation does not exist`。
+
+### VFS Runtime 存取規則（必讀）
+
+**從 ordering runtime（Custom App User context）存取 Custom Table 的唯一正確方式：**
+
+```typescript
+// ✅ 正確：用 db.queryCustom + UUID
+const rows = await db.queryCustom("96d01299-1d33-4ca7-b437-4bf5c78dfdcf");
+// 回傳格式：Array of { id, data: { date, reason }, created_at, updated_at }
+const dates = rows.map(r => String(r.data.date || "").slice(0, 10));
+
+// ❌ 錯誤：db.query 走 /ext/proxy/ → 500（relation does not exist）
+db.query("x_holiday_settings", { ... });  // 千萬不要
+
+// ❌ 錯誤：db.query 走 /ext/proxy/ → 500（同上）
+db.query("x_app_settings", { ... });      // 千萬不要
+```
+
+**pre-flight checklist（寫 ordering runtime 存取前先問）：**
+1. 這個表是 Odoo 後台 model 嗎？→ 用 `db.query(tableName, ...)`，欄位是扁平格式
+2. 這個表是 Custom Table（在 AI GO Data Objects 建的）嗎？→ 用 `db.queryCustom(uuid)`，欄位在 `r.data.*`
+3. Custom Table 不支援 server-side filter → 拿全部記錄後，client-side 過濾
+
+本專案 Odoo 表：`sale_orders`, `sale_order_lines`, `product_templates`, `product_categories`, `product_product`, `customers`, `uom_uom`
+本專案 Custom Table：`x_price_log`, `x_app_settings`, `x_holiday_settings`（見 Section 8）
 
 ---
 
@@ -183,3 +208,22 @@ await db.insert("sale_order_lines", {
 - `sale_orders.state` → 不可寫入（Odoo 自動管理）
 - `sale_order_lines.product_id` → `product_products.id`（variant），通常不用
 - `sale_order_lines.product_template_id` → `product_templates.id`（template），前端用這個
+
+---
+
+## 12. `/ext/proxy/` Filter 運算子白名單（踩過的坑）
+
+`/ext/proxy/` 只接受以下運算子：
+`eq` `ne` `gt` `gte` `lt` `lte` `like` `ilike` `in` `is_null` `is_not_null`
+
+**`/open/proxy/`（admin 走的 API-key 路徑）接受短寫法 `ge`、`le`，但 `/ext/proxy/` 不接受。**
+
+```typescript
+// ✅ 正確
+{ column: "date", op: "gte", value: today }
+
+// ❌ 錯誤 → 400「不支援的運算子: ge」
+{ column: "date", op: "ge", value: today }
+```
+
+**pre-flight**：從 admin 側（`/open/proxy/`）複製 filter 到 ordering runtime（`/ext/proxy/`）時，必須確認 op 是長寫法。`ge`→`gte`，`le`→`lte`。
