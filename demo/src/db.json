@@ -1,0 +1,16 @@
+{
+  "crm_tags": {
+    "table": "crm_tags",
+    "permissions": [
+      "read"
+    ],
+    "columns": [
+      {
+        "name": "name",
+        "type": "VARCHAR",
+        "nullable": false
+      }
+    ],
+    "data": []
+  }
+}

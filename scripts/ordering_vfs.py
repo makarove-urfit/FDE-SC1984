@@ -130,10 +130,7 @@ export default function App() {
   const [currentPath, setCurrentPath] = useState<string>(getPath);
   const [cart, setCart] = useState<CartItem[]>(loadCart);
   const [uomMap, setUomMap] = useState<Record<string, string>>({});
-  const [holidays, setHolidays] = useState<Set<string>>(new Set());
-  const [deliveryDate, setDeliveryDate] = useState<string>("");
-  const [cutoffTime, setCutoffTime] = useState<string>("");
-  const [priceMap, setPriceMap] = useState<Record<string, { price: number; effective_date: string }>>({});
+  const [deliveryDate, setDeliveryDate] = useState<string>(() => getFirstAvailableDate(new Set()));
   const [tmplToProd, setTmplToProd] = useState<Record<string, string>>({});
 
   useEffect(() => {
@@ -164,11 +161,6 @@ export default function App() {
         setUomMap(map);
       }).catch(() => {});
     db.runAction("get_config", {}).then((result: any) => {
-      const hSet = new Set<string>((result.holidays || []) as string[]);
-      setHolidays(hSet);
-      setDeliveryDate(d => d || getFirstAvailableDate(hSet));
-      setCutoffTime(result.settings?.order_cutoff_time || "");
-      setPriceMap(result.prices || {});
       setTmplToProd(result.tmpl_to_prod || {});
     }).catch(() => {});
   }, [user]);
@@ -239,9 +231,9 @@ export default function App() {
   if (!user) return <LoginPage onLogin={handleLogin} />;
 
   const pages: Record<string, React.ReactNode> = {
-    "/order": <CatalogPage cart={cart} addToCart={addToCart} setCartExact={setCartExact} uomMap={uomMap} deliveryDate={deliveryDate} setDeliveryDate={setDeliveryDate} holidays={holidays} priceMap={priceMap} tmplToProd={tmplToProd} />,
-    "/cart": <CartPage cart={cart} addToCart={addToCart} setCartExact={setCartExact} clearCartDate={clearCartDate} onNavigate={navigate} setDeliveryDate={setDeliveryDate} uomMap={uomMap} user={user} priceMap={priceMap} />,
-    "/orders": <OrdersPage user={user!} cutoffTime={cutoffTime} />,
+    "/order": <CatalogPage cart={cart} addToCart={addToCart} setCartExact={setCartExact} uomMap={uomMap} deliveryDate={deliveryDate} setDeliveryDate={setDeliveryDate} holidays={new Set()} tmplToProd={tmplToProd} />,
+    "/cart": <CartPage cart={cart} addToCart={addToCart} setCartExact={setCartExact} clearCartDate={clearCartDate} onNavigate={navigate} setDeliveryDate={setDeliveryDate} uomMap={uomMap} user={user} />,
+    "/orders": <OrdersPage user={user!} cutoffTime="" />,
   };
 
   return (
@@ -1059,10 +1051,10 @@ export async function queryCustom(slug: string): Promise<any[]> {
 }
 
 export async function runAction(actionName: string, params: Record<string, any> = {}): Promise<any> {
-  const appSlug = (window as any).__APP_SLUG__ || '';
   const appId = (window as any).__APP_ID__ || '';
-  const actionUrl = appSlug
-    ? API_BASE + '/ext/actions/' + appSlug + '/' + actionName
+  const isExternal = !!(window as any).__IS_EXTERNAL__;
+  const actionUrl = isExternal
+    ? API_BASE + '/ext/actions/run/' + actionName
     : API_BASE + '/actions/run/' + appId + '/' + actionName;
   const resp = await fetch(actionUrl, {
     method: 'POST', headers: _h(), credentials: 'include',
@@ -1256,9 +1248,8 @@ import { Minus, Plus } from "lucide-react";
 import { CartItem } from "../App";
 
 interface Category { id: string; name: string; active: boolean; }
-interface Product { id: string; name: string; default_code: string | null; categ_id: string | null; uom_id?: string | null; sale_ok: boolean; active: boolean; }
+interface Product { id: string; name: string; default_code: string | null; categ_id: string | null; uom_id?: string | null; sale_ok: boolean; active: boolean; list_price?: number; }
 interface CatData { ids: string[]; offset: number; hasMore: boolean; loading: boolean; }
-interface PriceInfo { price: number; effective_date: string; }
 const DAY_NAMES = ["日","一","二","三","四","五","六"];
 
 function toYMD(d: Date): string {
@@ -1279,11 +1270,6 @@ function fmtDateChip(ymd: string): string {
   const dt = new Date(y, m-1, d);
   return `${m}/${d}（週${DAY_NAMES[dt.getDay()]}）`;
 }
-function fmtPriceDate(iso: string): string {
-  const parts = iso.split("-");
-  return parts.length < 3 ? iso : `${parseInt(parts[1])}/${parseInt(parts[2])}`;
-}
-
 interface Props {
   cart: CartItem[];
   addToCart: (id: string, qty: number, deliveryDate: string, meta?: { name?: string; defaultCode?: string; uomId?: string; productProductId?: string }) => void;
@@ -1292,7 +1278,6 @@ interface Props {
   deliveryDate: string;
   setDeliveryDate: (d: string) => void;
   holidays: Set<string>;
-  priceMap: Record<string, PriceInfo>;
   tmplToProd: Record<string, string>;
 }
 
@@ -1308,17 +1293,15 @@ function SkeletonCard() {
   );
 }
 
-function ProductCard({ p, cart, addToCart, setCartExact, uomMap, deliveryDate, tmplToProd, priceMap }: {
+function ProductCard({ p, cart, addToCart, setCartExact, uomMap, deliveryDate, tmplToProd }: {
   p: Product; cart: CartItem[];
   addToCart: (id: string, qty: number, deliveryDate: string, meta?: { name?: string; defaultCode?: string; uomId?: string; productProductId?: string }) => void;
   setCartExact: (id: string, qty: number, deliveryDate: string) => void;
   uomMap: Record<string, string>;
   deliveryDate: string;
   tmplToProd: Record<string, string>;
-  priceMap: Record<string, PriceInfo>;
 }) {
   const productProductId = tmplToProd[p.id];
-  const priceInfo = priceMap[p.id];
   const qty = cart.find(i => i.productId === p.id && i.deliveryDate === deliveryDate)?.qty ?? 0;
   return (
     <div className="product-card">
@@ -1327,10 +1310,9 @@ function ProductCard({ p, cart, addToCart, setCartExact, uomMap, deliveryDate, t
         <span className="product-name">{p.name}</span>
       </div>
       <div className="product-price-block">
-        {priceInfo && <>
-          <span className="product-price">${priceInfo.price}</span>
-          <span className="price-date">參考 {fmtPriceDate(priceInfo.effective_date)}</span>
-        </>}
+        {p.list_price != null && p.list_price > 0 && (
+          <span className="product-price">${p.list_price}</span>
+        )}
       </div>
       <div className="qty-control">
         <button className="qty-btn" disabled={qty === 0}
@@ -1349,7 +1331,7 @@ function ProductCard({ p, cart, addToCart, setCartExact, uomMap, deliveryDate, t
   );
 }
 
-export default function CatalogPage({ cart, addToCart, setCartExact, uomMap, deliveryDate, setDeliveryDate, holidays, priceMap, tmplToProd }: Props) {
+export default function CatalogPage({ cart, addToCart, setCartExact, uomMap, deliveryDate, setDeliveryDate, holidays, tmplToProd }: Props) {
   const [categories, setCategories] = useState<Category[]>([]);
   const [activeCat, setActiveCat] = useState<string | null>(null);
   const [search, setSearch] = useState("");
@@ -1510,7 +1492,7 @@ export default function CatalogPage({ cart, addToCart, setCartExact, uomMap, del
             ? <p className="empty-msg">{search ? "找不到符合的商品" : "沒有商品"}</p>
             : displayed.map(p => (
                 <ProductCard key={p.id} p={p} cart={cart}
-                  addToCart={addToCart} setCartExact={setCartExact} uomMap={uomMap} deliveryDate={deliveryDate} tmplToProd={tmplToProd} priceMap={priceMap} />
+                  addToCart={addToCart} setCartExact={setCartExact} uomMap={uomMap} deliveryDate={deliveryDate} tmplToProd={tmplToProd} />
               ))
         }
         {!showSkeleton && !searchLoading && poolLoading && (
@@ -1553,25 +1535,31 @@ interface Props {
   setDeliveryDate: (d: string) => void;
   uomMap: Record<string, string>;
   user: AppUser;
-  priceMap: Record<string, { price: number; effective_date: string }>;
 }
 
 function Toast({ msg, isError }: { msg: string; isError?: boolean }) {
   return <div className={`toast-msg${isError ? " error" : ""}`}>{msg}</div>;
 }
 
-export default function CartPage({ cart, addToCart, setCartExact, clearCartDate, onNavigate, setDeliveryDate, uomMap, user, priceMap }: Props) {
+export default function CartPage({ cart, addToCart, setCartExact, clearCartDate, onNavigate, setDeliveryDate, uomMap, user }: Props) {
   const [groupNotes, setGroupNotes] = useState<Record<string, string>>({});
   const [submitting, setSubmitting] = useState<string | null>(null);
   const [toast, setToast] = useState<{ msg: string; error: boolean } | null>(null);
   const [prodMap, setProdMap] = useState<Record<string, { name: string; default_code?: string; uom_id?: string }>>({});
+  const [priceMap, setPriceMap] = useState<Record<string, { price: number; effective_date: string }>>({});
 
   useEffect(() => {
     db.query("product_templates", { filters: [{ column: "active", op: "eq", value: true }] })
       .then(rows => {
         const m: Record<string, { name: string; default_code?: string; uom_id?: string }> = {};
-        for (const r of Array.isArray(rows) ? rows : []) m[String(r.id)] = r;
+        const pm: Record<string, { price: number; effective_date: string }> = {};
+        for (const r of Array.isArray(rows) ? rows : []) {
+          m[String(r.id)] = r;
+          const lp = (r as any).list_price;
+          if (lp != null && Number(lp) > 0) pm[String(r.id)] = { price: Number(lp), effective_date: "" };
+        }
         setProdMap(m);
+        setPriceMap(pm);
       }).catch(() => {});
   }, []);
 
@@ -2177,21 +2165,10 @@ export default function BottomNav({ currentPath, onNavigate, cartCount }: Props)
 '''
 
     vfs["actions/get_config.py"] = r'''def execute(ctx):
-    from datetime import date as _date
-
-    holiday_rows = ctx.db.query("x_holiday_settings", limit=200) or []
-    settings_rows = ctx.db.query("x_app_settings", limit=100) or []
-    price_rows = ctx.db.query("x_product_product_price_log", limit=1000) or []
+    """回傳 product_product 的 tmpl_id→pp_id 對照表，供前端 addToCart meta 使用。
+    只查標準 Odoo 表，不碰 custom table（ctx.db 不支援）。
+    """
     pp_rows = ctx.db.query("product_product", limit=1000) or []
-
-    today = _date.today().isoformat()
-    holidays = [str(r.get("date", "")) for r in holiday_rows if str(r.get("date", "")) >= today]
-
-    settings = {}
-    for r in settings_rows:
-        k, v = r.get("key"), r.get("value")
-        if k and v is not None:
-            settings[k] = v
 
     tmpl_to_prod = {}
     for r in pp_rows:
@@ -2200,30 +2177,7 @@ export default function BottomNav({ currentPath, onNavigate, cartCount }: Props)
         if tmpl_id and r.get("id"):
             tmpl_to_prod[tmpl_id] = str(r["id"])
 
-    latest_by_pp = {}
-    for r in price_rows:
-        pp_id = str(r.get("product_product_id", ""))
-        eff = str(r.get("effective_date", ""))
-        try:
-            price = float(r.get("lst_price") or 0)
-        except (ValueError, TypeError):
-            continue
-        if not pp_id or not eff or price == 0:
-            continue
-        if pp_id not in latest_by_pp or eff > latest_by_pp[pp_id]["effective_date"]:
-            latest_by_pp[pp_id] = {"price": price, "effective_date": eff}
-
-    prices = {}
-    for tmpl_id, pp_id in tmpl_to_prod.items():
-        if pp_id in latest_by_pp:
-            prices[tmpl_id] = latest_by_pp[pp_id]
-
-    ctx.response.json({
-        "holidays": holidays,
-        "settings": settings,
-        "prices": prices,
-        "tmpl_to_prod": tmpl_to_prod,
-    })
+    ctx.response.json({"tmpl_to_prod": tmpl_to_prod})
 '''
 
     vfs["actions/place_order.py"] = r'''def execute(ctx):

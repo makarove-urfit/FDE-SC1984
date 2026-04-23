@@ -1,0 +1,39 @@
+{
+  "潛在客戶": {
+    "id": "43f3abe6-b7d4-42b8-97f5-1abf935283b7",
+    "slug": "leads_ceae00",
+    "fields": [
+      {
+        "name": "客戶名稱",
+        "key": "name",
+        "type": "text"
+      },
+      {
+        "name": "聯絡 Email",
+        "key": "email",
+        "type": "text"
+      },
+      {
+        "name": "電話",
+        "key": "phone",
+        "type": "text"
+      },
+      {
+        "name": "公司名稱",
+        "key": "company",
+        "type": "text"
+      },
+      {
+        "name": "來源",
+        "key": "source",
+        "type": "text"
+      },
+      {
+        "name": "狀態",
+        "key": "status",
+        "type": "text"
+      }
+    ],
+    "records": []
+  }
+}

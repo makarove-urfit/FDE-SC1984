@@ -1,0 +1,14 @@
+{
+  "ping": {
+    "description": "健康檢查"
+  },
+  "get_config": {
+    "description": "取得 runtime 設定：假日、截止時間、參考價格"
+  },
+  "place_order": {
+    "description": "客戶下單：建立銷貨單與明細行"
+  },
+  "update_order_lines": {
+    "description": "修改訂單明細數量（需 admin 權限）"
+  }
+}
