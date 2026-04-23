@@ -3,9 +3,11 @@
 <!-- DISCIPLINE_START: rules -->
 <!-- DISCIPLINE_END: rules -->
 
-## 開發參考規則
+## 唯一參考標準
 
-不知道怎麼做就去參考 `demo/` 資料夾。**嚴禁修改 demo/ 資料夾。**
+- `demo/` 資料夾（官方 SDK 模板）與 `demo/CUSTOM_APP_DEV_GUIDE.md`、`demo/INTEGRATION_GUIDE.md` 是**唯一技術參考標準**。
+- **嚴禁修改 demo/ 資料夾。**
+- `scripts/` 資料夾的舊 Python 腳本**只能參考業務邏輯流程**（如訂單欄位、資料關係），**不得照抄 API 呼叫方式、URL 或 payload 格式** — 這些已過時且有已知錯誤。
 
 ## 專案結構
 

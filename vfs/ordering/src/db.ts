@@ -51,12 +51,12 @@ export async function update(table: string, id: string, data: Record<string, any
   }));
 }
 
-/** 呼叫後端 Action（/ext/actions/{APP_SLUG}/{actionName}） */
+/** 呼叫後端 Action（外部 app: /ext/actions/run/{name}；內部: /actions/run/{appId}/{name}） */
 export async function runAction(actionName: string, params: Record<string, any> = {}): Promise<any> {
-  const appSlug = (window as any).__APP_SLUG__ || '';
   const appId = (window as any).__APP_ID__ || '';
-  const url = appSlug
-    ? `${API_BASE}/ext/actions/${appSlug}/${actionName}`
+  const isExternal = !!(window as any).__IS_EXTERNAL__;
+  const url = isExternal
+    ? `${API_BASE}/ext/actions/run/${actionName}`
     : `${API_BASE}/actions/run/${appId}/${actionName}`;
   const resp = await fetch(url, {
     method: 'POST', headers: _h(), credentials: 'include',
