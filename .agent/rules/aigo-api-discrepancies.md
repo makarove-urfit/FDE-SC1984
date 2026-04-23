@@ -111,28 +111,30 @@ const proxyBase = API_BASE + '/ext/proxy/';
 
 ### VFS Runtime 存取規則（必讀）
 
-**從 ordering runtime（Custom App User context）存取 Custom Table 的唯一正確方式：**
+**Custom App User bearer（ordering runtime 用的 token）無法存取 `/data/objects/`。**
+`db.queryCustom()` 雖然存在，但在 ordering runtime 使用時 API 回 401 → 函式靜默回傳 `[]` → 看起來正常實際上沒有資料。
+
+**Custom Table 的唯一正確處理方式：在 deploy 時用 admin bearer 拉取，bake 進靜態 JSON。**
+
+```python
+# deploy_ordering.py：admin bearer 拉，傳入 build_vfs
+holiday_dates = fetch_holiday_data(h)   # h = admin bearer
+vfs = build_vfs(price_data, holiday_dates, app_settings)
+```
 
 ```typescript
-// ✅ 正確：用 db.queryCustom + UUID
-const rows = await db.queryCustom("96d01299-1d33-4ca7-b437-4bf5c78dfdcf");
-// 回傳格式：Array of { id, data: { date, reason }, created_at, updated_at }
-const dates = rows.map(r => String(r.data.date || "").slice(0, 10));
-
-// ❌ 錯誤：db.query 走 /ext/proxy/ → 500（relation does not exist）
-db.query("x_holiday_settings", { ... });  // 千萬不要
-
-// ❌ 錯誤：db.query 走 /ext/proxy/ → 500（同上）
-db.query("x_app_settings", { ... });      // 千萬不要
+// ordering_vfs.py App.tsx：import 靜態 JSON，不做 runtime fetch
+import HOLIDAY_DATA from "./holiday_data.json";
+const HOLIDAY_SET = new Set<string>(HOLIDAY_DATA as string[]);
 ```
 
 **pre-flight checklist（寫 ordering runtime 存取前先問）：**
-1. 這個表是 Odoo 後台 model 嗎？→ 用 `db.query(tableName, ...)`，欄位是扁平格式
-2. 這個表是 Custom Table（在 AI GO Data Objects 建的）嗎？→ 用 `db.queryCustom(uuid)`，欄位在 `r.data.*`
-3. Custom Table 不支援 server-side filter → 拿全部記錄後，client-side 過濾
+1. 這個表是 Odoo 後台 model 嗎？→ 用 `db.query(tableName, ...)`，欄位是扁平格式，✅ runtime OK
+2. 這個表是 Custom Table（在 AI GO Data Objects 建的）嗎？→ **不能在 runtime 存取**，deploy 時 bake 成靜態 JSON
+3. `db.queryCustom()` 在 ordering runtime 無效（401 → []），**不要用**
 
-本專案 Odoo 表：`sale_orders`, `sale_order_lines`, `product_templates`, `product_categories`, `product_product`, `customers`, `uom_uom`
-本專案 Custom Table：`x_price_log`, `x_app_settings`, `x_holiday_settings`（見 Section 8）
+本專案 Odoo 表（runtime OK）：`sale_orders`, `sale_order_lines`, `product_templates`, `product_categories`, `product_product`, `customers`, `uom_uom`
+本專案 Custom Table（deploy-time bake only）：`x_price_log`, `x_app_settings`, `x_holiday_settings`（見 Section 8）
 
 ---
 
