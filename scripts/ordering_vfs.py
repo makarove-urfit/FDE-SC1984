@@ -1246,15 +1246,12 @@ export default function LoginPage({ onLogin }: Props) {
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import * as db from "../db";
 import { Minus, Plus } from "lucide-react";
-import PRICE_DATA from "../price_data.json";
 import { CartItem } from "../App";
 
 interface Category { id: string; name: string; active: boolean; }
 interface Product { id: string; name: string; default_code: string | null; categ_id: string | null; uom_id?: string | null; sale_ok: boolean; active: boolean; }
 interface CatData { ids: string[]; offset: number; hasMore: boolean; loading: boolean; }
 interface PriceInfo { price: number; effective_date: string; }
-
-const priceMap: Record<string, PriceInfo> = PRICE_DATA as any;
 const DAY_NAMES = ["日","一","二","三","四","五","六"];
 
 function toYMD(d: Date): string {
@@ -1302,13 +1299,14 @@ function SkeletonCard() {
   );
 }
 
-function ProductCard({ p, cart, addToCart, setCartExact, uomMap, deliveryDate, tmplToProd }: {
+function ProductCard({ p, cart, addToCart, setCartExact, uomMap, deliveryDate, tmplToProd, priceMap }: {
   p: Product; cart: CartItem[];
   addToCart: (id: string, qty: number, deliveryDate: string, meta?: { name?: string; defaultCode?: string; uomId?: string; productProductId?: string }) => void;
   setCartExact: (id: string, qty: number, deliveryDate: string) => void;
   uomMap: Record<string, string>;
   deliveryDate: string;
   tmplToProd: Record<string, string>;
+  priceMap: Record<string, PriceInfo>;
 }) {
   const productProductId = tmplToProd[p.id];
   const priceInfo = priceMap[p.id];
@@ -1349,16 +1347,41 @@ export default function CatalogPage({ cart, addToCart, setCartExact, uomMap, del
   const [searchResults, setSearchResults] = useState<Product[] | null>(null); // null = 無搜尋
   const [searchLoading, setSearchLoading] = useState(false);
   const [tmplToProd, setTmplToProd] = useState<Record<string, string>>({}); // product_tmpl_id → product_product.id
+  const [priceMap, setPriceMap] = useState<Record<string, PriceInfo>>({});
 
   useEffect(() => {
-    db.query("product_product", { filters: [{ column: "active", op: "eq", value: true }] })
-      .then(rows => {
-        const m: Record<string, string> = {};
-        for (const r of Array.isArray(rows) ? rows : []) {
-          if (r.product_tmpl_id && r.id) m[String(r.product_tmpl_id)] = String(r.id);
+    Promise.all([
+      db.query("product_product", { filters: [{ column: "active", op: "eq", value: true }], limit: 2000 }),
+      db.query("x_product_product_price_log", { limit: 2000 }),
+    ]).then(([ppRows, priceRows]) => {
+      // tmpl_id → pp_id
+      const t2p: Record<string, string> = {};
+      for (const r of Array.isArray(ppRows) ? ppRows : []) {
+        const raw = r.product_tmpl_id;
+        const tmplId = Array.isArray(raw) ? String(raw[0]) : String(raw || '');
+        if (tmplId && r.id) t2p[tmplId] = String(r.id);
+      }
+      setTmplToProd(t2p);
+
+      // pp_id → latest price
+      const latestByPP: Record<string, PriceInfo> = {};
+      for (const r of Array.isArray(priceRows) ? priceRows : []) {
+        const ppId = String(r.product_product_id || '');
+        const eff = String(r.effective_date || '');
+        const price = Number(r.lst_price);
+        if (!ppId || !eff || isNaN(price)) continue;
+        if (!latestByPP[ppId] || eff > latestByPP[ppId].effective_date) {
+          latestByPP[ppId] = { price, effective_date: eff };
         }
-        setTmplToProd(m);
-      }).catch(() => {});
+      }
+
+      // tmpl_id → price
+      const pm: Record<string, PriceInfo> = {};
+      for (const [tmplId, ppId] of Object.entries(t2p)) {
+        if (latestByPP[ppId]) pm[tmplId] = latestByPP[ppId];
+      }
+      setPriceMap(pm);
+    }).catch(() => {});
   }, []);
   const [catLoading, setCatLoading] = useState(true);
   const [tick, setTick] = useState(0);
@@ -1515,7 +1538,7 @@ export default function CatalogPage({ cart, addToCart, setCartExact, uomMap, del
             ? <p className="empty-msg">{search ? "找不到符合的商品" : "沒有商品"}</p>
             : displayed.map(p => (
                 <ProductCard key={p.id} p={p} cart={cart}
-                  addToCart={addToCart} setCartExact={setCartExact} uomMap={uomMap} deliveryDate={deliveryDate} tmplToProd={tmplToProd} />
+                  addToCart={addToCart} setCartExact={setCartExact} uomMap={uomMap} deliveryDate={deliveryDate} tmplToProd={tmplToProd} priceMap={priceMap} />
               ))
         }
         {!showSkeleton && !searchLoading && poolLoading && (
@@ -1538,10 +1561,8 @@ export default function CatalogPage({ cart, addToCart, setCartExact, uomMap, del
     vfs["src/pages/CartPage.tsx"] = r'''import React, { useState, useEffect, useMemo } from "react";
 import * as db from "../db";
 import { Minus, Plus, Trash2, Send } from "lucide-react";
-import PRICE_DATA from "../price_data.json";
 import { CartItem, AppUser } from "../App";
 
-const priceMap: Record<string, { price: number; effective_date: string }> = PRICE_DATA as any;
 const DAY_NAMES = ["日","一","二","三","四","五","六"];
 
 function fmtDate(ymd: string): string {
@@ -1571,6 +1592,7 @@ export default function CartPage({ cart, addToCart, setCartExact, clearCartDate,
   const [submitting, setSubmitting] = useState<string | null>(null);
   const [toast, setToast] = useState<{ msg: string; error: boolean } | null>(null);
   const [prodMap, setProdMap] = useState<Record<string, { name: string; default_code?: string; uom_id?: string }>>({});
+  const [priceMap, setPriceMap] = useState<Record<string, { price: number; effective_date: string }>>({});
 
   useEffect(() => {
     db.query("product_templates", { filters: [{ column: "active", op: "eq", value: true }] })
@@ -1579,6 +1601,33 @@ export default function CartPage({ cart, addToCart, setCartExact, clearCartDate,
         for (const r of Array.isArray(rows) ? rows : []) m[String(r.id)] = r;
         setProdMap(m);
       }).catch(() => {});
+
+    Promise.all([
+      db.query("product_product", { filters: [{ column: "active", op: "eq", value: true }], limit: 2000 }),
+      db.query("x_product_product_price_log", { limit: 2000 }),
+    ]).then(([ppRows, priceRows]) => {
+      const t2p: Record<string, string> = {};
+      for (const r of Array.isArray(ppRows) ? ppRows : []) {
+        const raw = r.product_tmpl_id;
+        const tmplId = Array.isArray(raw) ? String(raw[0]) : String(raw || '');
+        if (tmplId && r.id) t2p[tmplId] = String(r.id);
+      }
+      const latestByPP: Record<string, { price: number; effective_date: string }> = {};
+      for (const r of Array.isArray(priceRows) ? priceRows : []) {
+        const ppId = String(r.product_product_id || '');
+        const eff = String(r.effective_date || '');
+        const price = Number(r.lst_price);
+        if (!ppId || !eff || isNaN(price)) continue;
+        if (!latestByPP[ppId] || eff > latestByPP[ppId].effective_date) {
+          latestByPP[ppId] = { price, effective_date: eff };
+        }
+      }
+      const pm: Record<string, { price: number; effective_date: string }> = {};
+      for (const [tmplId, ppId] of Object.entries(t2p)) {
+        if (latestByPP[ppId]) pm[tmplId] = latestByPP[ppId];
+      }
+      setPriceMap(pm);
+    }).catch(() => {});
   }, []);
 
   const showToast = (msg: string, error = false) => {
