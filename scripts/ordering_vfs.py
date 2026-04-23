@@ -1006,9 +1006,17 @@ async function _r(resp: Response): Promise<any> {
   return resp.json();
 }
 
-export async function query(table: string, opts?: { limit?: number; offset?: number; filters?: any[] }): Promise<any[]> {
-  if (opts?.filters) {
-    const body: any = { filters: opts.filters };
+export async function query(table: string, opts?: {
+  limit?: number; offset?: number;
+  filters?: any[];
+  order_by?: { column: string; direction?: string }[];
+  select_columns?: string[];
+}): Promise<any[]> {
+  if (opts?.filters || opts?.order_by || opts?.select_columns) {
+    const body: any = {};
+    if (opts.filters) body.filters = opts.filters;
+    if (opts.order_by) body.order_by = opts.order_by;
+    if (opts.select_columns) body.select_columns = opts.select_columns;
     if (opts.limit) body.limit = opts.limit;
     if (opts.offset) body.offset = opts.offset;
     return _r(await fetch(proxyBase + table + '/query', {
@@ -1352,7 +1360,11 @@ export default function CatalogPage({ cart, addToCart, setCartExact, uomMap, del
   useEffect(() => {
     Promise.all([
       db.query("product_product", { filters: [{ column: "active", op: "eq", value: true }], limit: 1000 }),
-      db.query("x_product_product_price_log", { limit: 1000 }),
+      db.query("x_product_product_price_log", {
+        order_by: [{ column: "effective_date", direction: "desc" }],
+        select_columns: ["product_product_id", "lst_price", "effective_date"],
+        limit: 1000,
+      }),
     ]).then(([ppRows, priceRows]) => {
       // tmpl_id → pp_id
       const t2p: Record<string, string> = {};
@@ -1604,7 +1616,11 @@ export default function CartPage({ cart, addToCart, setCartExact, clearCartDate,
 
     Promise.all([
       db.query("product_product", { filters: [{ column: "active", op: "eq", value: true }], limit: 1000 }),
-      db.query("x_product_product_price_log", { limit: 1000 }),
+      db.query("x_product_product_price_log", {
+        order_by: [{ column: "effective_date", direction: "desc" }],
+        select_columns: ["product_product_id", "lst_price", "effective_date"],
+        limit: 1000,
+      }),
     ]).then(([ppRows, priceRows]) => {
       const t2p: Record<string, string> = {};
       for (const r of Array.isArray(ppRows) ? ppRows : []) {
