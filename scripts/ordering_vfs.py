@@ -1039,7 +1039,7 @@ export async function fetchById(table: string, id: string): Promise<any | null> 
 
 export async function update(table: string, id: string, data: Record<string, any>): Promise<any> {
   return _r(await fetch(proxyBase + table + '/' + id, {
-    method: 'PATCH', headers: _h(), credentials: 'include', body: JSON.stringify({ data }),
+    method: 'PATCH', headers: _h(), credentials: 'include', body: JSON.stringify(data),
   }));
 }
 
@@ -1639,12 +1639,13 @@ export default function CartPage({ cart, addToCart, setCartExact, clearCartDate,
       const failCount = lineResults.filter(r => r.status === "rejected").length;
       if (failCount > 0) throw new Error(`${failCount} 筆明細建立失敗`);
 
-      // 回寫 amount_total
       const amount_total = items.reduce((sum, item) => {
         const price = priceMap[item.productProductId ?? item.productId]?.price ?? 0;
         return sum + price * item.qty;
       }, 0);
-      await db.update("sale_orders", orderId, { amount_total: Math.round(amount_total * 100) / 100 });
+      if (amount_total > 0) {
+        await db.update("sale_orders", orderId, { amount_total: Math.round(amount_total * 100) / 100 });
+      }
 
       clearCartDate(date);
       showToast(`${fmtDate(date)} 訂單已送出 ✅`);
