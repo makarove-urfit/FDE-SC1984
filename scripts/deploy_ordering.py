@@ -59,6 +59,7 @@ def ensure_references(h: dict, app_id: str):
         {"table_name": "product_product", "columns": ["id", "product_tmpl_id", "active"], "permissions": ["read"]},
         {"table_name": "customers", "columns": ["id", "name", "email", "ref", "customer_type"], "permissions": ["read", "create"]},
         {"table_name": "uom_uom", "columns": ["id", "name", "active"], "permissions": ["read"]},
+        {"table_name": "x_holiday_settings", "columns": ["id", "date", "reason"], "permissions": ["read"]},
     ]
     for t in tables:
         tn = t["table_name"]
@@ -113,22 +114,6 @@ def fetch_app_settings(h: dict) -> dict:
             result[k] = v
     print(f"  x_app_settings：{result}")
     return result
-
-
-HOLIDAY_UUID = "96d01299-1d33-4ca7-b437-4bf5c78dfdcf"
-
-
-def fetch_holiday_data(h: dict) -> list:
-    """從 x_holiday_settings 拉假日日期清單，回傳 ['YYYY-MM-DD', ...]"""
-    status, body = _req("GET", f"{API_BASE}/data/objects/{HOLIDAY_UUID}/records", h, timeout=30)
-    if status != 200:
-        print(f"  ⚠️ 拉取 x_holiday_settings 失敗：{status}，前端將無假日排除")
-        return []
-    records = body if isinstance(body, list) else []
-    dates = [r.get("data", {}).get("date") for r in records]
-    dates = sorted(d for d in dates if d)
-    print(f"  x_holiday_settings：{len(dates)} 個假日")
-    return dates
 
 
 def upload_vfs(h: dict, app_id: str, vfs: dict):
@@ -204,11 +189,10 @@ def main():
 
     print("\n[2.5/4] 拉取靜態資料...")
     price_data = fetch_price_data(h)
-    holiday_dates = fetch_holiday_data(h)
     app_settings = fetch_app_settings(h)
 
     print("\n[3/4] 組裝並上傳 VFS...")
-    vfs = build_vfs(price_data, holiday_dates, app_settings)
+    vfs = build_vfs(price_data, app_settings)
     upload_vfs(h, app_id, vfs)
 
     print("\n[3.5/4] 編譯驗證...")

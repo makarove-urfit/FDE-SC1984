@@ -13,15 +13,16 @@
 import json
 
 
-def build_vfs(price_data: dict = None, holiday_dates: list = None, app_settings: dict = None) -> dict:
+def build_vfs(price_data: dict = None, app_settings: dict = None) -> dict:
     """回傳完整的 VFS dict。
     price_data: {product_id: {price, effective_date}}
-    holiday_dates: ['YYYY-MM-DD', ...]
     app_settings: {key: value}
+
+    假日（x_holiday_settings）由前端在 runtime 透過 db.query 取得，
+    不再於部署時烘焙成靜態 JSON — admin 新增假日後即時生效。
     """
     vfs = {}
     vfs["src/price_data.json"] = json.dumps(price_data or {}, ensure_ascii=False)
-    vfs["src/holiday_data.json"] = json.dumps(holiday_dates or [], ensure_ascii=False)
     vfs["src/app_settings.json"] = json.dumps(app_settings or {}, ensure_ascii=False)
 
     # ── package.json ──
@@ -67,19 +68,17 @@ import CartPage from "./pages/CartPage";
 import OrdersPage from "./pages/OrdersPage";
 import BottomNav from "./components/BottomNav";
 import * as db from "./db";
-import HOLIDAY_DATA from "./holiday_data.json";
 import APP_SETTINGS from "./app_settings.json";
 
-const HOLIDAYS = new Set<string>(HOLIDAY_DATA as string[]);
 function toYMD(d: Date): string {
   return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
 }
-function getFirstAvailableDate(): string {
+function getFirstAvailableDate(holidays: Set<string>): string {
   const today = new Date();
   for (let i = 1; i <= 60; i++) {
     const d = new Date(today); d.setDate(today.getDate() + i);
     const ymd = toYMD(d);
-    if (!HOLIDAYS.has(ymd)) return ymd;
+    if (!holidays.has(ymd)) return ymd;
   }
   return toYMD(new Date(today.setDate(today.getDate() + 1)));
 }
@@ -138,7 +137,8 @@ export default function App() {
   const [currentPath, setCurrentPath] = useState<string>(getPath);
   const [cart, setCart] = useState<CartItem[]>(loadCart);
   const [uomMap, setUomMap] = useState<Record<string, string>>({});
-  const [deliveryDate, setDeliveryDate] = useState<string>(getFirstAvailableDate);
+  const [holidays, setHolidays] = useState<Set<string> | null>(null);
+  const [deliveryDate, setDeliveryDate] = useState<string>("");
   const cutoffTime: string = (APP_SETTINGS as any).order_cutoff_time || "";
 
   useEffect(() => {
@@ -168,6 +168,27 @@ export default function App() {
         for (const u of Array.isArray(res) ? res : []) map[String(u.id)] = u.name;
         setUomMap(map);
       }).catch(() => {});
+  }, [user]);
+
+  // 登入後載入假日清單（runtime fetch，admin 新增假日後下次進頁面即反映）
+  useEffect(() => {
+    if (!user) return;
+    const today = new Date().toISOString().slice(0, 10);
+    db.query("x_holiday_settings", { filters: [{ column: "date", op: "ge", value: today }] })
+      .then(res => {
+        const rows = Array.isArray(res) ? res : [];
+        const s = new Set<string>(
+          rows.map((r: any) => String(r.date || "").slice(0, 10)).filter(Boolean)
+        );
+        setHolidays(s);
+        setDeliveryDate(prev => prev || getFirstAvailableDate(s));
+      })
+      .catch(() => {
+        // 拉失敗則退回空集合（不 filter），至少讓使用者能下單
+        const s = new Set<string>();
+        setHolidays(s);
+        setDeliveryDate(prev => prev || getFirstAvailableDate(s));
+      });
   }, [user]);
 
   // hash routing：同步 URL hash ↔ state
@@ -236,7 +257,7 @@ export default function App() {
   if (!user) return <LoginPage onLogin={handleLogin} />;
 
   const pages: Record<string, React.ReactNode> = {
-    "/order": <CatalogPage cart={cart} addToCart={addToCart} setCartExact={setCartExact} uomMap={uomMap} deliveryDate={deliveryDate} setDeliveryDate={setDeliveryDate} />,
+    "/order": <CatalogPage cart={cart} addToCart={addToCart} setCartExact={setCartExact} uomMap={uomMap} deliveryDate={deliveryDate} setDeliveryDate={setDeliveryDate} holidays={holidays} />,
     "/cart": <CartPage cart={cart} addToCart={addToCart} setCartExact={setCartExact} clearCartDate={clearCartDate} onNavigate={navigate} setDeliveryDate={setDeliveryDate} uomMap={uomMap} user={user} />,
     "/orders": <OrdersPage user={user!} cutoffTime={cutoffTime} />,
   };
@@ -523,6 +544,11 @@ html, :host {
   scrollbar-width: none;
 }
 .date-chips::-webkit-scrollbar { display: none; }
+.date-chips-loading {
+  padding: 6px 4px 0;
+  font-size: 12px;
+  color: var(--text-muted);
+}
 .date-chip {
   flex-shrink: 0;
   padding: 4px 12px;
@@ -1238,7 +1264,6 @@ import React, { useState, useEffect, useRef, useCallback } from "react";
 import * as db from "../db";
 import { Minus, Plus } from "lucide-react";
 import PRICE_DATA from "../price_data.json";
-import HOLIDAY_DATA from "../holiday_data.json";
 import { CartItem } from "../App";
 
 interface Category { id: string; name: string; active: boolean; }
@@ -1247,19 +1272,18 @@ interface CatData { ids: string[]; offset: number; hasMore: boolean; loading: bo
 interface PriceInfo { price: number; effective_date: string; }
 
 const priceMap: Record<string, PriceInfo> = PRICE_DATA as any;
-const HOLIDAYS = new Set<string>(HOLIDAY_DATA as string[]);
 const DAY_NAMES = ["日","一","二","三","四","五","六"];
 
 function toYMD(d: Date): string {
   return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
 }
-function getAvailableDates(lookahead = 30): string[] {
+function getAvailableDates(holidays: Set<string>, lookahead = 30): string[] {
   const result: string[] = [];
   const today = new Date();
   for (let i = 1; i <= lookahead; i++) {
     const d = new Date(today); d.setDate(today.getDate() + i);
     const ymd = toYMD(d);
-    if (!HOLIDAYS.has(ymd)) result.push(ymd);
+    if (!holidays.has(ymd)) result.push(ymd);
   }
   return result;
 }
@@ -1280,6 +1304,7 @@ interface Props {
   uomMap: Record<string, string>;
   deliveryDate: string;
   setDeliveryDate: (d: string) => void;
+  holidays: Set<string> | null;
 }
 
 function SkeletonCard() {
@@ -1334,7 +1359,7 @@ function ProductCard({ p, cart, addToCart, setCartExact, uomMap, deliveryDate, t
   );
 }
 
-export default function CatalogPage({ cart, addToCart, setCartExact, uomMap, deliveryDate, setDeliveryDate }: Props) {
+export default function CatalogPage({ cart, addToCart, setCartExact, uomMap, deliveryDate, setDeliveryDate, holidays }: Props) {
   const [categories, setCategories] = useState<Category[]>([]);
   const [activeCat, setActiveCat] = useState<string | null>(null);
   const [search, setSearch] = useState("");
@@ -1355,7 +1380,7 @@ export default function CatalogPage({ cart, addToCart, setCartExact, uomMap, del
   const [catLoading, setCatLoading] = useState(true);
   const [tick, setTick] = useState(0);
   const flush = useCallback(() => setTick(t => t + 1), []);
-  const availableDates = getAvailableDates();
+  const availableDates = holidays ? getAvailableDates(holidays) : [];
 
   const poolRef = useRef<Map<string, Product>>(new Map());
   const catDataRef = useRef<Record<string, CatData>>({});
@@ -1468,7 +1493,9 @@ export default function CatalogPage({ cart, addToCart, setCartExact, uomMap, del
         <div className="date-row">
           <span className="date-label">配送日期</span>
           <div className="date-chips">
-            {availableDates.map(d => {
+            {holidays === null ? (
+              <span className="date-chips-loading">載入日期中...</span>
+            ) : availableDates.map(d => {
               const dateQty = cart.filter(i => i.deliveryDate === d).reduce((s, i) => s + i.qty, 0);
               return (
                 <button key={d} className={`date-chip${deliveryDate === d ? " active" : ""}`}
