@@ -13,19 +13,11 @@
 import json
 
 
-def build_vfs(price_data: dict = None, holiday_dates: list = None, app_settings: dict = None) -> dict:
+def build_vfs() -> dict:
     """回傳完整的 VFS dict。
-    price_data: {product_id: {price, effective_date}}
-    holiday_dates: ["YYYY-MM-DD", ...] 未來假日列表（deploy 時用 admin bearer 拉，bake 進 JSON）
-    app_settings: {key: value}
-
-    x_holiday_settings 是 Custom Table（JSONB），custom-app-user bearer 無法存取
-    /data/objects/ — 必須在部署時用 admin bearer 拉取後烘焙成靜態 JSON。
+    所有動態資料（假日、截止時間、參考價格）由 get_config action 在 runtime 拉取，不再 bake 進 VFS。
     """
     vfs = {}
-    vfs["src/price_data.json"] = json.dumps(price_data or {}, ensure_ascii=False)
-    vfs["src/holiday_data.json"] = json.dumps(holiday_dates or [], ensure_ascii=False)
-    vfs["src/app_settings.json"] = json.dumps(app_settings or {}, ensure_ascii=False)
 
     # ── package.json ──
     vfs["package.json"] = json.dumps({
@@ -70,8 +62,6 @@ import CartPage from "./pages/CartPage";
 import OrdersPage from "./pages/OrdersPage";
 import BottomNav from "./components/BottomNav";
 import * as db from "./db";
-import APP_SETTINGS from "./app_settings.json";
-import HOLIDAY_DATA from "./holiday_data.json";
 
 function toYMD(d: Date): string {
   return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
@@ -140,10 +130,11 @@ export default function App() {
   const [currentPath, setCurrentPath] = useState<string>(getPath);
   const [cart, setCart] = useState<CartItem[]>(loadCart);
   const [uomMap, setUomMap] = useState<Record<string, string>>({});
-  const HOLIDAY_SET = new Set<string>(HOLIDAY_DATA as string[]);
-  const [holidays] = useState<Set<string>>(HOLIDAY_SET);
-  const [deliveryDate, setDeliveryDate] = useState<string>(() => getFirstAvailableDate(HOLIDAY_SET));
-  const cutoffTime: string = (APP_SETTINGS as any).order_cutoff_time || "";
+  const [holidays, setHolidays] = useState<Set<string>>(new Set());
+  const [deliveryDate, setDeliveryDate] = useState<string>("");
+  const [cutoffTime, setCutoffTime] = useState<string>("");
+  const [priceMap, setPriceMap] = useState<Record<string, { price: number; effective_date: string }>>({});
+  const [tmplToProd, setTmplToProd] = useState<Record<string, string>>({});
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -172,6 +163,14 @@ export default function App() {
         for (const u of Array.isArray(res) ? res : []) map[String(u.id)] = u.name;
         setUomMap(map);
       }).catch(() => {});
+    db.runAction("get_config", {}).then((result: any) => {
+      const hSet = new Set<string>((result.holidays || []) as string[]);
+      setHolidays(hSet);
+      setDeliveryDate(d => d || getFirstAvailableDate(hSet));
+      setCutoffTime(result.settings?.order_cutoff_time || "");
+      setPriceMap(result.prices || {});
+      setTmplToProd(result.tmpl_to_prod || {});
+    }).catch(() => {});
   }, [user]);
 
   // hash routing：同步 URL hash ↔ state
@@ -240,8 +239,8 @@ export default function App() {
   if (!user) return <LoginPage onLogin={handleLogin} />;
 
   const pages: Record<string, React.ReactNode> = {
-    "/order": <CatalogPage cart={cart} addToCart={addToCart} setCartExact={setCartExact} uomMap={uomMap} deliveryDate={deliveryDate} setDeliveryDate={setDeliveryDate} holidays={holidays} />,
-    "/cart": <CartPage cart={cart} addToCart={addToCart} setCartExact={setCartExact} clearCartDate={clearCartDate} onNavigate={navigate} setDeliveryDate={setDeliveryDate} uomMap={uomMap} user={user} />,
+    "/order": <CatalogPage cart={cart} addToCart={addToCart} setCartExact={setCartExact} uomMap={uomMap} deliveryDate={deliveryDate} setDeliveryDate={setDeliveryDate} holidays={holidays} priceMap={priceMap} tmplToProd={tmplToProd} />,
+    "/cart": <CartPage cart={cart} addToCart={addToCart} setCartExact={setCartExact} clearCartDate={clearCartDate} onNavigate={navigate} setDeliveryDate={setDeliveryDate} uomMap={uomMap} user={user} priceMap={priceMap} />,
     "/orders": <OrdersPage user={user!} cutoffTime={cutoffTime} />,
   };
 
@@ -1255,7 +1254,6 @@ import React, { useState, useEffect, useRef, useCallback } from "react";
 import * as db from "../db";
 import { Minus, Plus } from "lucide-react";
 import { CartItem } from "../App";
-import PRICE_DATA from "../price_data.json";
 
 interface Category { id: string; name: string; active: boolean; }
 interface Product { id: string; name: string; default_code: string | null; categ_id: string | null; uom_id?: string | null; sale_ok: boolean; active: boolean; }
@@ -1294,6 +1292,8 @@ interface Props {
   deliveryDate: string;
   setDeliveryDate: (d: string) => void;
   holidays: Set<string>;
+  priceMap: Record<string, PriceInfo>;
+  tmplToProd: Record<string, string>;
 }
 
 function SkeletonCard() {
@@ -1349,38 +1349,12 @@ function ProductCard({ p, cart, addToCart, setCartExact, uomMap, deliveryDate, t
   );
 }
 
-export default function CatalogPage({ cart, addToCart, setCartExact, uomMap, deliveryDate, setDeliveryDate, holidays }: Props) {
+export default function CatalogPage({ cart, addToCart, setCartExact, uomMap, deliveryDate, setDeliveryDate, holidays, priceMap, tmplToProd }: Props) {
   const [categories, setCategories] = useState<Category[]>([]);
   const [activeCat, setActiveCat] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [searchResults, setSearchResults] = useState<Product[] | null>(null); // null = 無搜尋
   const [searchLoading, setSearchLoading] = useState(false);
-  const [tmplToProd, setTmplToProd] = useState<Record<string, string>>({}); // product_tmpl_id → product_product.id
-  const [priceMap, setPriceMap] = useState<Record<string, PriceInfo>>({});
-
-  useEffect(() => {
-    db.query("product_product", {
-      filters: [{ column: "active", op: "eq", value: true }],
-      limit: 1000,
-    }).then(ppRows => {
-      // tmpl_id → pp_id
-      const t2p: Record<string, string> = {};
-      for (const r of Array.isArray(ppRows) ? ppRows : []) {
-        const raw = r.product_tmpl_id;
-        const tmplId = Array.isArray(raw) ? String(raw[0]) : String(raw || '');
-        if (tmplId && r.id) t2p[tmplId] = String(r.id);
-      }
-      setTmplToProd(t2p);
-
-      // baked price_data (deploy 時已用 admin bearer fetch，keyed by pp_id)
-      const baked = PRICE_DATA as Record<string, PriceInfo>;
-      const pm: Record<string, PriceInfo> = {};
-      for (const [tmplId, ppId] of Object.entries(t2p)) {
-        if (baked[ppId]) pm[tmplId] = baked[ppId];
-      }
-      setPriceMap(pm);
-    }).catch(() => {});
-  }, []);
   const [catLoading, setCatLoading] = useState(true);
   const [tick, setTick] = useState(0);
   const flush = useCallback(() => setTick(t => t + 1), []);
@@ -1560,7 +1534,6 @@ export default function CatalogPage({ cart, addToCart, setCartExact, uomMap, del
 import * as db from "../db";
 import { Minus, Plus, Trash2, Send } from "lucide-react";
 import { CartItem, AppUser } from "../App";
-import PRICE_DATA from "../price_data.json";
 
 const DAY_NAMES = ["日","一","二","三","四","五","六"];
 
@@ -1580,18 +1553,18 @@ interface Props {
   setDeliveryDate: (d: string) => void;
   uomMap: Record<string, string>;
   user: AppUser;
+  priceMap: Record<string, { price: number; effective_date: string }>;
 }
 
 function Toast({ msg, isError }: { msg: string; isError?: boolean }) {
   return <div className={`toast-msg${isError ? " error" : ""}`}>{msg}</div>;
 }
 
-export default function CartPage({ cart, addToCart, setCartExact, clearCartDate, onNavigate, setDeliveryDate, uomMap, user }: Props) {
+export default function CartPage({ cart, addToCart, setCartExact, clearCartDate, onNavigate, setDeliveryDate, uomMap, user, priceMap }: Props) {
   const [groupNotes, setGroupNotes] = useState<Record<string, string>>({});
   const [submitting, setSubmitting] = useState<string | null>(null);
   const [toast, setToast] = useState<{ msg: string; error: boolean } | null>(null);
   const [prodMap, setProdMap] = useState<Record<string, { name: string; default_code?: string; uom_id?: string }>>({});
-  const [priceMap, setPriceMap] = useState<Record<string, { price: number; effective_date: string }>>({});
 
   useEffect(() => {
     db.query("product_templates", { filters: [{ column: "active", op: "eq", value: true }] })
@@ -1600,24 +1573,6 @@ export default function CartPage({ cart, addToCart, setCartExact, clearCartDate,
         for (const r of Array.isArray(rows) ? rows : []) m[String(r.id)] = r;
         setProdMap(m);
       }).catch(() => {});
-
-    db.query("product_product", {
-      filters: [{ column: "active", op: "eq", value: true }],
-      limit: 1000,
-    }).then(ppRows => {
-      const t2p: Record<string, string> = {};
-      for (const r of Array.isArray(ppRows) ? ppRows : []) {
-        const raw = r.product_tmpl_id;
-        const tmplId = Array.isArray(raw) ? String(raw[0]) : String(raw || '');
-        if (tmplId && r.id) t2p[tmplId] = String(r.id);
-      }
-      const baked = PRICE_DATA as Record<string, { price: number; effective_date: string }>;
-      const pm: Record<string, { price: number; effective_date: string }> = {};
-      for (const [tmplId, ppId] of Object.entries(t2p)) {
-        if (baked[ppId]) pm[tmplId] = baked[ppId];
-      }
-      setPriceMap(pm);
-    }).catch(() => {});
   }, []);
 
   const showToast = (msg: string, error = false) => {
@@ -2211,6 +2166,7 @@ export default function BottomNav({ currentPath, onNavigate, cartCount }: Props)
     # ── actions/manifest.json ──
     vfs["actions/manifest.json"] = json.dumps({
         "ping": {"description": "健康檢查"},
+        "get_config": {"description": "取得 runtime 設定：假日、截止時間、參考價格"},
         "place_order": {"description": "客戶下單：建立銷貨單與明細行"},
         "update_order_lines": {"description": "修改訂單明細數量（需 admin 權限）"},
     }, ensure_ascii=False, indent=2)
@@ -2218,6 +2174,56 @@ export default function BottomNav({ currentPath, onNavigate, cartCount }: Props)
     # ── actions/place_order.py ──（使用 ctx.db API，不使用 SQLAlchemy）
     vfs["actions/ping.py"] = r'''def execute(ctx):
     ctx.response.json({"pong": True})
+'''
+
+    vfs["actions/get_config.py"] = r'''def execute(ctx):
+    from datetime import date as _date
+
+    holiday_rows = ctx.db.query("x_holiday_settings", limit=200) or []
+    settings_rows = ctx.db.query("x_app_settings", limit=100) or []
+    price_rows = ctx.db.query("x_product_product_price_log", limit=1000) or []
+    pp_rows = ctx.db.query("product_product", limit=1000) or []
+
+    today = _date.today().isoformat()
+    holidays = [str(r.get("date", "")) for r in holiday_rows if str(r.get("date", "")) >= today]
+
+    settings = {}
+    for r in settings_rows:
+        k, v = r.get("key"), r.get("value")
+        if k and v is not None:
+            settings[k] = v
+
+    tmpl_to_prod = {}
+    for r in pp_rows:
+        raw = r.get("product_tmpl_id")
+        tmpl_id = str(raw[0]) if isinstance(raw, list) else str(raw or "")
+        if tmpl_id and r.get("id"):
+            tmpl_to_prod[tmpl_id] = str(r["id"])
+
+    latest_by_pp = {}
+    for r in price_rows:
+        pp_id = str(r.get("product_product_id", ""))
+        eff = str(r.get("effective_date", ""))
+        try:
+            price = float(r.get("lst_price") or 0)
+        except (ValueError, TypeError):
+            continue
+        if not pp_id or not eff or price == 0:
+            continue
+        if pp_id not in latest_by_pp or eff > latest_by_pp[pp_id]["effective_date"]:
+            latest_by_pp[pp_id] = {"price": price, "effective_date": eff}
+
+    prices = {}
+    for tmpl_id, pp_id in tmpl_to_prod.items():
+        if pp_id in latest_by_pp:
+            prices[tmpl_id] = latest_by_pp[pp_id]
+
+    ctx.response.json({
+        "holidays": holidays,
+        "settings": settings,
+        "prices": prices,
+        "tmpl_to_prod": tmpl_to_prod,
+    })
 '''
 
     vfs["actions/place_order.py"] = r'''def execute(ctx):

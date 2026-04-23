@@ -212,13 +212,8 @@ def main():
     slug = fetch_app_slug(h, app_id)
     print(f"  App slug: {slug}")
 
-    print("\n[2.5/4] 拉取靜態資料...")
-    price_data = fetch_price_data(h)
-    holiday_dates = fetch_holiday_data(h)
-    app_settings = fetch_app_settings(h)
-
     print("\n[3/4] 組裝並上傳 VFS...")
-    vfs = build_vfs(price_data, holiday_dates, app_settings)
+    vfs = build_vfs()
     upload_vfs(h, app_id, vfs)
 
     print("\n[3.5/4] 編譯驗證...")
