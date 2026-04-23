@@ -37,6 +37,7 @@
 4. **保留的 custom table 必須在本文件明列理由**（目前僅 `x_holiday_settings` 尚未能完全下架，詳見 §0.11）。
 5. **頁籤即 path**：tab 狀態由 URL path 驅動（`/admin/daily`、`/admin/settings`），子頁位於 tab path 底下（`/admin/settings/products`），可分享、可 bookmark、瀏覽器上下一頁可切換。
 6. **出貨流程走 `stock_pickings`**：司機 = `stock_pickings.user_id`；不自建司機↔客戶對應表，以「客戶區域 tag + tag 的預設司機 (JSONB)」驅動 picking 自動帶司機。
+7. **採購員歸屬走兩層 SSOT 鏈**：`品項.custom_data.default_supplier_id` → `supplier.custom_data.default_buyer_id`。分類 (`product_categories`) 不承載採購員資訊。
 
 ---
 
@@ -54,11 +55,13 @@
                                          (某 tag 對某商品的專屬價；本專案暫不用)
 
    Supplier ─ supplier_contacts ─▶ SupplierContact
-      │       custom_data.default_buyer_id ─▶ User 的 UUID
-      └─ product_supplierinfo ─▶ ProductTemplate
+      │       custom_data.default_buyer_id ─▶ User（採購員 SSOT）
+      └─ product_supplierinfo ─▶ ProductTemplate (多對多；備援/多供應商)
 
-   ProductTemplate ── categ_id ─▶ ProductCategory (階層，parent_id 自引用)
-                                    custom_data.default_buyer_id ─▶ User 的 UUID
+   ProductTemplate ── categ_id ─▶ ProductCategory (階層，parent_id 自引用；純分類)
+          │
+          └─ custom_data.default_supplier_id ─▶ Supplier（主供應商 SSOT）
+             採購鏈：品項 → 主供應商 → 採購員
 
                             sale_id                    picking_id
    SaleOrder ─────────▶ StockPicking ◀─── StockMove ────────┐
@@ -161,7 +164,15 @@
 - **關聯**：
   - 下屬聯絡人 `supplier_contacts.supplier_id`
   - 供應的產品 `product_supplierinfo`（多對多）
-  - **custom_data 存預設採購員**：`{"default_buyer_id": "<user-uuid>"}`（無原生欄位）
+- **`custom_data` 規格**（JSONB）：
+
+  ```json
+  {
+    "default_buyer_id": "<user-uuid>"   // 此供應商的預設採購員
+  }
+  ```
+
+- **「採購員」SSOT**：`suppliers.custom_data.default_buyer_id` 是**採購員歸屬的唯一來源**。建採購單時依 `purchase_orders.supplier_id` 反查本欄位帶入 `user_id`（見 §2.11 `create_purchase_order`）。
 
 ### 0.5 Employee（員工）
 
@@ -195,15 +206,25 @@
 
 - **ProductTemplate**：產品模板（品項定義）
   - 欄位：`name`, `default_code`, `sale_ok` (上架), `active` (啟用), `categ_id`, `list_price`, `standard_price`, `uom_id`
-  - 關聯：`categ_id → product_categories.id`；供應商透過 `product_supplierinfo`
+  - 關聯：`categ_id → product_categories.id`；供應商透過 `product_supplierinfo`（多對多，允許多個供應商）
+  - **`custom_data` 規格**：
+
+    ```json
+    {
+      "default_supplier_id": "<supplier-uuid>"   // 此品項的主要供應商
+    }
+    ```
+
+  - **「主要供應商」SSOT**：`product_templates.custom_data.default_supplier_id` 是**品項 → 供應商**的唯一來源。UI 上 `product_supplierinfo` 可掛多個供應商（備援），但**預設走哪家由這個欄位決定**。
+  - 採購鏈：`品項 → 主供應商（default_supplier_id）→ 採購員（supplier.custom_data.default_buyer_id）`
 - **ProductProduct**：實際庫存單位（本專案暫時一對一對應 template）
   - 欄位：`id`, `product_tmpl_id`, `default_code`, `barcode`, `active`, `standard_price`, `lst_price`
 
 ### 0.9 ProductCategory（產品分類）
 
 - **性質**：**有階層**（`parent_id` 自引用），每品項一個分類
-- **本專案擴充**：`custom_data` 存**該分類的預設採購員**：`{"default_buyer_id": "<user-uuid>"}`
-  - 下單 → 建立 purchase_orders 時依 line 的 product.categ_id 查此欄位帶入採購員
+- **用途**：純粹的貨品分類（葉菜類 / 根莖類 / 瓜果類），用於陳列、搜尋、報表
+- **不存採購員資訊** — 採購員歸屬走 `品項 → 供應商 → 採購員` 鏈（§0.4 + §0.8），不用分類做為來源。
 
 ### 0.10 SaleOrder / SaleOrderLine（銷售訂單）
 
@@ -243,7 +264,7 @@
 ### 0.12 PurchaseOrder / PurchaseOrderLine（採購訂單）
 
 - `supplier_id`, `state`, `date_order`, `amount_total`
-- `user_id` **採購負責人**（建立時從 `suppliers.custom_data.default_buyer_id` 或 `product_categories.custom_data.default_buyer_id` 帶入）
+- `user_id` **採購負責人**（建立時從 `suppliers.custom_data.default_buyer_id` 帶入 — 見 §2.11 `create_purchase_order`）
 - `maker_id`, `approver_id`
 
 ### 0.13 AuditLog（稽核記錄）
@@ -276,9 +297,9 @@
 | Employee | `hr_employees` | `hr_departments`, `hr_jobs`, `hr_employee_categories` | 全原生 |
 | EmployeeCategory | `hr_employee_categories` | (透過 `hr_employees.category_ids` JSON) | 全原生 |
 | User | `users` (**不暴露**) | 透過 `hr_employees.user_id` 反查 | 間接 |
-| ProductTemplate | `product_templates` | `product_supplierinfo` | 全原生 |
+| ProductTemplate | `product_templates` | `product_supplierinfo`（備援多供應商） | 全原生；default_supplier_id 存 custom_data |
 | ProductProduct | `product_products` | — | 全原生 |
-| ProductCategory | `product_categories` | — | 全原生；default_buyer_id 存 custom_data |
+| ProductCategory | `product_categories` | — | 全原生（純分類，不存採購員） |
 | SaleOrder | `sale_orders` | `sale_order_lines` | 全原生 |
 | StockPicking | `stock_pickings` | `stock_moves`, `stock_picking_batches`, `stock_picking_types`, `delivery_carriers` | 全原生 |
 | PurchaseOrder | `purchase_orders` | `purchase_order_lines` | 全原生 |
@@ -312,8 +333,8 @@
 | `x_app_settings` | ✅ | **下架**，改用 `ir_config_parameters` |
 | `x_holiday_settings` | ✅ | 暫保留；驗證 `hr_leave_mandatory_days` 能否取代 |
 | `x_driver_customer` | ✅ | **下架**，改用 `customer_tags.custom_data.default_driver_id` + `stock_pickings.user_id` |
-| `x_category_buyer` | ✅ | **下架**，改用 `product_categories.custom_data.default_buyer_id` |
-| `x_supplier_buyer`（未建） | — | **不建**，改用 `suppliers.custom_data.default_buyer_id` |
+| `x_category_buyer` | ✅ | **下架**，採購員改走 `品項 → 主供應商 → supplier.custom_data.default_buyer_id` 鏈（§0.4 + §0.8），與分類脫鉤 |
+| `x_supplier_buyer`（未建） | — | **不建**，改用 `suppliers.custom_data.default_buyer_id`（SSOT） |
 | `x_employee_role`（未建） | — | **不建**，使用 `hr_employee_categories` + `category_ids` |
 
 ---
@@ -378,8 +399,8 @@
 | 列出產品 | POST query | `/proxy/{app}/product_templates/query` | `product_templates` |
 | 新增產品 | POST | `/proxy/{app}/product_templates` | `product_templates`（**權限需補 create**） |
 | 更新產品（含 categ_id、sale_ok 上下架） | PATCH | `/proxy/{app}/product_templates/{id}` | `product_templates` |
+| 指派主供應商（custom_data.default_supplier_id） | PATCH | `/proxy/{app}/product_templates/{id}` custom_data | `product_templates` |
 | 分類 CRUD | GET/POST/PATCH/DELETE | `/proxy/{app}/product_categories[/id]` | `product_categories` |
-| 指派分類的預設採購員 | PATCH | `/proxy/{app}/product_categories/{id}` custom_data | `product_categories` |
 
 ### 2.6 Sale Order
 
@@ -431,6 +452,7 @@
 | `place_order` | Ordering 前端下單 | 建 `sale_orders`（**不寫 `user_id`**）+ `sale_order_lines` |
 | `confirm_order` | Admin 確認訂單 | PATCH `sale_orders.state='sale'`；**自動建 stock_pickings**（outgoing 類型）；讀客戶區域 tag 的 custom_data 帶入 `user_id` (司機) |
 | `complete_delivery` | 司機回報送達 | PATCH `stock_pickings.state='done'`, `date_done=now`；更新 `stock_moves.quantity` |
+| `create_purchase_order` | Admin 採購頁「建採購單」 | 依產品 line 分組：`line.product → template.custom_data.default_supplier_id` 歸單；建 `purchase_orders` 時 `user_id = supplier.custom_data.default_buyer_id`；缺值時 UI 提示人工選擇 |
 | `recalc_order_total` | 訂單行異動後 | 重算 `sale_orders.amount_total` |
 
 ---
@@ -475,8 +497,8 @@ Admin 首頁路由架構：
 | **Supplier** | `SuppliersPage` (新) | ★ 待做 | 列表、建立、編輯（含 default_buyer_id）；取代 `SupplierMappingPage` |
 | **Employee** | `EmployeesPage` (新) | ★ 待做 | 列表、編輯 active/department/job/category_ids |
 | **EmployeeCategory** | inline 在 `EmployeesPage` | ★ 待做 | 標籤指派 |
-| **ProductTemplate** | `ProductsPage` | ✅ 已做 | 列表、上下架、改分類；**補：新增產品** |
-| **ProductCategory** | `ProductCategoriesPage` | ✅ 已做 | CRUD；**補：編輯對話框寫 default_buyer_id（custom_data）** |
+| **ProductTemplate** | `ProductsPage` | ✅ 已做 | 列表、上下架、改分類；**補：新增產品、設主供應商 `default_supplier_id`（custom_data）** |
+| **ProductCategory** | `ProductCategoriesPage` | ✅ 已做 | CRUD（純分類，不碰採購員） |
 | **SaleOrder** | `OrdersPage` / `SalesOrdersPage` (VFS) | ✅ 已做 | 確認、編輯；**補：確認時自動建 stock_pickings** |
 | **SaleOrderLine** | inline 在 `OrderEditPage` | ✅ 已做 | 數量、價格、delivery_date |
 | **StockPicking** | `DeliveryPage` | 🔄 **需重構**：從查 sale_orders 改為查 stock_pickings | 列表某日出貨單、指派司機、標記完成 |
@@ -504,7 +526,7 @@ Admin 首頁路由架構：
 
 | 下架頁面 | 原因 | 替代 |
 |---|---|---|
-| `CategoryBuyerPage` | 改用 `product_categories.custom_data.default_buyer_id` | 併入 `ProductCategoriesPage` 編輯對話框 |
+| `CategoryBuyerPage` | 採購員歸屬改走 `品項 → 主供應商 → supplier.custom_data.default_buyer_id`（與分類脫鉤） | 在 `ProductsPage` 設主供應商、`SuppliersPage` 設預設採購員 |
 | `DriverMappingPage` | 改用 `customer_tags.custom_data.default_driver_id` | 併入 `CustomerTagsPage` 編輯對話框 |
 | `SupplierMappingPage` | 改用 `product_supplierinfo` 一對多 UI（商品配多供應商） | 併入 `ProductsPage` 編輯對話框或 `SuppliersPage` 的「供應產品」區塊 |
 
