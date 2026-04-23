@@ -76,14 +76,30 @@
 
 ### 0.1 Customer（客戶）
 
-- **性質**：有地址、統編、通聯方式；是公司 (`is_company=true`) 或個人；可被打多個 tag 區分族群；有一個主業務員。
+- **性質**：有地址、統編、通聯方式；是公司 (`is_company=true`) 或個人；可被打多個 tag 區分族群；有一個主業務員。**獨立下單單位一律是 Customer**（含分店）。
 - **關聯**：
   - 一個 **業務員** `salesperson_id → users.id`（原生欄位）
   - **預設司機**：透過客戶掛的區域 tag 取得（見 §0.3）
-  - **下屬聯絡人/分店地址** `customer_contacts.customer_id`（一對多）
+  - **下屬聯絡人（純地址點）** `customer_contacts.customer_id`（一對多）— 只是送貨/聯絡地址，**不能獨立下單**
   - **客戶等級** `level_id → customer_levels.id`（一對一，可選）
   - **多個區域/分類 tag** via `customer_tag_rel`（多對多）
-  - **custom_data** 延伸欄位（JSONB）：例如 `{"default_driver_id": "<user-uuid>"}` 供**不走 tag、客戶層級直接指派司機**的例外情境使用
+- **`custom_data` 規格**（JSONB，Odoo 原生擴充位）：
+
+  ```json
+  {
+    "kind": "independent" | "headquarters" | "branch",
+    "parent_customer_id": "<uuid>",   // 只有 kind='branch' 才填，指向母公司 Customer
+    "default_driver_id": "<user-uuid>" // 選填；覆蓋區域 tag 帶的預設司機
+  }
+  ```
+
+  **為什麼分店要當 Customer 而不是 customer_contact**：
+  - 分店要能獨立下單、獨立收帳、獨立追蹤出貨 → 必須是 Customer
+  - `customer_contacts` 在 Odoo 是「聯絡人/地址點」，沒有自己的訂單流程、帳務流程
+  - `customers` 本身**沒有原生 `parent_id`**（AI GO 的 view 拿掉了），所以母公司-分店關係只能走 `custom_data.parent_customer_id`
+  - 代價：沒有 DB 層 FK 保證，應用層要自己驗證 parent 存在且屬同 tenant
+
+- **CustomersPage 顯示**：依 `kind` 分組，樹狀展開（總公司展開看分店）；分店下單時自動把「帳單地址」(`customer_invoice_id`) 設為母公司（若有指定）
 
 ### 0.2 CustomerContact（客戶子聯絡人 / 分店地址）
 
@@ -93,13 +109,29 @@
 
 ### 0.3 CustomerTag（客戶標籤，兼作「區域」）
 
-- **性質**：客戶的多維度分類（區域、VIP、特殊屬性）。**本專案用 tag 表達「配送區域」**。
+- **性質**：客戶的多維度分類（區域、VIP、特殊屬性）。**本專案用 tag 表達「配送區域」、「等級」、「自由屬性」三類。**
 - **關聯**：
   - 多對多掛 customer（`customer_tag_rel`）
-  - 可為某 tag 下的特定商品設定**專屬定價** `customer_tag_prices`（原生功能，未來可用）
-  - **custom_data 存「區域預設司機」**：`{"default_driver_id": "<user-uuid>"}`
-- **命名約定**：區域類 tag 用統一前綴（如 `[區]北區`），前端 UI 限制每個客戶**只能選一個區域 tag**；其他屬性類可多選。
+  - 可為某 tag 下的特定商品設定**專屬定價** `customer_tag_prices`（原生功能，本專案暫不用）
+- **`custom_data` 規格**（JSONB）：
+
+  ```json
+  {
+    "category": "region" | "level" | "attribute",  // 必填；tag 分類
+    "single_select": true,                           // 建議 region/level=true，attribute=false
+    "default_driver_id": "<user-uuid>"              // 僅 category='region' 有意義
+  }
+  ```
+
+  | `category` | 意義 | `single_select` | 其他欄位 |
+  |---|---|---|---|
+  | `region` | 配送區域（北區 / 南區） | true | `default_driver_id` |
+  | `level` | 客戶等級（VIP / 金 / 銀） | true | — |
+  | `attribute` | 自由屬性（易碎 / 下午送 / 不接六日） | false | — |
+
+- **`customer_tags` 本身沒有 `parent_id` 或 `category` 欄位**，這份分類純靠 JSONB + 應用層驗證。
 - **換司機**：只改 tag.custom_data 一次，該區全部客戶下次出貨都帶新司機。
+- **CustomerTagsPage** 依 `category` 分成三個分頁區塊顯示；客戶編輯頁挑 tag 時，`region` 與 `level` 強制單選、`attribute` 多選。
 
 ### 0.4 Supplier（供應商）
 
@@ -410,10 +442,10 @@ Admin 首頁路由架構：
 
 | 實體 | 頁面 | 狀態 | 主要操作 |
 |---|---|---|---|
-| **Customer** | `CustomersPage` (新) | ★ 待做 | 列表、建立、編輯（含 salesperson_id、tag）、聯絡人子表 |
-| **CustomerContact** | inline 在 `CustomersPage` 的客戶詳情 | ★ 待做 | 子聯絡人 CRUD |
-| **CustomerTag（區域）** | `CustomerTagsPage` (新) | ★ 待做 | 建立區域、設 default_driver_id、查看該區客戶清單 |
-| **CustomerTagRel** | 併入 `CustomersPage` 編輯 | ★ 待做 | 打/拔 tag |
+| **Customer** | `CustomersPage` (新) | ★ 待做 | 樹狀列表（按 `custom_data.kind` 把 branch 掛在 headquarters 下）、建立、編輯（含 salesperson_id、tag、parent_customer_id）、聯絡人子表 |
+| **CustomerContact** | inline 在 `CustomersPage` 的客戶詳情 | ★ 待做 | 純聯絡人/送貨地址 CRUD（不含獨立下單流程） |
+| **CustomerTag** | `CustomerTagsPage` (新) | ★ 待做 | 按 `custom_data.category` 分 region/level/attribute 三區顯示；region 類可設 `default_driver_id`；查看該 tag 的客戶清單 |
+| **CustomerTagRel** | 併入 `CustomersPage` 編輯 | ★ 待做 | 打/拔 tag（region/level 強制單選、attribute 多選） |
 | **Supplier** | `SuppliersPage` (新) | ★ 待做 | 列表、建立、編輯（含 default_buyer_id）；取代 `SupplierMappingPage` |
 | **Employee** | `EmployeesPage` (新) | ★ 待做 | 列表、編輯 active/department/job/category_ids |
 | **EmployeeCategory** | inline 在 `EmployeesPage` | ★ 待做 | 標籤指派 |
