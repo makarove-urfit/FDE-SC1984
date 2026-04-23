@@ -336,6 +336,50 @@ export function mapProducts(raw: RawProductTemplate[], categories: Category[], u
   })
 }
 
+export interface RawProductPrice {
+  product_product_id: string
+  lst_price: number
+  effective_date: string
+}
+
+/**
+ * 查詢 x_product_product_price_log，回傳 { [productTemplateId]: price }
+ * 找每個品項在指定配送日期前最近一筆參考價
+ */
+export async function fetchPricesForDate(deliveryDate: string): Promise<Record<string, number>> {
+  try {
+    const [priceRecs, ppRecs] = await Promise.all([
+      fetchProxy<RawProductPrice[]>('x_product_product_price_log/query', 'POST', {
+        filters: [{ column: 'effective_date', op: 'lte', value: deliveryDate }],
+        select_columns: ['product_product_id', 'lst_price', 'effective_date'],
+        order_by: [{ column: 'effective_date', direction: 'desc' }],
+        limit: 1000,
+      }).catch(() => [] as RawProductPrice[]),
+      fetchProxy<{ id: string; product_tmpl_id: string }[]>('product_product/query', 'POST', {
+        filters: [{ column: 'active', op: 'eq', value: true }],
+        select_columns: ['id', 'product_tmpl_id'],
+        limit: 500,
+      }).catch(() => [] as { id: string; product_tmpl_id: string }[]),
+    ])
+
+    const ppToTmpl: Record<string, string> = {}
+    for (const pp of ppRecs) {
+      if (pp.id && pp.product_tmpl_id) ppToTmpl[pp.id] = pp.product_tmpl_id
+    }
+
+    const priceMap: Record<string, number> = {}
+    for (const rec of priceRecs) {
+      const tmplId = ppToTmpl[rec.product_product_id]
+      if (tmplId && !(tmplId in priceMap)) {
+        priceMap[tmplId] = rec.lst_price
+      }
+    }
+    return priceMap
+  } catch {
+    return {}
+  }
+}
+
 export function mapCustomers(raw: RawCustomer[]): Customer[] {
   return raw.filter(c => c.name).map(c => ({
     id: c.id,

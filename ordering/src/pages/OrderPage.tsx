@@ -9,6 +9,7 @@ import SkeletonCard from '../components/SkeletonCard'
 import { useStore } from '../store/useStore'
 import { useAuthStore } from '../store/useAuthStore'
 import { getAvailableOrderDates, formatDateOption, fetchHolidays } from '../utils/dateSelection'
+import { fetchPricesForDate } from '../api/client'
 
 export default function OrderPage() {
   const navigate = useNavigate()
@@ -21,6 +22,9 @@ export default function OrderPage() {
   const [selectedDeliveryDate, setSelectedDeliveryDate] = useState('')
   const [availableDates, setAvailableDates] = useState<string[]>([])
   const [datesLoading, setDatesLoading] = useState(true)
+
+  // 參考價（依配送日期動態查詢）
+  const [priceMap, setPriceMap] = useState<Record<string, number>>({})
 
   const categories: Category[] = liveCategories
   const products: Product[] = liveProducts
@@ -43,6 +47,11 @@ export default function OrderPage() {
       if (dates.length > 0 && !selectedDeliveryDate) setSelectedDeliveryDate(dates[0])
     }).finally(() => setDatesLoading(false))
   }, [token])
+
+  useEffect(() => {
+    if (!selectedDeliveryDate) return
+    fetchPricesForDate(selectedDeliveryDate).then(setPriceMap).catch(() => {})
+  }, [selectedDeliveryDate])
 
   const filteredProducts = products.filter(p => p.categoryId === activeCat)
   const totalItems = cart.reduce((sum, item) => sum + item.qty, 0)
@@ -124,9 +133,16 @@ export default function OrderPage() {
             const qty = inCart?.qty ?? 0
             return (
               <div key={product.id} className="bg-white rounded-xl border border-gray-100 p-3 space-y-2">
-                <div>
-                  <p className="font-medium text-sm text-gray-900 leading-tight">{product.name}</p>
-                  <p className="text-xs text-gray-400">{product.unit}</p>
+                <div className="flex items-start justify-between">
+                  <div>
+                    <p className="font-medium text-sm text-gray-900 leading-tight">{product.name}</p>
+                    <p className="text-xs text-gray-400">{product.unit}</p>
+                  </div>
+                  {priceMap[product.id] != null && (
+                    <span className="text-sm font-semibold text-primary shrink-0 ml-1">
+                      ${priceMap[product.id]}
+                    </span>
+                  )}
                 </div>
                 <div className="flex items-center justify-between">
                   <button

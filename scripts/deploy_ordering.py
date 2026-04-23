@@ -60,6 +60,7 @@ def ensure_references(h: dict, app_id: str):
         {"table_name": "customers", "columns": ["id", "name", "email", "ref", "customer_type"], "permissions": ["read", "create"]},
         {"table_name": "uom_uom", "columns": ["id", "name", "active"], "permissions": ["read"]},
         {"table_name": "x_holiday_settings", "columns": ["id", "date", "reason"], "permissions": ["read"]},
+        {"table_name": "x_product_product_price_log", "columns": ["id", "product_product_id", "lst_price", "effective_date"], "permissions": ["read"]},
     ]
     for t in tables:
         tn = t["table_name"]

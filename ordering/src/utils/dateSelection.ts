@@ -38,7 +38,7 @@ function toYMD(date: Date): string {
   return `${y}-${m}-${d}`
 }
 
-const LOOKAHEAD_DAYS = 30
+const LOOKAHEAD_DAYS = 7
 
 const DAY_NAMES = ['日', '一', '二', '三', '四', '五', '六']
 
