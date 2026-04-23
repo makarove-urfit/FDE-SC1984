@@ -79,6 +79,35 @@ export interface RawSaleOrderLine {
 import { useAuthStore } from '../store/useAuthStore'
 import { refreshAccessToken } from './auth'
 
+// 避免並發請求同時觸發多次 refresh
+let proactiveRefreshPromise: Promise<void> | null = null
+
+async function ensureFreshToken(): Promise<void> {
+  const { token, refreshToken, expiresAt } = useAuthStore.getState()
+  if (!token || !refreshToken || !expiresAt) return
+  if (Date.now() < expiresAt - 60_000) return // 剩超過 60 秒，不用 refresh
+
+  if (!proactiveRefreshPromise) {
+    proactiveRefreshPromise = refreshAccessToken(refreshToken)
+      .then(newAuth => {
+        useAuthStore.getState().setAuth(
+          newAuth.access_token,
+          newAuth.refresh_token,
+          newAuth.user,
+          newAuth.expires_in,
+          newAuth.customer_id,
+        )
+      })
+      .catch(() => {
+        useAuthStore.getState().logout()
+      })
+      .finally(() => {
+        proactiveRefreshPromise = null
+      })
+  }
+  await proactiveRefreshPromise
+}
+
 /** 通用 proxy fetch — 支援所有 HTTP methods */
 async function fetchProxy<T>(
   endpoint: string,
@@ -87,6 +116,7 @@ async function fetchProxy<T>(
   retries = 2,
   skipRefresh = false,
 ): Promise<T> {
+  if (!skipRefresh) await ensureFreshToken()
   const url = `${API_BASE}/${endpoint}`
   const token = useAuthStore.getState().token
   const options: RequestInit = {

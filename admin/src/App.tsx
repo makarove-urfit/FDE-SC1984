@@ -6,6 +6,7 @@ import LoadingCover from './components/LoadingCover'
 import ToastContainer from './components/ToastContainer'
 import { useAdminStore } from './store/useAdminStore'
 import { useUIStore } from './store/useUIStore'
+import { refreshToken, getAdminToken, clearAdminToken } from './api/auth'
 
 const DashboardPage = lazy(() => import('./pages/DashboardPage'))
 const OrdersPage = lazy(() => import('./pages/OrdersPage'))
@@ -26,6 +27,8 @@ function LoadingFallback() {
   return <div className="min-h-screen bg-gray-50 flex items-center justify-center text-gray-400">載入中...</div>
 }
 
+const REFRESH_INTERVAL_MS = 13 * 60 * 1000 // 13 分鐘，token 15 分鐘過期
+
 export default function App() {
   useEffect(() => {
     const ui = useUIStore.getState()
@@ -36,6 +39,19 @@ export default function App() {
         ui.hideLoading()
         ui.toast('error', '資料載入失敗，請重新整理')
       })
+  }, [])
+
+  useEffect(() => {
+    const timer = setInterval(async () => {
+      if (!getAdminToken()) return
+      try {
+        await refreshToken()
+      } catch {
+        clearAdminToken()
+        window.location.href = '/'
+      }
+    }, REFRESH_INTERVAL_MS)
+    return () => clearInterval(timer)
   }, [])
 
   return (
