@@ -52,7 +52,7 @@ export default function CartPage({ cart, addToCart, setCartExact, clearCartDate,
         note: groupNotes[date] || "",
         items: items.map(item => ({
           product_template_id: item.productId,
-          product_name: item.name || item.productId,
+          product_name: item.name ?? "",
           qty: item.qty,
           price_unit: priceMap[item.productId]?.price ?? 0,
         })),
