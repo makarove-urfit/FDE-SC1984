@@ -39,6 +39,7 @@ export function ProductCard({ p, cart, addToCart, setCartExact, uomMap, delivery
       </div>
       <div className="product-price-block">
         {price > 0 && <span className="product-price">${price}</span>}
+        {priceMap[p.id]?.date && <span className="price-date">{priceMap[p.id].date}</span>}
       </div>
       <div className="qty-control">
         <button className="qty-btn" disabled={qty === 0}
