@@ -26,14 +26,10 @@ export default function CustomerTagsPage() {
   const load = async () => {
     setLoading(true); setErr('');
     try {
-      const [rawTags, rawDepts, rawAllEmps] = await Promise.all([
+      const [rawTags, rawAllEmps] = await Promise.all([
         db.query('customer_tags'),
-        db.query('hr_departments'),
         db.query('hr_employees'),
       ]);
-      const deliveryDept = (rawDepts || []).find((d: any) => String(d.name || '').trim() === '配送');
-      const deliveryDeptId = deliveryDept ? String(deliveryDept.id) : null;
-
 
       setTags((rawTags || [])
         .filter((r: any) => {
@@ -57,17 +53,13 @@ export default function CustomerTagsPage() {
       }
       setEmployees(
         (rawAllEmps || [])
-          .filter((e: any) => {
-            if (e.active === false) return false;
-            if (!deliveryDeptId) return !!e.user_id;
-            const did = Array.isArray(e.department_id) ? e.department_id[0] : e.department_id;
-            return String(did) === deliveryDeptId;
-          })
+          .filter((e: any) => e.active !== false)
           .map((e: any) => {
             const userId = e.user_id ? String(e.user_id) : (nameToUserId[String(e.name || '')] || '');
             return { id: String(e.id), name: String(e.name || ''), userId };
           })
           .filter((e: Employee) => !!e.userId)
+          .filter((e, i, arr) => arr.findIndex(x => x.userId === e.userId) === i)
           .sort((a: Employee, b: Employee) => a.name.localeCompare(b.name, 'zh-Hant'))
       );
     } catch (e: any) {
@@ -215,6 +207,7 @@ export default function CustomerTagsPage() {
                 {employees.length === 0 && (
                   <p className="text-xs text-amber-600 mt-1">需先為員工建立系統帳號，才能在此指定司機</p>
                 )}
+                <p className="text-xs text-gray-400 mt-1">客戶的配送路線設定後，系統將依此路線自動指派司機</p>
               </div>
               {formErr && <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-2 rounded-lg text-sm">{formErr}</div>}
             </div>

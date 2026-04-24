@@ -31,19 +31,33 @@ export default function DeliveryPage() {
   // #6 empMap 用 useMemo 避免每次 render 重建
   const empMap = useMemo(() => Object.fromEntries(employees.map(e=>[e.id, e])), [employees]);
 
-  // 載入 x_driver_customer → custToDriver (customerid → driverid)
+  // 從 customer_tags (路線) 建立 customerid → empId 對應
+  // 路線: customer_tag.custom_data.default_driver_id = user_id
+  // 客戶: customer.custom_data.region_tag_id → customer_tag
+  // 員工: user_id → emp.id (AIGO UUID)
   useEffect(() => {
-    db.queryCustom('x_driver_customer').then((raw:any[]) => {
-      const map: Record<string,string> = {};
-      for (const r of (raw||[])) {
-        const d = r.data||r;
-        const cid = String(d.customerid||d.customer_id||'');
-        const did = String(d.driverid||d.driver_id||'');
-        if (cid && did) map[cid] = did;
+    if (employees.length === 0) return;
+    db.query('customer_tags').then((rawTags: any[]) => {
+      const userIdToEmpId: Record<string, string> = {};
+      for (const e of employees) {
+        if (e.user_id) userIdToEmpId[String(e.user_id)] = String(e.id);
+      }
+      const tagToDriver: Record<string, string> = {};
+      for (const t of (rawTags || [])) {
+        const cd = t.custom_data || {};
+        if (cd.category === 'region' && cd.default_driver_id) {
+          const empId = userIdToEmpId[String(cd.default_driver_id)];
+          if (empId) tagToDriver[String(t.id)] = empId;
+        }
+      }
+      const map: Record<string, string> = {};
+      for (const [cid, cust] of Object.entries(customers)) {
+        const tagId = String((cust as any)?.custom_data?.region_tag_id || '');
+        if (tagId && tagToDriver[tagId]) map[cid] = tagToDriver[tagId];
       }
       setCustToDriver(map);
-    }).catch((e:any) => console.error('x_driver_customer 載入失敗:', e.message));
-  }, []);
+    }).catch((e: any) => console.error('路線司機載入失敗:', e.message));
+  }, [employees, customers]);
 
   // #1 用 useEffect 同步 allOrders → 本地 state（修復 render body setState 無限迴圈）
   useEffect(() => {
