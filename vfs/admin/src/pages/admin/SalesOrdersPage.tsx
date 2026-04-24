@@ -167,7 +167,7 @@ export default function SalesOrdersPage() {
     return true;
   });
   const co = confirm ? orders.find(o => o.id===confirm.id) : null;
-  const draftSelected = [...selectedOrders].filter(id => orders.find(o => o.id===id)?.state === 'draft').length;
+  const draftSelected = [...selectedOrders].filter(id => { const o = orders.find(x => x.id===id); return o ? isDraft(o) : false; }).length;
 
   return (
     <div style={{height:'100vh',display:'flex',flexDirection:'column',overflow:'hidden',background:'#f9fafb'}}>
@@ -191,7 +191,7 @@ export default function SalesOrdersPage() {
           <SearchIcon />
           <input type="text" placeholder="搜尋訂單編號或客戶..." value={search} onChange={e=>setSearch(e.target.value)} className="border-none outline-none bg-transparent flex-1 text-sm" />
         </div>
-        <select className="px-3 pr-8 py-2 border border-gray-200 rounded-lg bg-white text-sm" value={filter} onChange={e=>setFilter(e.target.value)}>
+        <select className="py-2 pr-6 text-sm text-gray-600 bg-transparent border-b border-gray-300 outline-none cursor-pointer" value={filter} onChange={e=>setFilter(e.target.value)}>
           <option value="all">全部狀態</option>
           <option value="draft">已接收</option>
           <option value="sale">已確認</option>
