@@ -61,18 +61,18 @@ function getPath(): string {
   return VALID_PATHS.includes(h) ? h : "/products";
 }
 
-// 同步讀取，在 ext-runtime 可能清掉 hash 之前就抓到 token
-const _initHash = window.location.hash;
-const _initSearch = window.location.search;
+// 同步讀取 invite token（平台可能清掉 hash，所以優先用 query string）
 const _initParams = (() => {
-  // 先試 hash 裡的 ?token=（格式：#/?token=... 或 #?token=...）
-  const q = _initHash.indexOf("?");
+  // 1. query string（?token=... — 與 oauth_token 相同機制，最可靠）
+  const sp = new URLSearchParams(window.location.search);
+  if (sp.get("token")) return sp;
+  // 2. hash fallback（#/?token=... — 舊連結相容）
+  const q = window.location.hash.indexOf("?");
   if (q >= 0) {
-    const p = new URLSearchParams(_initHash.slice(q + 1));
+    const p = new URLSearchParams(window.location.hash.slice(q + 1));
     if (p.get("token")) return p;
   }
-  // 再試 query string（?token=...）
-  return new URLSearchParams(_initSearch);
+  return new URLSearchParams();
 })();
 const INVITE_TOKEN = _initParams.get("token") || "";
 const INVITE_EMAIL = _initParams.get("email") || "";

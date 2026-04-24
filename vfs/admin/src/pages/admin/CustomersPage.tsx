@@ -92,7 +92,7 @@ export default function CustomersPage() {
   };
 
   const inviteLink = (token: string, email: string) =>
-    token ? `${ORDERING_APP}#/?token=${token}${email ? '&email=' + encodeURIComponent(email) : ''}` : '';
+    token ? `${ORDERING_APP}?token=${token}${email ? '&email=' + encodeURIComponent(email) : ''}` : '';
 
   const copyLink = async (token: string, email: string, branchId: string) => {
     const link = inviteLink(token, email);
