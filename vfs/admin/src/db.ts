@@ -145,6 +145,25 @@ export async function deleteCustom(recordId: string): Promise<void> {
   }
 }
 
+export async function runAction(actionName: string, params: Record<string, any> = {}): Promise<any> {
+  const appId = (window as any).__APP_ID__ || '';
+  const isExternal = !!(window as any).__IS_EXTERNAL__;
+  const url = isExternal
+    ? `${API_BASE}/ext/actions/run/${actionName}`
+    : `${API_BASE}/actions/run/${appId}/${actionName}`;
+  const resp = await fetch(url, {
+    method: 'POST', headers: _h(), credentials: 'include',
+    body: JSON.stringify({ params }),
+  });
+  if (!resp.ok) {
+    const b = await resp.json().catch(() => ({}));
+    throw new Error(b.detail || 'Action Error (' + resp.status + ')');
+  }
+  const result = await resp.json();
+  if (result?.status === 'error') throw new Error(result.message || 'Action Error');
+  return result.data ?? result;
+}
+
 export async function recalcOrderTotal(orderIds: string[]): Promise<void> {
   const unique = [...new Set(orderIds)].filter(Boolean);
   await Promise.all(unique.map(async (oid) => {

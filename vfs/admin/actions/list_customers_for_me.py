@@ -35,6 +35,7 @@ def execute(ctx):
                 "contact_address": str(c.get("contact_address") or ""),
                 "phone": str(c.get("phone") or ""),
                 "parent_customer_id": str(cd.get("parent_customer_id") or ""),
+                "invite_token": str(cd.get("invite_token") or ""),
                 "kind": kind,
             })
 

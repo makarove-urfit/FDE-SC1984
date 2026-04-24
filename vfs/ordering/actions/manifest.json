@@ -16,5 +16,8 @@
   },
   "update_order_lines": {
     "description": "修改訂單明細數量"
+  },
+  "redeem_invite_token": {
+    "description": "以邀請連結中的 invite_token 找到對應分店，為當前 ctx.user 建立 customer_custom_app_user_rel（P↔S 及 P↔C），token 永久有效可重複使用"
   }
 }

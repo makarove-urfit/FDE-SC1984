@@ -1,4 +1,5 @@
 def execute(ctx):
+    import uuid
     p = ctx.params
 
     headquarters_name = (p.get("headquarters_name") or "").strip()
@@ -48,7 +49,8 @@ def execute(ctx):
         return
     hq_id = str(hq["id"])
 
-    # Step 2: 建分店（branch）
+    # Step 2: 建分店（branch）並生成 invite_token
+    invite_token = str(uuid.uuid4())
     branch_data = {
         "name": branch_name,
         "customer_type": "individual",
@@ -56,6 +58,7 @@ def execute(ctx):
         "custom_data": {
             "kind": "branch",
             "parent_customer_id": hq_id,
+            "invite_token": invite_token,
         },
     }
     if contact_address:
@@ -120,4 +123,5 @@ def execute(ctx):
         "branch_id": branch_id,
         "contact_id": contact_id,
         "owner_id": owner_id,
+        "invite_token": invite_token,
     })

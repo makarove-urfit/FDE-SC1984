@@ -1,5 +1,14 @@
 {
   "get_config": {
     "description": "回傳 runtime 設定：假日、截止時間、product_product 對應、參考價格（供 ordering app 呼叫）"
+  },
+  "list_customers_for_me": {
+    "description": "依身分回傳客戶清單（headquarters + independent）及其分店，走 ctx.db 規避 refs 身分過濾"
+  },
+  "create_customer_bundle": {
+    "description": "一次建公司(headquarters)+分店(branch)+聯絡人(role/contact)+負責人(role/owner) 4 筆 customer，並打區域 tag"
+  },
+  "list_employees": {
+    "description": "回傳有系統帳號（user_id 非空）的員工清單，供業務員 / 採購員 picker 使用"
   }
 }
