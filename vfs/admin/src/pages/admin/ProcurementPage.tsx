@@ -87,16 +87,18 @@ export default function ProcurementPage() {
       const existing = itemMap.get(pid);
       if (existing) { existing.estimatedQty += Number(l.product_uom_qty || 0); }
       else {
-        const log = logMap[pid];
-        const purchasePrice = Number(log?.standard_price || 0);
-        const logSelling    = Number(log?.lst_price || 0);
+        const log = logMap[pid];       // 任何日期最新一筆，僅作預設值
+        const todayLog = todayLogMap[pid]; // 當日定價，決定 state
+        // 當日有定價就用當日，否則帶入上次定價作預設
+        const srcLog = todayLog || log;
+        const purchasePrice = Number(srcLog?.standard_price || 0);
+        const logSelling    = Number(srcLog?.lst_price || 0);
         // 從已存的兩個價格反推加權，預設 130（即 1.3 倍）
         const weight = (purchasePrice > 0 && logSelling > 0) ? Math.round(logSelling / purchasePrice * 100) : 130;
         const sellingPrice = purchasePrice > 0 ? Math.ceil(purchasePrice * weight / 100) : logSelling;
-        // 實際量：優先取當日 price log 的 qty_delivered（有日期語意），否則用估計量
-        const todayLog = todayLogMap[pid];
+        // 實際量：優先取當日 price log 的 qty_delivered，否則用估計量
         const actualQty = todayLog?.qty_delivered != null ? Number(todayLog.qty_delivered) : Number(l.product_uom_qty || 0);
-        itemMap.set(pid, { productId: pid, templateId: rawId, productName: prod?.name || l.name || '—', code: prod?.default_code || '', supplierId: supId, supplierName: suppliers[supId]?.name || '未指定供應商', estimatedQty: Number(l.product_uom_qty || 0), actualQty, purchasePrice, weight, sellingPrice, state: log ? 'priced' : 'pending' });
+        itemMap.set(pid, { productId: pid, templateId: rawId, productName: prod?.name || l.name || '—', code: prod?.default_code || '', supplierId: supId, supplierName: suppliers[supId]?.name || '未指定供應商', estimatedQty: Number(l.product_uom_qty || 0), actualQty, purchasePrice, weight, sellingPrice, state: todayLog ? 'priced' : 'pending' });
       }
     }
     setItems(Array.from(itemMap.values()));
