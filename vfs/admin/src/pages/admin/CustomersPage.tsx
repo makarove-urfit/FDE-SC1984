@@ -102,8 +102,11 @@ export default function CustomersPage() {
     return emp?.name || '—';
   };
 
-  const inviteLink = (token: string, email: string) =>
-    token ? `${ORDERING_APP}?ct=${token}${email ? '&email=' + encodeURIComponent(email) : ''}` : '';
+  const inviteLink = (token: string, email: string) => {
+    if (!token) return '';
+    const payload = encodeURIComponent(btoa(JSON.stringify({ token, email: email || '' })));
+    return `${ORDERING_APP}?ct=${payload}`;
+  };
 
   const copyLink = async (token: string, email: string, branchId: string) => {
     const link = inviteLink(token, email);

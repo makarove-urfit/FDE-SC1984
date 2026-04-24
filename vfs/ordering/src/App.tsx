@@ -61,21 +61,16 @@ function getPath(): string {
   return VALID_PATHS.includes(h) ? h : "/products";
 }
 
-// 同步讀取 invite token（用 ct= 避開平台攔截 ?token= 的問題）
-const _initParams = (() => {
-  // 1. query string ?ct=...
-  const sp = new URLSearchParams(window.location.search);
-  if (sp.get("ct")) return sp;
-  // 2. hash fallback（#/?ct=...）
-  const q = window.location.hash.indexOf("?");
-  if (q >= 0) {
-    const p = new URLSearchParams(window.location.hash.slice(q + 1));
-    if (p.get("ct")) return p;
-  }
-  return new URLSearchParams();
+// ct = base64(JSON.stringify({ token, email }))，包成單一 param 避免平台過濾
+const _initInvite = (() => {
+  try {
+    const raw = new URLSearchParams(window.location.search).get("ct");
+    if (raw) return JSON.parse(atob(raw)) as { token?: string; email?: string };
+  } catch {}
+  return {};
 })();
-const INVITE_TOKEN = _initParams.get("ct") || "";
-const INVITE_EMAIL = _initParams.get("email") || "";
+const INVITE_TOKEN: string = _initInvite.token || "";
+const INVITE_EMAIL: string = _initInvite.email || "";
 
 export default function App() {
   const [user, setUser] = useState<AppUser | null>(null);
