@@ -13,5 +13,8 @@
   },
   "seed_region_tags": {
     "description": "一次性種入東南西北四個 region customer_tag（已存在者跳過）"
+  },
+  "create_employee": {
+    "description": "新增員工（hr_employees）：name、work_email、department_id、job_title"
   }
 }

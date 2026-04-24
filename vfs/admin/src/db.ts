@@ -145,6 +145,13 @@ export async function deleteCustom(recordId: string): Promise<void> {
   }
 }
 
+export async function sendInvitation(email: string): Promise<any> {
+  return _r(await fetch(API_BASE + '/invitations', {
+    method: 'POST', headers: _h(), credentials: 'include',
+    body: JSON.stringify({ email }),
+  }));
+}
+
 export async function runAction(actionName: string, params: Record<string, any> = {}): Promise<any> {
   const appId = (window as any).__APP_ID__ || '';
   const isExternal = !!(window as any).__IS_EXTERNAL__;
