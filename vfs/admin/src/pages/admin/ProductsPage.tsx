@@ -20,6 +20,7 @@ function AddProductModal({ cats, onClose, onDone }: {
   const [name, setName] = useState('');
   const [code, setCode] = useState('');
   const [catId, setCatId] = useState('');
+  const [saleOk, setSaleOk] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
 
@@ -27,10 +28,10 @@ function AddProductModal({ cats, onClose, onDone }: {
     if (!name.trim()) { setError('品名為必填'); return; }
     setSaving(true); setError('');
     try {
-      const params: Record<string, any> = { name: name.trim() };
-      if (code.trim()) params.default_code = code.trim();
-      if (catId) params.categ_id = catId;
-      await db.runAction('create_product', params);
+      const data: Record<string, any> = { name: name.trim(), sale_ok: saleOk, active: true };
+      if (code.trim()) data.default_code = code.trim();
+      if (catId) data.categ_id = catId;
+      await db.insert('product_templates', data);
       onDone(catId);
     } catch (e: any) {
       setError(e.message || '新增失敗');
@@ -62,9 +63,15 @@ function AddProductModal({ cats, onClose, onDone }: {
               {cats.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
             </select>
           </div>
-{error && <p className="text-red-500 text-sm">{error}</p>}
+          <div className="flex items-center justify-between">
+            <label className="text-sm font-medium text-gray-700">立即上架</label>
+            <button type="button" onClick={() => setSaleOk(v => !v)}
+              className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${saleOk ? 'bg-green-500' : 'bg-gray-200'}`}>
+              <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${saleOk ? 'translate-x-6' : 'translate-x-1'}`} />
+            </button>
+          </div>
+          {error && <p className="text-red-500 text-sm">{error}</p>}
         </div>
-        <p className="text-xs text-gray-400 mt-3">新增後預設為「下架」，可至列表手動上架。</p>
         <div className="flex gap-3 mt-4">
           <button onClick={onClose} className="flex-1 py-2 rounded-lg border border-gray-200 text-sm text-gray-600 hover:bg-gray-50 transition-colors">取消</button>
           <button onClick={handleSubmit} disabled={saving}
