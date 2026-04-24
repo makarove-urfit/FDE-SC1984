@@ -110,7 +110,7 @@ export default function EmployeesPage() {
     if (!emp.work_email) return;
     setInviteState(prev => ({ ...prev, [emp.id]: { status: 'sending' } }));
     try {
-      await db.sendInvitation(emp.work_email);
+      await db.sendInvitation(emp.work_email, emp.name);
       setInviteState(prev => ({ ...prev, [emp.id]: { status: 'sent' } }));
       await load();
     } catch (e: any) {
@@ -173,22 +173,19 @@ export default function EmployeesPage() {
                         <td className="px-4 py-3 text-center">
                           {e.has_account ? (
                             <span className="inline-block px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-700">已建立</span>
+                          ) : e.work_email ? (
+                            inv?.status === 'sent' ? (
+                              <span className="text-xs text-blue-500">✓ 邀請已寄出</span>
+                            ) : inv?.status === 'error' ? (
+                              <span className="text-xs text-red-500">{inv.msg}</span>
+                            ) : (
+                              <button onClick={() => sendInvite(e)} disabled={inv?.status === 'sending'}
+                                className="px-2 py-1 text-xs bg-blue-50 text-blue-600 hover:bg-blue-100 rounded font-medium disabled:opacity-50">
+                                {inv?.status === 'sending' ? '寄送中...' : '發送邀請'}
+                              </button>
+                            )
                           ) : (
-                            <div className="flex flex-col items-center gap-1">
-                              <span className="inline-block px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-400">未建立</span>
-                              {e.work_email && (
-                                inv?.status === 'sent' ? (
-                                  <span className="text-xs text-blue-500">✓ 邀請已寄出</span>
-                                ) : inv?.status === 'error' ? (
-                                  <span className="text-xs text-red-500">{inv.msg}</span>
-                                ) : (
-                                  <button onClick={() => sendInvite(e)} disabled={inv?.status === 'sending'}
-                                    className="text-xs text-blue-600 hover:text-blue-800 underline disabled:opacity-50">
-                                    {inv?.status === 'sending' ? '寄送中...' : '寄送邀請'}
-                                  </button>
-                                )
-                              )}
-                            </div>
+                            <span className="text-xs text-gray-300">—</span>
                           )}
                         </td>
                         <td className="px-4 py-3 text-right">

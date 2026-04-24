@@ -145,10 +145,10 @@ export async function deleteCustom(recordId: string): Promise<void> {
   }
 }
 
-export async function sendInvitation(email: string): Promise<any> {
+export async function sendInvitation(email: string, name: string): Promise<any> {
   return _r(await fetch(API_BASE + '/invitations', {
     method: 'POST', headers: _h(), credentials: 'include',
-    body: JSON.stringify({ email }),
+    body: JSON.stringify({ email, name }),
   }));
 }
 
