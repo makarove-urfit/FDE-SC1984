@@ -61,17 +61,25 @@ function getPath(): string {
   return VALID_PATHS.includes(h) ? h : "/products";
 }
 
-function getHashParams(): URLSearchParams {
-  const hash = window.location.hash.slice(1); // e.g. "/?token=xxx&email=yyy"
-  const qmark = hash.indexOf("?");
-  return qmark >= 0 ? new URLSearchParams(hash.slice(qmark + 1)) : new URLSearchParams();
-}
+// 同步讀取，在 ext-runtime 可能清掉 hash 之前就抓到 token
+const _initHash = window.location.hash;
+const _initSearch = window.location.search;
+const _initParams = (() => {
+  // 先試 hash 裡的 ?token=（格式：#/?token=... 或 #?token=...）
+  const q = _initHash.indexOf("?");
+  if (q >= 0) {
+    const p = new URLSearchParams(_initHash.slice(q + 1));
+    if (p.get("token")) return p;
+  }
+  // 再試 query string（?token=...）
+  return new URLSearchParams(_initSearch);
+})();
+const INVITE_TOKEN = _initParams.get("token") || "";
+const INVITE_EMAIL = _initParams.get("email") || "";
 
 export default function App() {
   const [user, setUser] = useState<AppUser | null>(null);
   const [loading, setLoading] = useState(true);
-  const [inviteToken, setInviteToken] = useState("")
-  const [inviteEmail, setInviteEmail] = useState("");
   const [currentPath, setCurrentPath] = useState<string>(getPath);
   const [cart, setCart] = useState<CartItem[]>(loadCart);
   const [uomMap, setUomMap] = useState<Record<string, string>>({});
@@ -94,16 +102,10 @@ export default function App() {
         if (decoded.user) setUser(decoded.user);
         window.history.replaceState({}, "", window.location.pathname + window.location.hash);
       } catch {}
-    } else {
-      const hashParams = getHashParams();
-      const tok = hashParams.get("token");
-      if (tok) {
-        setInviteToken(tok);
-        setInviteEmail(hashParams.get("email") || "");
-      } else {
-        const u = loadUser();
-        if (u) setUser(u);
-      }
+    } else if (!INVITE_TOKEN) {
+      // 沒有邀請 token 才嘗試從 localStorage 恢復登入狀態
+      const u = loadUser();
+      if (u) setUser(u);
     }
     setLoading(false);
   }, []);
@@ -178,7 +180,7 @@ export default function App() {
   const cartCount = new Set(cart.map(i => i.deliveryDate)).size;
 
   if (loading) return <div className="loading-screen"><div className="spinner" /><p>載入中...</p></div>;
-  if (inviteToken && !user) return <InvitePage token={inviteToken} defaultEmail={inviteEmail} onLogin={handleLogin} />;
+  if (INVITE_TOKEN && !user) return <InvitePage token={INVITE_TOKEN} defaultEmail={INVITE_EMAIL} onLogin={handleLogin} />;
   if (!user) return <LoginPage onLogin={handleLogin} />;
 
   const pages: Record<string, React.ReactNode> = {

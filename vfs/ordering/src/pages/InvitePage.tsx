@@ -17,7 +17,6 @@ export default function InvitePage({ token, defaultEmail, onLogin }: Props) {
   const [confirm, setConfirm] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
-  const [step, setStep] = useState<"form" | "done">("form");
 
   const submit = async () => {
     if (!email.trim()) { setError("請輸入 Email"); return; }
