@@ -19,7 +19,7 @@ interface PricingItem {
 
 export default function ProcurementPage() {
   const nav = useNavigate();
-  const { orderLines, products, supplierInfos, suppliers, stockQuants, stockLocations, productProducts, loading, selectedDate, setSelectedDate } = useData();
+  const { orderLines, products, suppliers, stockQuants, stockLocations, productProducts, loading, selectedDate, setSelectedDate } = useData();
   const [items, setItems] = useState<PricingItem[]>([]);
   const [expanded, setExpanded] = useState<string[]>([]);
   const [saving, setSaving] = useState(false);
@@ -53,9 +53,12 @@ export default function ProcurementPage() {
     if (loading) return;
     const prodMap: Record<string,any> = {};
     for (const p of products) prodMap[p.id] = p;
+    // 主供應商 SSOT：product_templates.custom_data.default_supplier_id（ARCHITECTURE §0.8）
     const prodSup: Record<string,string> = {};
-    for (const si of supplierInfos) { if (si.product_tmpl_id) prodSup[si.product_tmpl_id] = si.supplier_id; }
-    const defaultSupId = Object.keys(suppliers)[0] || 'unknown';
+    for (const p of products) {
+      const defSup = p.custom_data?.default_supplier_id;
+      if (defSup) prodSup[p.id] = defSup;
+    }
 
     // 最新一筆 log（跨所有日期）→ 定價預設值
     const logMap: Record<string, any> = {};
@@ -78,7 +81,7 @@ export default function ProcurementPage() {
       // rawId 可能是 template UUID，轉為 product_products UUID 才能對應 price log 和 stock
       const pid = tmplToPp[rawId] || rawId;
       const prod = prodMap[rawId] || prodMap[pid];  // template UUID 查產品名
-      const supId = prodSup[_qn(l.product_template_id) || rawId] || (supplierInfos.length === 0 ? defaultSupId : 'unknown');
+      const supId = prodSup[_qn(l.product_template_id) || rawId] || 'unknown';
       const existing = itemMap.get(pid);
       if (existing) { existing.estimatedQty += Number(l.product_uom_qty || 0); }
       else {
