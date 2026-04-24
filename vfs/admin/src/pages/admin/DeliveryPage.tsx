@@ -26,6 +26,7 @@ export default function DeliveryPage() {
   const [driverFilter, setDriverFilter] = useState('all');
   const [savingDriver, setSavingDriver] = useState<string|null>(null);
   const [custToDriver, setCustToDriver] = useState<Record<string,string>>({});
+  const [localDrivers, setLocalDrivers] = useState<Record<string,string>>({});
 
   // #6 empMap 用 useMemo 避免每次 render 重建
   const empMap = useMemo(() => Object.fromEntries(employees.map(e=>[e.id, e])), [employees]);
@@ -212,11 +213,13 @@ export default function DeliveryPage() {
                 </div>
                 {/* 訂單列表 */}
                 {cos.map(o=>{const cfg=stCfg[o.state]||stCfg.sale;const ol=lines.filter(l=>l.order_id===o.id);
-                  const driverEmpId=o.client_order_ref;
-                  const effectiveDriverId=driverEmpId||custToDriver[String(o.customer_id||'')]||'';
-                  const driverEmp=effectiveDriverId?empMap[effectiveDriverId]:null;
+                  const savedDriverId=o.client_order_ref||'';
+                  const routeDriverId=custToDriver[String(o.customer_id||'')]||'';
+                  // 優先順序：手動選擇 > 已儲存 > 路線預設
+                  const displayDriverId=localDrivers[o.id]??savedDriverId||routeDriverId;
+                  const driverEmp=displayDriverId?empMap[displayDriverId]:null;
                   const isSavingThis=savingDriver===o.id;
-                  const isPrefilled=!driverEmpId&&!!effectiveDriverId;
+                  const isUnsaved=displayDriverId&&displayDriverId!==savedDriverId;
                   return(<div key={o.id} className="border-t border-gray-200">
                     <div className="px-4 py-3 flex justify-between items-center">
                       <div className="flex-1">
@@ -228,23 +231,25 @@ export default function DeliveryPage() {
                           {o.state==='done' ? (
                             <span className={`text-xs px-2 py-1 rounded ${driverEmp ? 'text-blue-700 bg-blue-50' : 'text-gray-400'}`}>{driverEmp?.name||'未指派'}</span>
                           ) : (
-                            <select value={effectiveDriverId} onChange={e=>assignDriver(o.id,e.target.value)} disabled={isSavingThis}
-                              className={`text-xs px-2 pr-8 py-1 border rounded transition-colors ${driverEmp ? (isPrefilled?'border-amber-200 bg-amber-50 text-amber-700':'border-blue-200 bg-blue-50 text-blue-700') : 'border-gray-200 bg-white text-gray-400'}`}>
+                            <select value={displayDriverId}
+                              onChange={e=>setLocalDrivers(prev=>({...prev,[o.id]:e.target.value}))}
+                              disabled={isSavingThis}
+                              className={`text-xs px-2 pr-8 py-1 border rounded transition-colors ${driverEmp ? (isUnsaved?'border-amber-200 bg-amber-50 text-amber-700':'border-blue-200 bg-blue-50 text-blue-700') : 'border-gray-200 bg-white text-gray-400'}`}>
                               <option value="">-- 選擇負責人 --</option>
                               {employees.map(emp=>(<option key={emp.id} value={emp.id}>{emp.name}{emp.job_title?` (${emp.job_title})`:''}</option>))}
                             </select>
                           )}
-                          {isPrefilled && !isSavingThis && <span className="text-xs text-amber-500">路線預設</span>}
+                          {isUnsaved && !isSavingThis && <span className="text-xs text-amber-500">未儲存</span>}
                           {isSavingThis && <span className="text-xs text-gray-400">儲存中...</span>}
                         </div>
                       </div>
                       <div className="flex items-center gap-2">
                         <span className={`px-2.5 py-0.5 rounded-full text-xs font-medium ${cfg.color}`}>{cfg.label}</span>
                         {o.state==='sale'&&(()=>{
-                          const canDone = !!effectiveDriverId && !!addr;
-                          const tip = !effectiveDriverId ? '請先選擇配送負責人' : !addr ? '請先設定送貨地址' : '';
+                          const canDone = !!displayDriverId && !!addr;
+                          const tip = !displayDriverId ? '請先選擇配送負責人' : !addr ? '請先設定送貨地址' : '';
                           return (
-                            <button onClick={()=>canDone?setConfirm({id:o.id,action:'done',driverIdToSave:isPrefilled?effectiveDriverId:undefined}):null}
+                            <button onClick={()=>canDone?setConfirm({id:o.id,action:'done',driverIdToSave:isUnsaved?displayDriverId:undefined}):null}
                               disabled={!canDone} title={tip}
                               className={`px-3 py-1 rounded text-xs transition-colors flex items-center gap-1 ${canDone?'bg-primary text-white hover:bg-green-700 cursor-pointer':'bg-gray-100 text-gray-400 cursor-not-allowed'}`}>
                               <CheckCircleIcon /> 完成配送
