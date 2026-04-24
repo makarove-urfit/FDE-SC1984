@@ -13,8 +13,8 @@ type Branch = {
 type Employee = { id: string; name: string; user_id: string; job_title: string };
 type Tag = { id: string; name: string; custom_data: any };
 
-const INVOICE_FORMATS = ['二聯式', '三聯式', '電子發票'];
-const PAYMENT_TERMS = ['月結30天', '月結60天', '現金', '匯款'];
+const INVOICE_FORMATS = ['紙本', '電子'];
+const PAYMENT_TERMS = ['半月結', '整月結'];
 
 const EMPTY_FORM = {
   headquarters_name: '', vat: '', owner_name: '',

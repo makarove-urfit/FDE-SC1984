@@ -33,6 +33,7 @@ REFS = [
     {"table_name": "hr_employees", "columns": ["id", "name", "active", "job_title", "mobile_phone", "department_id"], "permissions": ["read"]},
     {"table_name": "stock_locations", "columns": ["id", "name", "usage", "active"], "permissions": ["read", "create"]},
     {"table_name": "uom_uom", "columns": ["id", "name", "active"], "permissions": ["read"]},
+    {"table_name": "customer_tags", "columns": ["id", "name", "active", "custom_data"], "permissions": ["read", "create", "update"]},
 ]
 
 

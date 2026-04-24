@@ -10,5 +10,8 @@
   },
   "list_employees": {
     "description": "回傳有系統帳號（user_id 非空）的員工清單，供業務員 / 採購員 picker 使用"
+  },
+  "seed_region_tags": {
+    "description": "一次性種入東南西北四個 region customer_tag（已存在者跳過）"
   }
 }
