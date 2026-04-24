@@ -2,8 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import * as db from '../../db';
 
-const API_BASE = (window as any).__API_BASE__ || '/api/v1';
-const ORDERING_SLUG = '435c3ce8f6f8';
+const ORDERING_APP = 'https://ordering.apps.ai-go.app/ext-runtime';
 
 type Customer = {
   id: string; name: string; vat: string; email: string;
@@ -12,7 +11,6 @@ type Customer = {
 };
 type Employee = { id: string; name: string; user_id: string; job_title: string };
 type Tag = { id: string; name: string; custom_data: any };
-type SuccessInfo = { branchName: string; email: string; password: string };
 
 const INVOICE_FORMATS = ['紙本', '電子'];
 const PAYMENT_TERMS = ['半月結', '整月結'];
@@ -25,13 +23,6 @@ const EMPTY_FORM = {
   email: '', payment_term: '', salesperson_id: '',
   invoice_format: '', region_tag_id: '',
 };
-
-function genPassword(): string {
-  const chars = 'ABCDEFGHJKMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789';
-  let p = '';
-  for (let i = 0; i < 8; i++) p += chars[Math.floor(Math.random() * chars.length)];
-  return p;
-}
 
 export default function CustomersPage() {
   const nav = useNavigate();
@@ -46,7 +37,6 @@ export default function CustomersPage() {
   const [form, setForm] = useState({ ...EMPTY_FORM });
   const [expandedHq, setExpandedHq] = useState<Set<string>>(new Set());
   const [copied, setCopied] = useState<string | null>(null);
-  const [successInfo, setSuccessInfo] = useState<SuccessInfo | null>(null);
 
   const load = async () => {
     setLoading(true); setError('');
@@ -101,11 +91,11 @@ export default function CustomersPage() {
     return emp?.name || '—';
   };
 
-  const inviteLink = (token: string) =>
-    token ? `${window.location.origin}?token=${token}` : '';
+  const inviteLink = (token: string, email: string) =>
+    token ? `${ORDERING_APP}#/?token=${token}${email ? '&email=' + encodeURIComponent(email) : ''}` : '';
 
-  const copyLink = async (token: string, branchId: string) => {
-    const link = inviteLink(token);
+  const copyLink = async (token: string, email: string, branchId: string) => {
+    const link = inviteLink(token, email);
     if (!link) return;
     try {
       await navigator.clipboard.writeText(link);
@@ -157,6 +147,7 @@ export default function CustomersPage() {
           kind: 'branch',
           parent_customer_id: String(hq.id),
           invite_token: inviteToken,
+          ...(form.contact_email.trim() ? { contact_email: form.contact_email.trim() } : {}),
           ...(form.region_tag_id ? { region_tag_id: form.region_tag_id } : {}),
         },
       });
@@ -182,42 +173,8 @@ export default function CustomersPage() {
         });
       }
 
-      // 5. 建立客戶下單帳號（若有填聯絡信箱）
-      let accountInfo: { email: string; password: string } | null = null;
-      const contactEmail = form.contact_email.trim();
-      if (contactEmail) {
-        const password = genPassword();
-
-        const regResp = await fetch(`${API_BASE}/custom-app-auth/${ORDERING_SLUG}/register`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ email: contactEmail, password, display_name: form.branch_name.trim() }),
-        });
-        if (!regResp.ok) {
-          const b = await regResp.json().catch(() => ({}));
-          throw new Error(b.detail || '下單帳號建立失敗');
-        }
-
-        const loginResp = await fetch(`${API_BASE}/custom-app-auth/${ORDERING_SLUG}/login`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ email: contactEmail, password }),
-        });
-        if (!loginResp.ok) throw new Error('帳號建立成功但登入失敗，請稍後再試');
-        const { access_token: userToken } = await loginResp.json();
-
-        await fetch(`${API_BASE}/ext/actions/run/redeem_invite_token`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${userToken}` },
-          body: JSON.stringify({ params: { token: inviteToken } }),
-        });
-
-        accountInfo = { email: contactEmail, password };
-      }
-
       setShowForm(false);
       setForm({ ...EMPTY_FORM });
-      if (accountInfo) setSuccessInfo({ branchName: form.branch_name.trim(), ...accountInfo });
       await load();
     } catch (e: any) {
       setFormError(e?.message || '新增失敗');
@@ -288,17 +245,21 @@ export default function CustomersPage() {
                         </tr>
                         {expanded && bs.map(b => {
                           const token = String((b.custom_data || {}).invite_token || '');
+                          const bEmail = String((b.custom_data || {}).contact_email || '');
                           return (
                             <tr key={b.id} className="bg-gray-50 border-t border-gray-100">
                               <td className="pl-10 pr-4 py-2 text-gray-600 text-xs" colSpan={2}>
                                 <span className="text-gray-400 mr-1">└</span>{b.name}
                                 {b.contact_address && <span className="text-gray-400 ml-2">{b.contact_address}</span>}
                               </td>
-                              <td className="px-4 py-2 text-xs text-gray-500">{b.phone || '—'}</td>
+                              <td className="px-4 py-2 text-xs text-gray-500">
+                                {b.phone || '—'}
+                                {bEmail && <div className="text-gray-400">{bEmail}</div>}
+                              </td>
                               <td className="px-4 py-2" colSpan={2}></td>
                               <td className="px-4 py-2 text-right">
                                 {token ? (
-                                  <button onClick={() => copyLink(token, b.id)}
+                                  <button onClick={() => copyLink(token, bEmail, b.id)}
                                     className={`px-2 py-1 text-xs rounded font-medium transition-colors ${
                                       copied === b.id ? 'bg-green-100 text-green-700' : 'bg-blue-50 text-blue-600 hover:bg-blue-100'
                                     }`}>
@@ -320,48 +281,6 @@ export default function CustomersPage() {
           </div>
         )}
       </div>
-
-      {successInfo && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
-          <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm mx-4">
-            <div className="px-6 py-5 text-center space-y-4">
-              <div className="text-4xl">✅</div>
-              <div>
-                <p className="text-lg font-bold text-gray-900">客戶已建立</p>
-                <p className="text-sm text-gray-500 mt-1">{successInfo.branchName} 的下單帳號</p>
-              </div>
-              <div className="bg-gray-50 rounded-xl p-4 text-left space-y-2">
-                <div className="flex justify-between items-center text-sm">
-                  <span className="text-gray-500">帳號（Email）</span>
-                  <span className="font-mono font-medium text-gray-800">{successInfo.email}</span>
-                </div>
-                <div className="flex justify-between items-center text-sm">
-                  <span className="text-gray-500">預設密碼</span>
-                  <span className="font-mono font-medium text-gray-800 tracking-wider">{successInfo.password}</span>
-                </div>
-              </div>
-              <p className="text-xs text-gray-400">請將以上資訊交給客戶，客戶登入後可自行修改密碼</p>
-              <div className="flex gap-2">
-                <button
-                  onClick={async () => {
-                    try {
-                      await navigator.clipboard.writeText(`帳號：${successInfo.email}\n密碼：${successInfo.password}`);
-                    } catch {
-                      prompt('請手動複製：', `帳號：${successInfo.email}\n密碼：${successInfo.password}`);
-                    }
-                  }}
-                  className="flex-1 px-4 py-2 text-sm border border-gray-200 rounded-lg text-gray-600 hover:bg-gray-50">
-                  複製帳密
-                </button>
-                <button onClick={() => setSuccessInfo(null)}
-                  className="flex-1 px-4 py-2 text-sm bg-green-600 text-white rounded-lg font-medium hover:bg-green-700">
-                  完成
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
 
       {showForm && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">

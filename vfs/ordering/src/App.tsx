@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
 import LoginPage from "./pages/LoginPage";
+import InvitePage from "./pages/InvitePage";
 import CatalogPage from "./pages/CatalogPage";
 import CartPage from "./pages/CartPage";
 import OrdersPage from "./pages/OrdersPage";
@@ -54,15 +55,23 @@ function loadCart(): CartItem[] {
 export interface AppUser { id: string; email: string; display_name?: string; }
 export interface PriceEntry { price: number; date: string; }
 
-const VALID_PATHS = ["/order", "/cart", "/orders"];
+const VALID_PATHS = ["/products", "/cart", "/orders"];
 function getPath(): string {
   const h = window.location.hash.replace(/^#/, "");
-  return VALID_PATHS.includes(h) ? h : "/order";
+  return VALID_PATHS.includes(h) ? h : "/products";
+}
+
+function getHashParams(): URLSearchParams {
+  const hash = window.location.hash.slice(1); // e.g. "/?token=xxx&email=yyy"
+  const qmark = hash.indexOf("?");
+  return qmark >= 0 ? new URLSearchParams(hash.slice(qmark + 1)) : new URLSearchParams();
 }
 
 export default function App() {
   const [user, setUser] = useState<AppUser | null>(null);
   const [loading, setLoading] = useState(true);
+  const [inviteToken, setInviteToken] = useState("")
+  const [inviteEmail, setInviteEmail] = useState("");
   const [currentPath, setCurrentPath] = useState<string>(getPath);
   const [cart, setCart] = useState<CartItem[]>(loadCart);
   const [uomMap, setUomMap] = useState<Record<string, string>>({});
@@ -86,8 +95,15 @@ export default function App() {
         window.history.replaceState({}, "", window.location.pathname + window.location.hash);
       } catch {}
     } else {
-      const u = loadUser();
-      if (u) setUser(u);
+      const hashParams = getHashParams();
+      const tok = hashParams.get("token");
+      if (tok) {
+        setInviteToken(tok);
+        setInviteEmail(hashParams.get("email") || "");
+      } else {
+        const u = loadUser();
+        if (u) setUser(u);
+      }
     }
     setLoading(false);
   }, []);
@@ -131,7 +147,7 @@ export default function App() {
     localStorage.removeItem(STORAGE_KEY); localStorage.removeItem(CART_KEY);
     (window as any).__APP_TOKEN__ = "";
     setUser(null); setCart([]); setUomMap({}); setHolidays(new Set()); setPriceMap({});
-    setCategories([]); setAllTemplates([]); navigate("/order");
+    setCategories([]); setAllTemplates([]); navigate("/products");
   };
 
   const addToCart = (productId: string, qty: number, delivDate: string) => {
@@ -162,10 +178,11 @@ export default function App() {
   const cartCount = new Set(cart.map(i => i.deliveryDate)).size;
 
   if (loading) return <div className="loading-screen"><div className="spinner" /><p>載入中...</p></div>;
+  if (inviteToken && !user) return <InvitePage token={inviteToken} defaultEmail={inviteEmail} onLogin={handleLogin} />;
   if (!user) return <LoginPage onLogin={handleLogin} />;
 
   const pages: Record<string, React.ReactNode> = {
-    "/order": <CatalogPage cart={cart} addToCart={addToCart} setCartExact={setCartExact} uomMap={uomMap} deliveryDate={deliveryDate} setDeliveryDate={setDeliveryDate} holidays={holidays} priceMap={priceMap} allTemplates={allTemplates} categories={categories} configLoaded={configLoaded} />,
+    "/products": <CatalogPage user={user!} cart={cart} addToCart={addToCart} setCartExact={setCartExact} uomMap={uomMap} deliveryDate={deliveryDate} setDeliveryDate={setDeliveryDate} holidays={holidays} priceMap={priceMap} allTemplates={allTemplates} categories={categories} configLoaded={configLoaded} />,
     "/cart": <CartPage cart={cart} addToCart={addToCart} setCartExact={setCartExact} clearCartDate={clearCartDate} onNavigate={navigate} setDeliveryDate={setDeliveryDate} uomMap={uomMap} user={user} priceMap={priceMap} allTemplates={allTemplates} />,
     "/orders": <OrdersPage user={user!} cutoffTime={cutoffTime} />,
   };
@@ -176,7 +193,7 @@ export default function App() {
         <h1>雄泉鮮食</h1>
         <button className="logout-btn" onClick={handleLogout}>登出</button>
       </header>
-      <main className="app-page">{pages[currentPath] || pages["/order"]}</main>
+      <main className="app-page">{pages[currentPath] || pages["/products"]}</main>
       <BottomNav currentPath={currentPath} onNavigate={navigate} cartCount={cartCount} />
     </div>
   );
