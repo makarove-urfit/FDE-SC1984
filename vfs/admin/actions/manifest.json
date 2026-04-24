@@ -16,5 +16,8 @@
   },
   "create_employee": {
     "description": "新增員工（hr_employees）：name、work_email、department_id、job_title"
+  },
+  "seed_departments": {
+    "description": "一次性種入業務、採購、配送三個 hr_departments（已存在者跳過）"
   }
 }
