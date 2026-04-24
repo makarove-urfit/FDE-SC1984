@@ -9,7 +9,7 @@ type Employee = {
 };
 type Dept = { id: string; name: string };
 
-const EMPTY_FORM = { name: '', work_email: '', department_id: '' };
+const EMPTY_FORM = { name: '', work_email: '', department_id: '', job_title: '' };
 
 export default function EmployeesPage() {
   const nav = useNavigate();
@@ -19,6 +19,7 @@ export default function EmployeesPage() {
   const [error, setError] = useState('');
   const [search, setSearch] = useState('');
   const [showForm, setShowForm] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState({ ...EMPTY_FORM });
   const [saving, setSaving] = useState(false);
   const [formError, setFormError] = useState('');
@@ -68,19 +69,38 @@ export default function EmployeesPage() {
     (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) =>
       setForm(prev => ({ ...prev, [k]: e.target.value }));
 
+  const openCreate = () => {
+    setEditingId(null);
+    setForm({ ...EMPTY_FORM });
+    setFormError('');
+    setShowForm(true);
+  };
+
+  const openEdit = (emp: Employee) => {
+    setEditingId(emp.id);
+    setForm({ name: emp.name, work_email: emp.work_email, department_id: emp.department_id, job_title: emp.job_title });
+    setFormError('');
+    setShowForm(true);
+  };
+
   const submit = async () => {
     if (!form.name.trim()) { setFormError('姓名為必填'); return; }
     setSaving(true); setFormError('');
     try {
       const data: Record<string, any> = { name: form.name.trim() };
-      if (form.work_email.trim()) data.work_email = form.work_email.trim();
-      if (form.department_id) data.department_id = form.department_id;
-      await db.insert('hr_employees', data);
+      data.work_email = form.work_email.trim() || '';
+      data.department_id = form.department_id || '';
+      data.job_title = form.job_title.trim() || '';
+
+      if (editingId) {
+        await db.update('hr_employees', editingId, data);
+      } else {
+        await db.insert('hr_employees', data);
+      }
       setShowForm(false);
-      setForm({ ...EMPTY_FORM });
       await load();
     } catch (e: any) {
-      setFormError(e?.message || '新增失敗');
+      setFormError(e?.message || (editingId ? '更新失敗' : '新增失敗'));
     } finally {
       setSaving(false);
     }
@@ -106,7 +126,7 @@ export default function EmployeesPage() {
             <button onClick={() => nav('/admin/settings')} className="text-gray-500 hover:text-gray-700 text-sm">← 返回</button>
             <h1 className="text-xl font-bold text-gray-900">員工管理</h1>
           </div>
-          <button onClick={() => { setForm({ ...EMPTY_FORM }); setFormError(''); setShowForm(true); }}
+          <button onClick={openCreate}
             className="px-4 py-2 bg-green-600 text-white rounded-lg text-sm font-medium hover:bg-green-700">
             + 新增員工
           </button>
@@ -136,6 +156,7 @@ export default function EmployeesPage() {
                     <th className="px-4 py-3 text-left">Email</th>
                     <th className="px-4 py-3 text-left">部門</th>
                     <th className="px-4 py-3 text-center">系統帳號</th>
+                    <th className="px-4 py-3"></th>
                   </tr>
                 </thead>
                 <tbody>
@@ -170,6 +191,12 @@ export default function EmployeesPage() {
                             </div>
                           )}
                         </td>
+                        <td className="px-4 py-3 text-right">
+                          <button onClick={() => openEdit(e)}
+                            className="text-xs text-gray-500 hover:text-gray-700 px-2 py-1 rounded hover:bg-gray-100">
+                            編輯
+                          </button>
+                        </td>
                       </tr>
                     );
                   })}
@@ -185,7 +212,7 @@ export default function EmployeesPage() {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
           <div className="bg-white rounded-2xl shadow-xl w-full max-w-md mx-4">
             <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
-              <h2 className="text-lg font-bold text-gray-900">新增員工</h2>
+              <h2 className="text-lg font-bold text-gray-900">{editingId ? '編輯員工' : '新增員工'}</h2>
               <button onClick={() => setShowForm(false)} className="text-gray-400 hover:text-gray-600 text-2xl leading-none">×</button>
             </div>
             <div className="px-6 py-5 space-y-4">
@@ -195,10 +222,15 @@ export default function EmployeesPage() {
                   className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500" />
               </div>
               <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">職稱</label>
+                <input type="text" value={form.job_title} onChange={f('job_title')} placeholder="業務專員"
+                  className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500" />
+              </div>
+              <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
                 <input type="email" value={form.work_email} onChange={f('work_email')} placeholder="name@company.com"
                   className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500" />
-                <p className="text-xs text-gray-400 mt-1">填入後可在列表寄送邀請信，對方設定密碼後即可登入</p>
+                {!editingId && <p className="text-xs text-gray-400 mt-1">填入後可在列表寄送邀請信，對方設定密碼後即可登入</p>}
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">部門</label>
@@ -214,7 +246,7 @@ export default function EmployeesPage() {
               <button onClick={() => setShowForm(false)} className="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-lg">取消</button>
               <button onClick={submit} disabled={saving}
                 className="px-4 py-2 text-sm text-white bg-green-600 hover:bg-green-700 rounded-lg font-medium disabled:opacity-50">
-                {saving ? '建立中...' : '建立員工'}
+                {saving ? '儲存中...' : (editingId ? '儲存' : '建立員工')}
               </button>
             </div>
           </div>
