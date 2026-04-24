@@ -46,32 +46,18 @@ export default function CartPage({ cart, addToCart, setCartExact, clearCartDate,
     if (!date) { showToast("此組未指定配送日期，請回商品頁重新選擇日期後加入", true); return; }
     setSubmitting(date);
     try {
-      const custs = await db.query("customers", { filters: [{ column: "email", op: "eq", value: user.email }] });
-      if (!custs || custs.length === 0) throw new Error("帳號未開通下單權限，請聯絡管理員");
-      const customerId = custs[0].id;
-      const note = groupNotes[date] || "";
-      const order = await db.insert("sale_orders", {
-        customer_id: customerId,
-        date_order: new Date().toISOString().slice(0, 10),
-        note: `配送日期：${date}${note ? `\n${note}` : ""}`,
-        state: "draft",
-      });
-      if (!order?.id) throw new Error("建立訂單失敗");
-      const lineResults = await Promise.allSettled(items.map(item =>
-        db.insert("sale_order_lines", {
-          order_id: order.id,
+      const result = await db.runAction("place_order", {
+        user_email: user.email,
+        delivery_date: date,
+        note: groupNotes[date] || "",
+        items: items.map(item => ({
           product_template_id: item.productId,
-          ...(item.productProductId ? { product_id: item.productProductId } : {}),
-          name: item.name || item.productId,
-          product_uom_qty: item.qty,
+          product_name: item.name || item.productId,
+          qty: item.qty,
           price_unit: priceMap[item.productId]?.price ?? 0,
-          delivery_date: date,
-        })
-      ));
-      const failCount = lineResults.filter(r => r.status === "rejected").length;
-      if (failCount > 0) throw new Error(`${failCount} 筆明細建立失敗`);
-      const total = items.reduce((sum, item) => sum + (priceMap[item.productId]?.price ?? 0) * item.qty, 0);
-      if (total > 0) await db.update("sale_orders", order.id, { amount_total: Math.round(total * 100) / 100 });
+        })),
+      });
+      if (result?.error) throw new Error(result.error);
       clearCartDate(date);
       const [, m, d] = date.split("-").map(Number);
       showToast(`${m}/${d} 訂單已送出 ✅`);

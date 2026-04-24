@@ -16,8 +16,5 @@
   },
   "update_order_lines": {
     "description": "修改訂單明細數量"
-  },
-  "test_query_object": {
-    "description": "測試 query_object API"
   }
 }
