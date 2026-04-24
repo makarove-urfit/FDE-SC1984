@@ -41,6 +41,7 @@ def execute(ctx):
         "customer_id": customer_id,
         "date_order": date_order,
         "note": order_note,
+        "state": "draft",
     })
 
     order_id = order.get("id") if order else None
