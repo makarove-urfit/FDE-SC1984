@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useRef } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import * as db from '../../db';
 import { useData } from '../../data/DataProvider';
@@ -19,14 +19,13 @@ export default function DeliveryPage() {
   const [orders, setOrders] = useState<any[]>([]);
   const [localCusts, setLocalCusts] = useState<Record<string,any>>({});
   const [expanded, setExpanded] = useState<string|null>(null);
-  const [confirm, setConfirm] = useState<{id:string;action:string}|null>(null);
+  const [confirm, setConfirm] = useState<{id:string;action:string;driverIdToSave?:string}|null>(null);
   const [editingAddr, setEditingAddr] = useState<string|null>(null);
   const [addrDraft, setAddrDraft] = useState('');
   const [savingAddr, setSavingAddr] = useState(false);
   const [driverFilter, setDriverFilter] = useState('all');
   const [savingDriver, setSavingDriver] = useState<string|null>(null);
   const [custToDriver, setCustToDriver] = useState<Record<string,string>>({});
-  const autoAssignedRef = useRef<Set<string>>(new Set());
 
   // #6 empMap 用 useMemo 避免每次 render 重建
   const empMap = useMemo(() => Object.fromEntries(employees.map(e=>[e.id, e])), [employees]);
@@ -70,7 +69,15 @@ export default function DeliveryPage() {
   // #3 同步全域 customers → 本地 custs（用於地址寫入後更新 UI）
   const custs = useMemo(() => ({...customers, ...localCusts}), [customers, localCusts]);
 
-  const doAction=async()=>{if(!confirm)return;try{await db.update('sale_orders',confirm.id,{state:confirm.action});setOrders(prev=>prev.map(o=>o.id===confirm.id?{...o,state:confirm.action}:o));}catch(e:any){console.error('失敗:',e.message)}setConfirm(null);};
+  const doAction=async()=>{
+    if(!confirm)return;
+    try{
+      if(confirm.driverIdToSave) await assignDriver(confirm.id, confirm.driverIdToSave);
+      await db.update('sale_orders',confirm.id,{state:confirm.action});
+      setOrders(prev=>prev.map(o=>o.id===confirm.id?{...o,state:confirm.action}:o));
+    }catch(e:any){console.error('失敗:',e.message)}
+    setConfirm(null);
+  };
 
   // 地址 — #3 修復：用 setLocalCusts 取代不存在的 setCusts
   const saveAddress=async(cid:string)=>{
@@ -89,17 +96,17 @@ export default function DeliveryPage() {
     }catch(e:any){console.error('指派失敗:',e.message)} setSavingDriver(null);
   };
 
-  // 自動預填：x_driver_customer 有對應且訂單尚未指派司機時，自動儲存
-  useEffect(() => {
-    if (orders.length === 0 || Object.keys(custToDriver).length === 0) return;
-    for (const o of orders) {
-      const cid = String(o.customer_id||'');
-      if (!o.client_order_ref && custToDriver[cid] && !autoAssignedRef.current.has(o.id)) {
-        autoAssignedRef.current.add(o.id);
-        assignDriver(o.id, custToDriver[cid]);
-      }
-    }
-  }, [orders, custToDriver]);
+
+  // 批次指派：把所有有路線預設但尚未指派司機的訂單全部存起來
+  const [batchAssigning, setBatchAssigning] = useState(false);
+  const batchAssign = async () => {
+    const pending = orders.filter(o => !o.client_order_ref && custToDriver[String(o.customer_id||'')]);
+    if (pending.length === 0) return;
+    setBatchAssigning(true);
+    await Promise.all(pending.map(o => assignDriver(o.id, custToDriver[String(o.customer_id)])));
+    setBatchAssigning(false);
+  };
+  const pendingBatchCount = orders.filter(o => !o.client_order_ref && custToDriver[String(o.customer_id||'')]).length;
 
   // 過濾
   const filteredOrders=driverFilter==='all'?orders:driverFilter==='unassigned'?orders.filter(o=>!o.client_order_ref):orders.filter(o=>o.client_order_ref===driverFilter);
@@ -126,6 +133,12 @@ export default function DeliveryPage() {
         </div>
         <div className="flex items-center gap-2">
           <DatePickerWithCounts value={selectedDate} onChange={setSelectedDate} />
+          {pendingBatchCount > 0 && (
+            <button onClick={batchAssign} disabled={batchAssigning}
+              className="px-3 py-1.5 bg-amber-500 hover:bg-amber-600 text-white rounded-lg text-xs font-medium disabled:opacity-50">
+              {batchAssigning ? '指派中...' : `批次指派路線司機 (${pendingBatchCount})`}
+            </button>
+          )}
           <UserIcon />
           <select className="px-3 pr-8 py-2 border border-gray-200 rounded-lg bg-white text-sm" value={driverFilter} onChange={e=>setDriverFilter(e.target.value)}>
             <option value="all">全部負責人 ({orders.length})</option>
@@ -200,8 +213,10 @@ export default function DeliveryPage() {
                 {/* 訂單列表 */}
                 {cos.map(o=>{const cfg=stCfg[o.state]||stCfg.sale;const ol=lines.filter(l=>l.order_id===o.id);
                   const driverEmpId=o.client_order_ref;
-                  const driverEmp=driverEmpId?empMap[driverEmpId]:null;
+                  const effectiveDriverId=driverEmpId||custToDriver[String(o.customer_id||'')]||'';
+                  const driverEmp=effectiveDriverId?empMap[effectiveDriverId]:null;
                   const isSavingThis=savingDriver===o.id;
+                  const isPrefilled=!driverEmpId&&!!effectiveDriverId;
                   return(<div key={o.id} className="border-t border-gray-200">
                     <div className="px-4 py-3 flex justify-between items-center">
                       <div className="flex-1">
@@ -213,22 +228,23 @@ export default function DeliveryPage() {
                           {o.state==='done' ? (
                             <span className={`text-xs px-2 py-1 rounded ${driverEmp ? 'text-blue-700 bg-blue-50' : 'text-gray-400'}`}>{driverEmp?.name||'未指派'}</span>
                           ) : (
-                            <select value={driverEmpId||''} onChange={e=>assignDriver(o.id,e.target.value)} disabled={isSavingThis}
-                              className={`text-xs px-2 pr-8 py-1 border rounded transition-colors ${driverEmp ? 'border-blue-200 bg-blue-50 text-blue-700' : 'border-gray-200 bg-white text-gray-400'}`}>
+                            <select value={effectiveDriverId} onChange={e=>assignDriver(o.id,e.target.value)} disabled={isSavingThis}
+                              className={`text-xs px-2 pr-8 py-1 border rounded transition-colors ${driverEmp ? (isPrefilled?'border-amber-200 bg-amber-50 text-amber-700':'border-blue-200 bg-blue-50 text-blue-700') : 'border-gray-200 bg-white text-gray-400'}`}>
                               <option value="">-- 選擇負責人 --</option>
                               {employees.map(emp=>(<option key={emp.id} value={emp.id}>{emp.name}{emp.job_title?` (${emp.job_title})`:''}</option>))}
                             </select>
                           )}
+                          {isPrefilled && !isSavingThis && <span className="text-xs text-amber-500">路線預設</span>}
                           {isSavingThis && <span className="text-xs text-gray-400">儲存中...</span>}
                         </div>
                       </div>
                       <div className="flex items-center gap-2">
                         <span className={`px-2.5 py-0.5 rounded-full text-xs font-medium ${cfg.color}`}>{cfg.label}</span>
                         {o.state==='sale'&&(()=>{
-                          const canDone = !!driverEmpId && !!addr;
-                          const tip = !driverEmpId ? '請先選擇配送負責人' : !addr ? '請先設定送貨地址' : '';
+                          const canDone = !!effectiveDriverId && !!addr;
+                          const tip = !effectiveDriverId ? '請先選擇配送負責人' : !addr ? '請先設定送貨地址' : '';
                           return (
-                            <button onClick={()=>canDone?setConfirm({id:o.id,action:'done'}):null}
+                            <button onClick={()=>canDone?setConfirm({id:o.id,action:'done',driverIdToSave:isPrefilled?effectiveDriverId:undefined}):null}
                               disabled={!canDone} title={tip}
                               className={`px-3 py-1 rounded text-xs transition-colors flex items-center gap-1 ${canDone?'bg-primary text-white hover:bg-green-700 cursor-pointer':'bg-gray-100 text-gray-400 cursor-not-allowed'}`}>
                               <CheckCircleIcon /> 完成配送
