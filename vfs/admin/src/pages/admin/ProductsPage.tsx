@@ -88,6 +88,211 @@ function AddProductModal({ cats, onClose, onDone }: {
   );
 }
 
+function EditProductModal({ p, cats, suppliers, maps, onClose, onReload }: {
+  p: Tmpl;
+  cats: Cat[];
+  suppliers: Supplier[];
+  maps: SupMap[];
+  onClose: () => void;
+  onReload: () => Promise<void>;
+}) {
+  const [name, setName] = useState(p.name);
+  const [code, setCode] = useState(p.default_code);
+  const [catId, setCatId] = useState(() => resolveId(p.categ_id));
+  const [saleOk, setSaleOk] = useState(p.sale_ok);
+  const [defaultSup, setDefaultSup] = useState(p.defaultSupplierId);
+  const [variantId, setVariantId] = useState<string | null>(null);
+  const [step, setStep] = useState('');
+  const [minQty, setMinQty] = useState('');
+  const [maxQty, setMaxQty] = useState('');
+  const [addSupId, setAddSupId] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [supBusy, setSupBusy] = useState(false);
+
+  const productMaps = useMemo(() => maps.filter(m => m.productTmplId === p.id), [maps, p.id]);
+  const addedSupIds = useMemo(() => new Set(productMaps.map(m => m.supplierId)), [productMaps]);
+
+  useEffect(() => {
+    db.queryFiltered('product_products', [{ column: 'product_tmpl_id', op: 'eq', value: p.id }], 1)
+      .then((variants: any) => {
+        const v = Array.isArray(variants) ? variants[0] : null;
+        if (v) {
+          setVariantId(String(v.id));
+          const cd = (v.custom_data && typeof v.custom_data === 'object') ? v.custom_data as Record<string, any> : {};
+          setStep(String(cd.order_step || ''));
+          setMinQty(String(cd.min_qty || ''));
+          setMaxQty(String(cd.max_qty || ''));
+        }
+      }).catch(() => {});
+  }, [p.id]);
+
+  const handleSave = async () => {
+    if (!name.trim()) { alert('品名為必填'); return; }
+    setSaving(true);
+    try {
+      const cd = { ...p._cd };
+      if (defaultSup) cd.default_supplier_id = defaultSup;
+      else delete cd.default_supplier_id;
+      await db.update('product_templates', p.id, {
+        name: name.trim(),
+        default_code: code.trim() || false,
+        categ_id: catId || false,
+        sale_ok: saleOk,
+        custom_data: cd,
+      });
+      if (variantId) {
+        const orderCd: Record<string, any> = {};
+        const s = parseFloat(step); if (s > 0) orderCd.order_step = s;
+        const mn = parseFloat(minQty); if (mn > 0) orderCd.min_qty = mn;
+        const mx = parseFloat(maxQty); if (mx > 0) orderCd.max_qty = mx;
+        await db.update('product_products', variantId, { custom_data: orderCd });
+      }
+      await onReload();
+      onClose();
+    } catch (e: any) {
+      alert(e?.message || '儲存失敗');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleAddSup = async () => {
+    if (!addSupId) return;
+    setSupBusy(true);
+    try {
+      await db.insert('product_supplierinfo', { product_tmpl_id: p.id, supplier_id: addSupId });
+      setAddSupId('');
+      await onReload();
+    } catch (e: any) { alert(e?.message || '新增失敗'); }
+    finally { setSupBusy(false); }
+  };
+
+  const handleRemoveSup = async (mapId: string) => {
+    if (!confirm('移除此供應關係？')) return;
+    try {
+      await db.deleteRow('product_supplierinfo', mapId);
+      await onReload();
+    } catch (e: any) { alert(e?.message || '刪除失敗'); }
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50" onClick={onClose}>
+      <div className="bg-white rounded-2xl shadow-xl w-full max-w-lg mx-4 max-h-[90vh] flex flex-col" onClick={e => e.stopPropagation()}>
+        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
+          <h2 className="text-lg font-bold text-gray-900">編輯產品</h2>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 text-2xl leading-none">×</button>
+        </div>
+
+        <div className="overflow-y-auto flex-1">
+          {/* 基本資料 */}
+          <div className="px-6 py-4 border-b border-gray-100 space-y-3">
+            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider">基本資料</p>
+            <div>
+              <label className="block text-xs text-gray-500 mb-1">品名 <span className="text-red-500">*</span></label>
+              <input type="text" value={name} onChange={e => setName(e.target.value)}
+                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+            </div>
+            <div>
+              <label className="block text-xs text-gray-500 mb-1">編碼</label>
+              <input type="text" value={code} onChange={e => setCode(e.target.value)} placeholder="選填"
+                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+            </div>
+            <div>
+              <label className="block text-xs text-gray-500 mb-1">分類</label>
+              <select value={catId} onChange={e => setCatId(e.target.value)}
+                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+                <option value="">（不設定）</option>
+                {cats.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+              </select>
+            </div>
+            <label className="flex items-center gap-3 cursor-pointer select-none">
+              <input type="checkbox" checked={saleOk} onChange={e => setSaleOk(e.target.checked)}
+                className="w-4 h-4 rounded border-gray-300 text-green-600 cursor-pointer" />
+              <span className="text-sm font-medium text-gray-700">上架</span>
+            </label>
+          </div>
+
+          {/* 供應商 */}
+          <div className="px-6 py-4 border-b border-gray-100 space-y-3">
+            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider">供應商</p>
+            <div>
+              <label className="block text-xs text-gray-500 mb-1">主供應商</label>
+              <select value={defaultSup} onChange={e => setDefaultSup(e.target.value)}
+                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+                <option value="">（不指定）</option>
+                {suppliers.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+              </select>
+              <p className="text-xs text-gray-400 mt-1">採購鏈 SSOT：品項 → 主供應商 → 採購員</p>
+            </div>
+            <div>
+              <label className="block text-xs text-gray-500 mb-1">備用供應商</label>
+              <div className="flex gap-2 mb-2">
+                <select value={addSupId} onChange={e => setAddSupId(e.target.value)}
+                  className="flex-1 border border-gray-200 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500">
+                  <option value="">選擇供應商…</option>
+                  {suppliers.filter(s => !addedSupIds.has(s.id)).map(s => (
+                    <option key={s.id} value={s.id}>{s.name}</option>
+                  ))}
+                </select>
+                <button onClick={handleAddSup} disabled={!addSupId || supBusy}
+                  className="px-3 py-2 bg-green-600 text-white text-sm font-medium rounded-lg hover:bg-green-700 disabled:opacity-40">
+                  加入
+                </button>
+              </div>
+              {productMaps.length > 0 && (
+                <ul className="divide-y divide-gray-50 border border-gray-100 rounded-lg">
+                  {productMaps.map(m => (
+                    <li key={m.id} className="flex items-center justify-between px-3 py-2">
+                      <span className="text-sm text-gray-700">{suppliers.find(s => s.id === m.supplierId)?.name || `#${m.supplierId.slice(0, 8)}`}</span>
+                      <button onClick={() => handleRemoveSup(m.id)}
+                        className="text-xs text-red-500 hover:text-red-700 px-2 py-0.5 rounded hover:bg-red-50">
+                        移除
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          </div>
+
+          {/* 訂購規則 */}
+          <div className="px-6 py-4 space-y-2">
+            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider">訂購規則</p>
+            {variantId ? (
+              <>
+                <div className="flex gap-3">
+                  {([
+                    { label: '步進', val: step, set: setStep, placeholder: '例：5' },
+                    { label: '最小', val: minQty, set: setMinQty, placeholder: '例：10' },
+                    { label: '最大', val: maxQty, set: setMaxQty, placeholder: '0=不限' },
+                  ] as const).map(({ label, val, set, placeholder }) => (
+                    <div key={label} className="flex-1">
+                      <label className="block text-xs text-gray-400 mb-1">{label}</label>
+                      <input type="number" min="0" value={val} onChange={e => set(e.target.value)} placeholder={placeholder}
+                        className="w-full border border-gray-200 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500" />
+                    </div>
+                  ))}
+                </div>
+                <p className="text-xs text-gray-400">留空或 0 代表不限制</p>
+              </>
+            ) : (
+              <p className="text-xs text-gray-400">無對應規格記錄</p>
+            )}
+          </div>
+        </div>
+
+        <div className="px-6 py-4 border-t border-gray-100 flex gap-3">
+          <button onClick={onClose} className="flex-1 py-2 rounded-lg border border-gray-200 text-sm text-gray-600 hover:bg-gray-50 transition-colors">取消</button>
+          <button onClick={handleSave} disabled={saving}
+            className="flex-1 py-2 rounded-lg bg-blue-600 text-white text-sm font-medium hover:bg-blue-700 transition-colors disabled:bg-gray-300">
+            {saving ? '儲存中...' : '儲存'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function ProductsPage() {
   const nav = useNavigate();
   const [tmpls, setTmpls] = useState<Tmpl[]>([]);
@@ -97,23 +302,9 @@ export default function ProductsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [search, setSearch] = useState('');
-  const [editId, setEditId] = useState<string | null>(null);
-  const [editCat, setEditCat] = useState('');
-  const [saving, setSaving] = useState(false);
   const [showAdd, setShowAdd] = useState(false);
   const [activeTab, setActiveTab] = useState(ALL_TAB);
-
-  // 供應商 modal 狀態
-  const [viewingProduct, setViewingProduct] = useState<Tmpl | null>(null);
-  const [editDefaultSup, setEditDefaultSup] = useState('');
-  const [addSupId, setAddSupId] = useState('');
-  const [supBusy, setSupBusy] = useState(false);
-
-  // 訂購規則狀態
-  const [prodVariantId, setProdVariantId] = useState<string | null>(null);
-  const [editStep, setEditStep] = useState('');
-  const [editMinQty, setEditMinQty] = useState('');
-  const [editMaxQty, setEditMaxQty] = useState('');
+  const [editingProduct, setEditingProduct] = useState<Tmpl | null>(null);
 
   const load = async () => {
     setLoading(true); setError('');
@@ -124,16 +315,21 @@ export default function ProductsPage() {
         db.queryFiltered('suppliers', [{ column: 'active', op: 'eq', value: true }]),
         db.query('product_supplierinfo'),
       ]);
-      setTmpls((ts || []).map((r: any) => {
+      const seenIds = new Set<string>();
+      setTmpls((ts || []).reduce((acc: Tmpl[], r: any) => {
+        const rid = String(r.id);
+        if (seenIds.has(rid)) return acc;
+        seenIds.add(rid);
         const cd = (r.custom_data && typeof r.custom_data === 'object') ? r.custom_data : {};
-        return {
-          id: String(r.id), name: String(r.name || ''),
+        acc.push({
+          id: rid, name: String(r.name || ''),
           default_code: String(r.default_code || ''), categ_id: r.categ_id,
           sale_ok: Boolean(r.sale_ok),
           defaultSupplierId: String(cd.default_supplier_id || ''),
           _cd: cd,
-        };
-      }));
+        });
+        return acc;
+      }, []));
       setCats((cs || []).map((r: any) => ({ id: String(r.id), name: String(r.name || '') })));
       setSuppliers(
         (sups || []).map((r: any) => ({ id: String(r.id), name: String(r.name || '') }))
@@ -148,12 +344,6 @@ export default function ProductsPage() {
   };
 
   useEffect(() => { load(); }, []);
-
-  useEffect(() => {
-    if (!editId) return;
-    const p = tmpls.find(x => x.id === editId);
-    setEditCat(p ? resolveId(p.categ_id) : '');
-  }, [editId, tmpls]);
 
   const catName = (raw: any): string => {
     const id = resolveId(raw);
@@ -190,15 +380,6 @@ export default function ProductsPage() {
     );
   }, [tmpls, search, cats, activeTab, suppliers]);
 
-  const save = async (id: string) => {
-    setSaving(true);
-    try {
-      await db.update('product_templates', id, { categ_id: editCat || false });
-      await load();
-      setEditId(null); setEditCat('');
-    } catch (e: any) { alert(e?.message || '儲存失敗'); } finally { setSaving(false); }
-  };
-
   const togglePublish = async (p: Tmpl) => {
     const next = !p.sale_ok;
     const msg = next ? `將「${p.name}」上架？上架後客戶可在訂購頁下單此商品。` : `將「${p.name}」下架？下架後客戶端將不顯示。`;
@@ -213,78 +394,6 @@ export default function ProductsPage() {
     setShowAdd(false);
     await load();
     if (catId) setActiveTab(catId);
-  };
-
-  // 供應商 modal 操作
-  const openSupModal = async (p: Tmpl) => {
-    setViewingProduct(p);
-    setEditDefaultSup(p.defaultSupplierId);
-    setAddSupId('');
-    setProdVariantId(null);
-    setEditStep(''); setEditMinQty(''); setEditMaxQty('');
-    try {
-      const variants = await db.queryFiltered('product_products', [{ column: 'product_tmpl_id', op: 'eq', value: p.id }], 1);
-      const v = variants?.[0];
-      if (v) {
-        setProdVariantId(String(v.id));
-        const cd = (v.custom_data && typeof v.custom_data === 'object') ? v.custom_data as Record<string,any> : {};
-        setEditStep(String(cd.order_step || ''));
-        setEditMinQty(String(cd.min_qty || ''));
-        setEditMaxQty(String(cd.max_qty || ''));
-      }
-    } catch {}
-  };
-
-  const saveDefaultSup = async () => {
-    if (!viewingProduct) return;
-    setSupBusy(true);
-    try {
-      const cd = { ...viewingProduct._cd };
-      if (editDefaultSup) cd.default_supplier_id = editDefaultSup;
-      else delete cd.default_supplier_id;
-      await db.update('product_templates', viewingProduct.id, { custom_data: cd });
-      await load();
-      setViewingProduct(prev => prev ? { ...prev, defaultSupplierId: editDefaultSup, _cd: cd } : null);
-    } catch (e: any) { alert(e?.message || '儲存失敗'); }
-    finally { setSupBusy(false); }
-  };
-
-  const saveOrderRules = async () => {
-    if (!prodVariantId) return;
-    setSupBusy(true);
-    try {
-      const cd: Record<string, any> = {};
-      const s = parseFloat(editStep); if (s > 0) cd.order_step = s;
-      const mn = parseFloat(editMinQty); if (mn > 0) cd.min_qty = mn;
-      const mx = parseFloat(editMaxQty); if (mx > 0) cd.max_qty = mx;
-      await db.update('product_products', prodVariantId, { custom_data: cd });
-    } catch (e: any) { alert(e?.message || '儲存失敗'); }
-    finally { setSupBusy(false); }
-  };
-
-  const productMaps = useMemo(() =>
-    viewingProduct ? maps.filter(m => m.productTmplId === viewingProduct.id) : [],
-    [maps, viewingProduct]
-  );
-  const addedSupIds = useMemo(() => new Set(productMaps.map(m => m.supplierId)), [productMaps]);
-
-  const addSupMap = async () => {
-    if (!addSupId || !viewingProduct) return;
-    setSupBusy(true);
-    try {
-      await db.insert('product_supplierinfo', { product_tmpl_id: viewingProduct.id, supplier_id: addSupId });
-      setAddSupId('');
-      await load();
-    } catch (e: any) { alert(e?.message || '新增失敗'); }
-    finally { setSupBusy(false); }
-  };
-
-  const removeSupMap = async (mapId: string) => {
-    if (!confirm('移除此供應關係？')) return;
-    try {
-      await db.deleteRow('product_supplierinfo', mapId);
-      await load();
-    } catch (e: any) { alert(e?.message || '刪除失敗'); }
   };
 
   return (
@@ -344,29 +453,16 @@ export default function ProductsPage() {
                       <tr key={p.id} className={`border-t border-gray-50 hover:bg-gray-50 ${p.sale_ok ? '' : 'opacity-60'}`}>
                         <td className="px-4 py-3 text-xs text-gray-500">{p.default_code || '—'}</td>
                         <td className="px-4 py-3 font-medium text-gray-800">{p.name}</td>
+                        <td className="px-4 py-3 text-gray-700">{catName(p.categ_id) || '—'}</td>
                         <td className="px-4 py-3">
-                          {editId === p.id ?
-                            <select value={editCat} onChange={e => setEditCat(e.target.value)} className="border border-gray-200 rounded px-2 py-1 text-sm bg-white">
-                              <option value="">（不設定）</option>
-                              {cats.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-                              {editCat && !cats.some(c => c.id === editCat) && (
-                                <option value={editCat}>（原值 #{editCat.slice(0, 8)}：{catName(p.categ_id) || '未知分類'}）</option>
-                              )}
-                            </select>
-                            : <span className="text-gray-700">{catName(p.categ_id) || '—'}</span>}
-                        </td>
-                        <td className="px-4 py-3">
-                          <button onClick={() => openSupModal(p)}
-                            className="text-left group">
-                            {p.defaultSupplierId && supName(p.defaultSupplierId) ? (
-                              <span className="inline-flex items-center gap-1 text-xs text-gray-700 group-hover:text-blue-600">
-                                {supName(p.defaultSupplierId)}
-                                {mapCount > 1 && <span className="text-gray-300">+{mapCount - 1}</span>}
-                              </span>
-                            ) : (
-                              <span className="text-xs text-gray-300 group-hover:text-blue-500">設定供應商</span>
-                            )}
-                          </button>
+                          {p.defaultSupplierId && supName(p.defaultSupplierId) ? (
+                            <span className="inline-flex items-center gap-1 text-xs text-gray-700">
+                              {supName(p.defaultSupplierId)}
+                              {mapCount > 1 && <span className="text-gray-300">+{mapCount - 1}</span>}
+                            </span>
+                          ) : (
+                            <span className="text-xs text-gray-300">—</span>
+                          )}
                         </td>
                         <td className="px-4 py-3">
                           <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${p.sale_ok ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}>
@@ -374,17 +470,14 @@ export default function ProductsPage() {
                           </span>
                         </td>
                         <td className="px-4 py-3 text-right space-x-2">
-                          {editId === p.id ?
-                            <>
-                              <button onClick={() => save(p.id)} disabled={saving} className="px-2 py-1 text-xs text-white bg-blue-600 hover:bg-blue-700 rounded disabled:opacity-50">{saving ? '儲存中' : '儲存'}</button>
-                              <button onClick={() => { setEditId(null); setEditCat(''); }} className="px-2 py-1 text-xs text-gray-600 hover:bg-gray-100 rounded">取消</button>
-                            </>
-                            : <>
-                              <button onClick={() => { setEditId(p.id); setEditCat(resolveId(p.categ_id)); }} className="px-2 py-1 text-xs text-blue-600 hover:bg-blue-50 rounded">編輯分類</button>
-                              <button onClick={() => togglePublish(p)} className={`px-2 py-1 text-xs rounded ${p.sale_ok ? 'text-red-600 hover:bg-red-50' : 'text-green-700 hover:bg-green-50'}`}>
-                                {p.sale_ok ? '下架' : '上架'}
-                              </button>
-                            </>}
+                          <button onClick={() => setEditingProduct(p)}
+                            className="px-2 py-1 text-xs text-blue-600 hover:bg-blue-50 rounded">
+                            編輯
+                          </button>
+                          <button onClick={() => togglePublish(p)}
+                            className={`px-2 py-1 text-xs rounded ${p.sale_ok ? 'text-red-600 hover:bg-red-50' : 'text-green-700 hover:bg-green-50'}`}>
+                            {p.sale_ok ? '下架' : '上架'}
+                          </button>
                         </td>
                       </tr>
                     );
@@ -398,107 +491,15 @@ export default function ProductsPage() {
         <AddProductModal cats={cats} onClose={() => setShowAdd(false)} onDone={handleAddDone} />
       )}
 
-      {/* 供應商管理 modal */}
-      {viewingProduct && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
-          <div className="bg-white rounded-2xl shadow-xl w-full max-w-lg mx-4">
-            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
-              <div>
-                <h2 className="text-lg font-bold text-gray-900">{viewingProduct.name}</h2>
-                <p className="text-xs text-gray-400 mt-0.5">供應商設定</p>
-              </div>
-              <button onClick={() => setViewingProduct(null)} className="text-gray-400 hover:text-gray-600 text-2xl leading-none">×</button>
-            </div>
-
-            {/* 主供應商 */}
-            <div className="px-6 py-4 border-b border-gray-100 space-y-2">
-              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider">主供應商（SSOT）</p>
-              <div className="flex gap-2">
-                <select value={editDefaultSup} onChange={e => setEditDefaultSup(e.target.value)}
-                  className="flex-1 px-3 py-2 text-sm border border-gray-200 rounded-lg bg-white">
-                  <option value="">（不指定）</option>
-                  {suppliers.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
-                </select>
-                <button onClick={saveDefaultSup} disabled={supBusy || editDefaultSup === viewingProduct.defaultSupplierId}
-                  className="px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 disabled:opacity-40">
-                  {supBusy ? '儲存中...' : '儲存'}
-                </button>
-              </div>
-              <p className="text-xs text-gray-400">採購鏈 SSOT：品項 → 主供應商 → 採購員</p>
-            </div>
-
-            {/* 備用供應商 (product_supplierinfo) */}
-            <div className="px-6 py-3 border-b border-gray-100">
-              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">備用供應商</p>
-              <div className="flex gap-2">
-                <select value={addSupId} onChange={e => setAddSupId(e.target.value)}
-                  className="flex-1 px-3 py-2 text-sm border border-gray-200 rounded-lg bg-white">
-                  <option value="">選擇供應商…</option>
-                  {suppliers
-                    .filter(s => !addedSupIds.has(s.id))
-                    .map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
-                </select>
-                <button onClick={addSupMap} disabled={!addSupId || supBusy}
-                  className="px-4 py-2 bg-green-600 text-white text-sm font-medium rounded-lg hover:bg-green-700 disabled:opacity-40">
-                  加入
-                </button>
-              </div>
-            </div>
-
-            <div className="max-h-48 overflow-y-auto">
-              {productMaps.length === 0 ? (
-                <p className="text-center text-gray-400 py-6 text-sm">尚無備用供應商</p>
-              ) : (
-                <ul className="divide-y divide-gray-50">
-                  {productMaps.map(m => (
-                    <li key={m.id} className="flex items-center justify-between px-6 py-2.5">
-                      <span className="text-sm text-gray-800">{supName(m.supplierId) || `#${m.supplierId.slice(0, 8)}`}</span>
-                      <button onClick={() => removeSupMap(m.id)}
-                        className="text-xs text-red-500 hover:text-red-700 px-2 py-1 rounded hover:bg-red-50">
-                        移除
-                      </button>
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </div>
-
-            {/* 訂購規則 */}
-            <div className="px-6 py-4 border-t border-gray-100 space-y-2">
-              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider">訂購規則</p>
-              {prodVariantId ? (
-                <>
-                  <div className="flex gap-2">
-                    {[
-                      { label: '步進', val: editStep, set: setEditStep, placeholder: '例：5' },
-                      { label: '最小', val: editMinQty, set: setEditMinQty, placeholder: '例：10' },
-                      { label: '最大', val: editMaxQty, set: setEditMaxQty, placeholder: '0=不限' },
-                    ].map(({ label, val, set, placeholder }) => (
-                      <div key={label} className="flex-1">
-                        <label className="block text-xs text-gray-400 mb-0.5">{label}</label>
-                        <input type="number" min="0" value={val} onChange={e => set(e.target.value)} placeholder={placeholder}
-                          className="w-full border border-gray-200 rounded px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500" />
-                      </div>
-                    ))}
-                    <div className="flex items-end">
-                      <button onClick={saveOrderRules} disabled={supBusy}
-                        className="px-3 py-1.5 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 disabled:opacity-40">
-                        儲存
-                      </button>
-                    </div>
-                  </div>
-                  <p className="text-xs text-gray-400">留空或 0 代表不限制</p>
-                </>
-              ) : (
-                <p className="text-xs text-gray-400">無對應規格記錄</p>
-              )}
-            </div>
-
-            <div className="px-6 py-3 border-t border-gray-100 flex justify-end">
-              <button onClick={() => setViewingProduct(null)} className="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-lg">關閉</button>
-            </div>
-          </div>
-        </div>
+      {editingProduct && (
+        <EditProductModal
+          p={editingProduct}
+          cats={cats}
+          suppliers={suppliers}
+          maps={maps}
+          onClose={() => setEditingProduct(null)}
+          onReload={load}
+        />
       )}
     </div>
   );

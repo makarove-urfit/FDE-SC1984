@@ -20,7 +20,16 @@ def execute(ctx):
         prods = []
 
     active_cats = [r for r in categories if r.get("active") != False]
-    active_tmpl = [r for r in templates if r.get("active") != False and r.get("sale_ok") != False]
+    _seen_tmpl = set()
+    active_tmpl = []
+    for r in templates:
+        if r.get("active") == False or r.get("sale_ok") == False:
+            continue
+        rid = r.get("id")
+        if rid in _seen_tmpl:
+            continue
+        _seen_tmpl.add(rid)
+        active_tmpl.append(r)
     active_uoms = [r for r in uoms if r.get("active") != False]
 
     order_settings = {}
