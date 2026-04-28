@@ -8,7 +8,8 @@
 
 用法：
   set -a && source .env && set +a
-  python3 vfs/scripts/deploy_admin.py
+  python3 vfs/scripts/deploy_admin.py              # 完整部署（上傳 + 發布）
+  python3 vfs/scripts/deploy_admin.py --no-publish # 只上傳，不發布（開發測試用）
 """
 import os, sys
 sys.path.insert(0, os.path.dirname(__file__))
@@ -19,6 +20,7 @@ VFS_DIR = os.path.join(os.path.dirname(__file__), "..", "admin")
 
 
 def main():
+    no_publish = "--no-publish" in sys.argv
     print("=== 雄泉 Admin Custom App 部署 ===")
     email    = require_env("AIGO_EMAIL")
     password = require_env("AIGO_PASSWORD")
@@ -34,10 +36,13 @@ def main():
     print("\n[3/4] 讀取並上傳 VFS...")
     upload_vfs(h, app_id, read_vfs(VFS_DIR))
 
-    print("\n[4/4] 發布...")
-    publish_app(h, app_id)
-
-    print("\n✅ Admin 部署完成")
+    if no_publish:
+        print("\n⏭️  略過發布（--no-publish），可用 use_dev=true 測試 action")
+        print(f"   endpoint: POST /api/v1/actions/apps/{app_id}/execute-by-name?action_name=<name>&use_dev=true")
+    else:
+        print("\n[4/4] 發布...")
+        publish_app(h, app_id)
+        print("\n✅ Admin 部署完成")
 
 
 if __name__ == "__main__":

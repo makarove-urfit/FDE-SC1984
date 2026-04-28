@@ -33,12 +33,28 @@ python3 vfs/scripts/deploy_ordering.py
 ```
 
 部署流程（4 步）：
-1. **登入** — 用 `.env` 的 `ADMIN_EMAIL` / `ADMIN_PASSWORD` 取得 token
+1. **登入** — 用 `.env` 的 `AIGO_EMAIL` / `AIGO_PASSWORD` 取得 token
 2. **設定 DB References** — 對照 `db_admin.py` / `db_ordering.py` 的 `REFS`，逐表 create 或 patch AppDataReference
 3. **上傳 VFS** — 讀取 `vfs/admin/` 或 `vfs/ordering/` 下所有原始碼，上傳至平台；自動過濾以下非原始碼目錄與檔案：
    - 目錄：`node_modules`、`.git`、`__pycache__`、`.venv`、`dist`、`.cache`
    - 檔案：`package-lock.json`、`yarn.lock`、`.DS_Store`
 4. **發布** — 觸發平台編譯並上線
+
+## Dev 模式執行 Action（不需發布）
+
+平台支援 `use_dev=true` 參數，讓 action 直接吃 `vfs_state`（未發布草稿），**不走 publish 流程**，適合開發期間測試 action 邏輯：
+
+```
+POST /api/v1/actions/apps/{app_id}/execute-by-name?action_name=xxx&use_dev=true
+```
+
+**正確開發流程**（寫 action、測試、確認後才 publish）：
+1. 在本地寫好 action Python 檔
+2. 只執行 deploy 的步驟 1-3（上傳 VFS，**不發布**）
+3. 呼叫 `execute-by-name?use_dev=true` 測試
+4. 確認結果正確後，才執行步驟 4（發布）
+
+這樣就不會每次測試都動到 production。
 
 ## 資料存取原則
 

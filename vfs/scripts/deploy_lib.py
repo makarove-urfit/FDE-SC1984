@@ -77,3 +77,12 @@ def publish_app(h, app_id):
     print(f"  發布: {status}")
     if status not in (200, 201):
         sys.exit(f"❌ 發布失敗：{body}")
+
+
+def run_dev(h, app_id, action_name, params=None):
+    """執行未發布的 action（use_dev=true），用於開發期測試，不影響 production。"""
+    url = f"{API_BASE}/actions/apps/{app_id}/execute-by-name?action_name={action_name}&use_dev=true"
+    status, body = _req("POST", url, h, {"params": params or {}})
+    if status != 200:
+        sys.exit(f"❌ dev 執行失敗：{status} {body}")
+    return body
