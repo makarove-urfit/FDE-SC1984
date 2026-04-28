@@ -346,7 +346,12 @@ export default function ProductsPage() {
         return acc;
       }, []));
       setCats((cs || []).map((r: any) => ({ id: String(r.id), name: String(r.name || '') })));
-      setUoms((uomRaw || []).filter((r: any) => r.active !== false).map((r: any) => ({ id: String(r.id), name: String(r.name || '') })));
+      const seenNames = new Set<string>();
+      setUoms((uomRaw || []).filter((r: any) => r.active !== false).map((r: any) => ({ id: String(r.id), name: String(r.name || '') })).filter((u: Uom) => {
+        if (seenNames.has(u.name)) return false;
+        seenNames.add(u.name);
+        return true;
+      }));
       setSuppliers(
         (sups || []).map((r: any) => ({ id: String(r.id), name: String(r.name || '') }))
           .sort((a: Supplier, b: Supplier) => a.name.localeCompare(b.name, 'zh-Hant'))
