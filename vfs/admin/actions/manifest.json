@@ -25,5 +25,20 @@
   },
   "ping_sandbox": {
     "description": "測試 ctx.db 可用方法（query / update / delete / query_object），供開發診斷用"
+  },
+  "crud_query": {
+    "description": "通用查詢：params.table (Odoo) 或 params.slug (x_)。支援 filters、order_by、select、search、count_only、all"
+  },
+  "crud_insert": {
+    "description": "通用新增：params.table 或 params.slug，單筆 params.data 或批次 params.rows"
+  },
+  "crud_update": {
+    "description": "通用更新：params.table 或 params.slug，單筆 {id, data} 或批次 params.updates"
+  },
+  "crud_delete": {
+    "description": "通用刪除：params.table 或 params.slug，單筆 params.id 或批次 params.ids"
+  },
+  "recalc_order_total": {
+    "description": "批次重算訂單總額：params.order_ids"
   }
 }
