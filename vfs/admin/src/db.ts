@@ -193,8 +193,9 @@ export async function runAction(actionName: string, params: Record<string, any> 
     throw new Error(b.detail || 'Action Error (' + resp.status + ')');
   }
   const result = await resp.json();
-  if (result?.status === 'error') throw new Error(result.message || 'Action Error');
-  return result.data ?? result;
+  if (result?.status === 'error') throw new Error(result?.error || result?.message || 'Action Error');
+  // 平台 wrapper：{ status, result, execution_id, ... }；舊格式：{ status, data, ... }
+  return result?.result ?? result?.data ?? result;
 }
 
 export async function recalcOrderTotal(orderIds: string[]): Promise<void> {
