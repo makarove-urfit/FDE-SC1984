@@ -11,7 +11,7 @@ type Employee = { id: string; name: string; userId: string };
 
 const EMPTY = { name: '', defaultDriverId: '' };
 
-export default function CustomerTagsPage() {
+export default function RouteDriversPage() {
   const nav = useNavigate();
   const [tags, setTags] = useState<Tag[]>([]);
   const [employees, setEmployees] = useState<Employee[]>([]);
@@ -26,10 +26,13 @@ export default function CustomerTagsPage() {
   const load = async () => {
     setLoading(true); setErr('');
     try {
-      const [rawTags, rawAllEmps] = await Promise.all([
+      const [rawTags, rawDepts, rawAllEmps] = await Promise.all([
         db.query('customer_tags'),
+        db.query('hr_departments'),
         db.query('hr_employees'),
       ]);
+      const deliveryDept = (rawDepts || []).find((d: any) => String(d.name || '').includes('配送'));
+      const deliveryDeptId = deliveryDept ? String(deliveryDept.id) : null;
 
       setTags((rawTags || [])
         .filter((r: any) => {
@@ -53,7 +56,12 @@ export default function CustomerTagsPage() {
       }
       setEmployees(
         (rawAllEmps || [])
-          .filter((e: any) => e.active !== false)
+          .filter((e: any) => {
+            if (e.active === false) return false;
+            if (!deliveryDeptId) return true;
+            const did = Array.isArray(e.department_id) ? e.department_id[0] : e.department_id;
+            return String(did) === deliveryDeptId;
+          })
           .map((e: any) => {
             const userId = e.user_id ? String(e.user_id) : (nameToUserId[String(e.name || '')] || '');
             return { id: String(e.id), name: String(e.name || ''), userId };
@@ -111,7 +119,7 @@ export default function CustomerTagsPage() {
   };
 
   const del = async (tag: Tag) => {
-    if (!confirm(`刪除區域「${tag.name}」？`)) return;
+    if (!confirm(`刪除路線「${tag.name}」？`)) return;
     try { await db.deleteRow('customer_tags', tag.id); await load(); }
     catch (e: any) { alert(e?.message || '刪除失敗'); }
   };
@@ -121,7 +129,7 @@ export default function CustomerTagsPage() {
       <header className="bg-white border-b border-gray-200 px-6 py-4">
         <div className="flex items-center gap-3 max-w-4xl mx-auto">
           <button onClick={() => nav('/admin/settings')} className="text-gray-500 hover:text-gray-700 text-sm">← 返回</button>
-          <h1 className="text-xl font-bold text-gray-900">配送區域設定</h1>
+          <h1 className="text-xl font-bold text-gray-900">路線預設司機</h1>
         </div>
       </header>
 
@@ -132,8 +140,8 @@ export default function CustomerTagsPage() {
           <section className="bg-white rounded-xl border border-gray-100 overflow-hidden">
             <div className="flex items-center justify-between px-5 py-3 bg-blue-50 border-b border-blue-100">
               <div>
-                <h2 className="font-bold text-blue-900">配送區域</h2>
-                <p className="text-xs text-blue-500 mt-0.5">每個區域可指定預設司機（配送組）</p>
+                <h2 className="font-bold text-blue-900">配送路線</h2>
+                <p className="text-xs text-blue-500 mt-0.5">每條路線可指定預設司機（配送組員工）</p>
               </div>
               <button onClick={openCreate}
                 className="px-3 py-1.5 bg-blue-600 text-white rounded-lg text-xs font-medium hover:bg-blue-700">
@@ -141,12 +149,12 @@ export default function CustomerTagsPage() {
               </button>
             </div>
             {tags.length === 0 ? (
-              <p className="text-center text-gray-400 py-8 text-sm">尚無配送區域</p>
+              <p className="text-center text-gray-400 py-8 text-sm">尚無配送路線</p>
             ) : (
               <table className="w-full text-sm">
                 <thead className="bg-gray-50 text-gray-500 text-xs">
                   <tr>
-                    <th className="px-4 py-2.5 text-left">區域名稱</th>
+                    <th className="px-4 py-2.5 text-left">路線名稱</th>
                     <th className="px-4 py-2.5 text-left">預設司機</th>
                     <th className="px-4 py-2.5"></th>
                   </tr>
@@ -183,17 +191,17 @@ export default function CustomerTagsPage() {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
           <div className="bg-white rounded-2xl shadow-xl w-full max-w-md mx-4">
             <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
-              <h2 className="text-lg font-bold text-gray-900">{editingId ? '編輯區域' : '新增區域'}</h2>
+              <h2 className="text-lg font-bold text-gray-900">{editingId ? '編輯路線' : '新增路線'}</h2>
               <button onClick={() => setShowForm(false)} className="text-gray-400 hover:text-gray-600 text-2xl leading-none">×</button>
             </div>
             <div className="px-6 py-5 space-y-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  區域名稱 <span className="text-red-500">*</span>
+                  路線名稱 <span className="text-red-500">*</span>
                 </label>
                 <input type="text" value={form.name}
                   onChange={e => setForm(p => ({ ...p, name: e.target.value }))}
-                  placeholder="如：北區、南區、市區"
+                  placeholder="如：北區、南區、市區路線"
                   className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" />
               </div>
               <div>
@@ -205,9 +213,9 @@ export default function CustomerTagsPage() {
                   {employees.map(e => <option key={e.userId} value={e.userId}>{e.name}</option>)}
                 </select>
                 {employees.length === 0 && (
-                  <p className="text-xs text-amber-600 mt-1">需先為員工建立系統帳號，才能在此指定司機</p>
+                  <p className="text-xs text-amber-600 mt-1">需先指派員工至「配送」部門並建立系統帳號，才能在此指定司機</p>
                 )}
-                <p className="text-xs text-gray-400 mt-1">客戶的配送路線設定後，系統將依此路線自動指派司機</p>
+                <p className="text-xs text-gray-400 mt-1">僅顯示配送部門的員工。客戶設定路線後，系統將自動指派此司機</p>
               </div>
               {formErr && <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-2 rounded-lg text-sm">{formErr}</div>}
             </div>

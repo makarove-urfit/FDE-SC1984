@@ -30,7 +30,7 @@ export default function DashboardPage() {
       {label:'員工管理', desc:'查看員工、部門、帳號狀態', href:'/admin/settings/employees'},
     ]},
     {title:'配送組', items:[
-      {label:'地區 / 司機設定', desc:'配送區域與預設司機指派', href:'/admin/settings/customer-tags'},
+      {label:'路線預設司機', desc:'配送路線與預設司機指派', href:'/admin/settings/route-drivers'},
     ]},
     {title:'採購組', items:[
       {label:'供應商管理', desc:'供應商資料與預設採購員指派', href:'/admin/settings/suppliers'},
