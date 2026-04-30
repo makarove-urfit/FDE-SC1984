@@ -44,7 +44,7 @@ function canEditOrder(order: any, cutoffTime: string, lines: any[]): boolean {
 
 interface OrderWithLines { order: any; lines: any[]; }
 
-export default function OrdersPage({ user, cutoffTime, defaultNoteMap, setProductDefaultNote }: { user: AppUser; cutoffTime: string; defaultNoteMap: Record<string, string>; setProductDefaultNote: (tmplId: string, note: string) => void; }) {
+export default function OrdersPage({ user, cutoffTime, defaultNoteMap, setProductDefaultNote, favoritesLoading }: { user: AppUser; cutoffTime: string; defaultNoteMap: Record<string, string>; setProductDefaultNote: (tmplId: string, note: string) => void; favoritesLoading: boolean; }) {
   const [items, setItems] = useState<OrderWithLines[]>([]);
   const [loading, setLoading] = useState(true);
   const [errorInfo, setErrorInfo] = useState("");
@@ -176,6 +176,9 @@ export default function OrdersPage({ user, cutoffTime, defaultNoteMap, setProduc
                 <td>{Number(l.price_unit) > 0 ? `$${Number(l.price_unit).toLocaleString()}` : "—"}</td>
                 <td style={{ color: "#6b7280", fontSize: 12 }}>
                   {isEditing ? (() => {
+                    if (favoritesLoading) return (
+                      <div style={{ padding:"2px 6px", borderRadius:4, background:"linear-gradient(90deg, #f3f4f6 0%, #e5e7eb 50%, #f3f4f6 100%)", backgroundSize:"200% 100%", animation:"shimmer 1.2s ease-in-out infinite", color:"#9ca3af", fontSize:11 }}>載入中…</div>
+                    );
                     const tmplId = String(l.product_template_id || l.product_id || "");
                     const curNote = (editNotes[l.id] ?? lineNote) || "";
                     const matches = (defaultNoteMap[tmplId] || "") === curNote.trim() && curNote.trim().length > 0;

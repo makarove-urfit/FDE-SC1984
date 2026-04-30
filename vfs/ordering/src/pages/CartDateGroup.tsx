@@ -22,9 +22,10 @@ interface Props {
   defaultNoteMap: Record<string, string>;
   setItemNote: (productId: string, deliveryDate: string, note: string) => void;
   setAsDefault: (productId: string, note: string) => void;
+  favoritesLoading: boolean;
 }
 
-export default function CartDateGroup({ date, items, priceMap, uomMap, tmplMap, addToCart, setCartExact, note, onNoteChange, isSubmitting, onSubmit, setDeliveryDate, onNavigate, defaultNoteMap, setItemNote, setAsDefault }: Props) {
+export default function CartDateGroup({ date, items, priceMap, uomMap, tmplMap, addToCart, setCartExact, note, onNoteChange, isSubmitting, onSubmit, setDeliveryDate, onNavigate, defaultNoteMap, setItemNote, setAsDefault, favoritesLoading }: Props) {
   const groupTotal = items.reduce((sum, item) => sum + (priceMap[item.productId]?.price ?? 0) * item.qty, 0);
   const hasPrice = items.some(item => !!(priceMap[item.productId]));
   return (
@@ -64,10 +65,16 @@ export default function CartDateGroup({ date, items, priceMap, uomMap, tmplMap, 
                 </div>
               </div>
               <div style={{ display: "flex", alignItems: "center", gap: 6, paddingLeft: 4 }}>
+                {favoritesLoading ? (
+                  <div style={{ flex: 1, fontSize: 12, padding: "4px 8px", border: "1px solid var(--border)", borderRadius: 6, background: "linear-gradient(90deg, #f3f4f6 0%, #e5e7eb 50%, #f3f4f6 100%)", backgroundSize: "200% 100%", animation: "shimmer 1.2s ease-in-out infinite", color: "#9ca3af" }}>
+                    載入常用備註中…
+                  </div>
+                ) : (
                 <input type="text" placeholder={hasDefault ? "預設備註：" + defaultNoteMap[item.productId] : "本項備註（選填）"}
                   value={effectiveNote} onChange={e => setItemNote(item.productId, date, e.target.value)}
                   style={{ flex: 1, fontSize: 12, padding: "4px 8px", border: "1px solid var(--border)", borderRadius: 6, color: "#374151" }} />
-                {effectiveNote.trim() && !matchesDefault && (
+                )}
+                {!favoritesLoading && effectiveNote.trim() && !matchesDefault && (
                   <button type="button"
                     onClick={() => setAsDefault(item.productId, effectiveNote)}
                     title="把目前備註設為此品項的常用"

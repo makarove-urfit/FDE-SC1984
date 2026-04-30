@@ -205,11 +205,11 @@ export default function App() {
 }
 
 function AppShell({ user, cart, addToCart, setCartExact, clearCartDate, setCartItemNote, uomMap, holidays, priceMap, allTemplates, categories, configLoaded, cutoffTime, deliveryDate, setDeliveryDate, cartCount, currentPath, navigate, onLogout }: any) {
-  const { favoriteSet, toggleFavorite, defaultNoteMap, setProductDefaultNote } = useFavorites(user?.id || "");
+  const { favoriteSet, toggleFavorite, defaultNoteMap, setProductDefaultNote, favoritesLoading } = useFavorites(user?.id || "");
   const pages: Record<string, React.ReactNode> = {
     "/products": <CatalogPage user={user} cart={cart} addToCart={addToCart} setCartExact={setCartExact} uomMap={uomMap} deliveryDate={deliveryDate} setDeliveryDate={setDeliveryDate} holidays={holidays} priceMap={priceMap} allTemplates={allTemplates} categories={categories} configLoaded={configLoaded} favoriteSet={favoriteSet} toggleFavorite={toggleFavorite} />,
-    "/cart": <CartPage cart={cart} addToCart={addToCart} setCartExact={setCartExact} clearCartDate={clearCartDate} setCartItemNote={setCartItemNote} onNavigate={navigate} setDeliveryDate={setDeliveryDate} uomMap={uomMap} user={user} priceMap={priceMap} allTemplates={allTemplates} defaultNoteMap={defaultNoteMap} setProductDefaultNote={setProductDefaultNote} />,
-    "/orders": <OrdersPage user={user} cutoffTime={cutoffTime} defaultNoteMap={defaultNoteMap} setProductDefaultNote={setProductDefaultNote} />,
+    "/cart": <CartPage cart={cart} addToCart={addToCart} setCartExact={setCartExact} clearCartDate={clearCartDate} setCartItemNote={setCartItemNote} onNavigate={navigate} setDeliveryDate={setDeliveryDate} uomMap={uomMap} user={user} priceMap={priceMap} allTemplates={allTemplates} defaultNoteMap={defaultNoteMap} setProductDefaultNote={setProductDefaultNote} favoritesLoading={favoritesLoading} />,
+    "/orders": <OrdersPage user={user} cutoffTime={cutoffTime} defaultNoteMap={defaultNoteMap} setProductDefaultNote={setProductDefaultNote} favoritesLoading={favoritesLoading} />,
     "/pickings": <PickingsPage user={user} />,
   };
 

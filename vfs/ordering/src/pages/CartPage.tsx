@@ -22,9 +22,10 @@ interface Props {
   allTemplates: Product[];
   defaultNoteMap: Record<string, string>;
   setProductDefaultNote: (tmplId: string, note: string) => void;
+  favoritesLoading: boolean;
 }
 
-export default function CartPage({ cart, addToCart, setCartExact, clearCartDate, setCartItemNote, onNavigate, setDeliveryDate, uomMap, user, priceMap, allTemplates, defaultNoteMap, setProductDefaultNote }: Props) {
+export default function CartPage({ cart, addToCart, setCartExact, clearCartDate, setCartItemNote, onNavigate, setDeliveryDate, uomMap, user, priceMap, allTemplates, defaultNoteMap, setProductDefaultNote, favoritesLoading }: Props) {
   const [groupNotes, setGroupNotes] = useState<Record<string, string>>({});
   const [submitting, setSubmitting] = useState<string | null>(null);
   const [toast, setToast] = useState<{ msg: string; error: boolean } | null>(null);
@@ -106,7 +107,7 @@ export default function CartPage({ cart, addToCart, setCartExact, clearCartDate,
           isSubmitting={submitting === date} onSubmit={() => handleSubmit(date)}
           setDeliveryDate={setDeliveryDate} onNavigate={onNavigate}
           defaultNoteMap={defaultNoteMap} setItemNote={setCartItemNote}
-          setAsDefault={setAsDefault} />
+          setAsDefault={setAsDefault} favoritesLoading={favoritesLoading} />
       ))}
     </div>
   );

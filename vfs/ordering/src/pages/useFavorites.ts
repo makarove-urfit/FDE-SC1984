@@ -9,9 +9,11 @@ interface FavRecord {
 
 export function useFavorites(customerId: string) {
   const [recordMap, setRecordMap] = useState<Record<string, FavRecord>>({});
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (!customerId) return;
+    if (!customerId) { setLoading(false); return; }
+    setLoading(true);
     runAction("manage_favorites", { op: "list", customer_id: customerId })
       .then((d: any) => {
         const map: Record<string, FavRecord> = {};
@@ -22,7 +24,8 @@ export function useFavorites(customerId: string) {
         }
         setRecordMap(map);
       })
-      .catch(() => {});
+      .catch(() => {})
+      .finally(() => setLoading(false));
   }, [customerId]);
 
   const toggleFavorite = useCallback(async (tmplId: string) => {
@@ -73,5 +76,5 @@ export function useFavorites(customerId: string) {
     if (r.default_note) defaultNoteMap[tid] = r.default_note;
   }
 
-  return { favoriteSet, toggleFavorite, defaultNoteMap, setProductDefaultNote };
+  return { favoriteSet, toggleFavorite, defaultNoteMap, setProductDefaultNote, favoritesLoading: loading };
 }
