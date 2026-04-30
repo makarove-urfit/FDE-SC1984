@@ -145,13 +145,37 @@ export async function deleteCustom(recordId: string): Promise<void> {
   }
 }
 
-export async function sendInvitation(email: string, name: string, employeeId?: string): Promise<any> {
-  const body: Record<string, any> = { email, name };
-  if (employeeId) body.employee_id = employeeId;
+// Path B：先建 user（pending），回傳 user_id；再用 user_id 發 invitation 取連結
+export async function createInviteUser(email: string, name: string): Promise<{ user_id: string; status: string }> {
+  return _r(await fetch(API_BASE + '/invitations/admin-users', {
+    method: 'POST', headers: _h(), credentials: 'include',
+    body: JSON.stringify({ email, name }),
+  }));
+}
+
+export async function createInvitation(userId: string, name: string): Promise<{ token: string; chat_invite_link: string; user_id: string }> {
   return _r(await fetch(API_BASE + '/invitations', {
     method: 'POST', headers: _h(), credentials: 'include',
-    body: JSON.stringify(body),
+    body: JSON.stringify({ user_id: userId, name }),
   }));
+}
+
+export async function listPendingInvitations(): Promise<Array<{ id: string; user_id: string; email: string; status: string }>> {
+  const res = await _r(await fetch(API_BASE + '/invitations?status=pending&limit=500', {
+    headers: _h(), credentials: 'include',
+  }));
+  // 後端可能回 { items: [...] } 或直接陣列；統一展平
+  return Array.isArray(res) ? res : (res?.items || []);
+}
+
+export async function revokeInvitation(invitationId: string): Promise<void> {
+  const resp = await fetch(API_BASE + '/invitations/' + invitationId, {
+    method: 'DELETE', headers: _h(), credentials: 'include',
+  });
+  if (!resp.ok && resp.status !== 204) {
+    const b = await resp.json().catch(() => ({}));
+    throw new Error(b.detail || 'Revoke failed (' + resp.status + ')');
+  }
 }
 
 export async function runAction(actionName: string, params: Record<string, any> = {}): Promise<any> {

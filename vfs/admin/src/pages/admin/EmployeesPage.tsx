@@ -5,9 +5,13 @@ import * as db from '../../db';
 type Employee = {
   id: string; name: string; work_email: string;
   department_id: string; department_name: string;
-  has_account: boolean; job_title: string;
+  job_title: string;
+  user_id: string;
+  user_status: string;     // ''(無 user) | 'pending' | 'active' | 'disabled'
+  invitation_id: string;   // 仍可撤銷的 pending invitation id
 };
 type Dept = { id: string; name: string };
+type RowAction = { busy?: boolean; link?: string; copied?: boolean; err?: string };
 
 const EMPTY_FORM = { name: '', work_email: '', department_id: '', job_title: '' };
 
@@ -23,30 +27,43 @@ export default function EmployeesPage() {
   const [form, setForm] = useState({ ...EMPTY_FORM });
   const [saving, setSaving] = useState(false);
   const [formError, setFormError] = useState('');
-  const [inviteState, setInviteState] = useState<Record<string, { status: string; link?: string; copied?: boolean; msg?: string }>>({});
+  const [rowAction, setRowAction] = useState<Record<string, RowAction>>({});
 
   const load = async () => {
     setLoading(true); setError('');
     try {
-      const [emps, depts] = await Promise.all([
-        db.query('hr_employees'),
-        db.query('hr_departments'),
+      const [actionRes, pendingInvs] = await Promise.all([
+        db.runAction('list_employees'),
+        db.listPendingInvitations().catch(() => []),
       ]);
-      const deptMap: Record<string, string> = {};
-      for (const d of (depts || [])) deptMap[String(d.id)] = String(d.name || '');
-      setDepartments((depts || []).map((d: any) => ({ id: String(d.id), name: String(d.name || '') })));
+      const emps = actionRes?.employees || [];
+      const depts = actionRes?.departments || [];
+
+      // user_id → invitation_id (僅 pending)
+      const userToInv: Record<string, string> = {};
+      for (const inv of pendingInvs) {
+        if (inv.user_id) userToInv[String(inv.user_id)] = String(inv.id);
+      }
+
+      setDepartments(depts.map((d: any) => ({ id: String(d.id), name: String(d.name || '') })));
       setEmployees(
-        (emps || [])
-          .filter((e: any) => e.active !== false)
-          .map((e: any) => ({
+        emps.map((e: any) => {
+          const uid = String(e.user_id || '');
+          const invId = uid ? (userToInv[uid] || '') : '';
+          // 推斷狀態：有 user_id + 仍 pending → pending；有 user_id 無 pending → active；無 user_id → ''
+          const status = !uid ? '' : (invId ? 'pending' : 'active');
+          return {
             id: String(e.id),
             name: String(e.name || ''),
             work_email: String(e.work_email || ''),
             department_id: String(e.department_id || ''),
-            department_name: deptMap[String(e.department_id || '')] || '',
-            has_account: !!(e.user_id),
+            department_name: String(e.department_name || ''),
             job_title: String(e.job_title || ''),
-          }))
+            user_id: uid,
+            user_status: status,
+            invitation_id: invId,
+          };
+        })
       );
     } catch (e: any) {
       setError(e?.message || '載入失敗');
@@ -104,27 +121,87 @@ export default function EmployeesPage() {
     }
   };
 
-  const getInviteLink = async (emp: Employee) => {
+  const setRow = (empId: string, patch: RowAction) =>
+    setRowAction(prev => ({ ...prev, [empId]: { ...prev[empId], ...patch } }));
+
+  const createInvite = async (emp: Employee) => {
     if (!emp.work_email) return;
-    setInviteState(prev => ({ ...prev, [emp.id]: { status: 'loading' } }));
+    setRow(emp.id, { busy: true, err: '' });
     try {
-      // 帶入 employee_id，讓平台在對方註冊時對應到此筆 employee record
-      const res = await db.sendInvitation(emp.work_email, emp.name, emp.id);
-      const link = `https://ai-go.app/register?token=${res.token}`;
-      setInviteState(prev => ({ ...prev, [emp.id]: { status: 'ready', link } }));
+      // 1. 建 pending user
+      const u = await db.createInviteUser(emp.work_email, emp.name);
+      // 2. 寫回 hr_employees.user_id
+      await db.update('hr_employees', emp.id, { user_id: u.user_id });
+      // 3. 取邀請連結
+      const inv = await db.createInvitation(u.user_id, emp.name);
+      setRow(emp.id, { busy: false, link: inv.chat_invite_link });
+      await load();
     } catch (e: any) {
-      setInviteState(prev => ({ ...prev, [emp.id]: { status: 'error', msg: e?.message || '取得失敗' } }));
+      setRow(emp.id, { busy: false, err: e?.message || '建立邀請失敗' });
     }
   };
 
-  const copyInviteLink = async (empId: string, link: string) => {
+  const revokeInvite = async (emp: Employee) => {
+    if (!emp.invitation_id) return;
+    if (!confirm(`撤銷對「${emp.name}」(${emp.work_email}) 的邀請？對方將無法再用此連結註冊。`)) return;
+    setRow(emp.id, { busy: true, err: '' });
     try {
-      await navigator.clipboard.writeText(link);
-    } catch {
-      prompt('請手動複製以下連結：', link);
+      await db.revokeInvitation(emp.invitation_id);
+      // 同時清除 hr_employees.user_id，回到「未邀請」狀態
+      await db.update('hr_employees', emp.id, { user_id: '' });
+      setRow(emp.id, { busy: false, link: undefined });
+      await load();
+    } catch (e: any) {
+      setRow(emp.id, { busy: false, err: e?.message || '撤銷失敗' });
     }
-    setInviteState(prev => ({ ...prev, [empId]: { ...prev[empId], copied: true } }));
-    setTimeout(() => setInviteState(prev => ({ ...prev, [empId]: { ...prev[empId], copied: false } })), 2000);
+  };
+
+  const copyLink = async (empId: string, link: string) => {
+    try { await navigator.clipboard.writeText(link); }
+    catch { prompt('請手動複製：', link); }
+    setRow(empId, { copied: true });
+    setTimeout(() => setRow(empId, { copied: false }), 2000);
+  };
+
+  const renderAccountCell = (e: Employee) => {
+    const r = rowAction[e.id] || {};
+    if (e.user_status === 'active') {
+      return <span className="inline-block px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-700">已啟用</span>;
+    }
+    if (e.user_status === 'disabled') {
+      return <span className="inline-block px-2 py-0.5 rounded-full text-xs font-medium bg-gray-200 text-gray-600">已停用</span>;
+    }
+    if (e.user_status === 'pending') {
+      // 待接受：可複製連結（若剛建立）+ 撤銷
+      return (
+        <div className="flex items-center justify-center gap-1.5 flex-wrap">
+          <span className="inline-block px-2 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-700">邀請中</span>
+          {r.link && (
+            <button onClick={() => copyLink(e.id, r.link!)}
+              className="px-2 py-0.5 text-xs bg-blue-50 text-blue-600 hover:bg-blue-100 rounded font-medium">
+              {r.copied ? '已複製！' : '複製連結'}
+            </button>
+          )}
+          <button onClick={() => revokeInvite(e)} disabled={r.busy}
+            className="px-2 py-0.5 text-xs bg-red-50 text-red-600 hover:bg-red-100 rounded font-medium disabled:opacity-50">
+            {r.busy ? '處理中...' : '撤銷'}
+          </button>
+        </div>
+      );
+    }
+    // user_status === ''：尚無 user
+    if (!e.work_email) {
+      return <span className="text-xs text-gray-300">需先填 Email</span>;
+    }
+    return (
+      <div className="flex flex-col items-center gap-1">
+        <button onClick={() => createInvite(e)} disabled={r.busy}
+          className="px-2 py-1 text-xs bg-blue-50 text-blue-600 hover:bg-blue-100 rounded font-medium disabled:opacity-50">
+          {r.busy ? '建立中...' : '建立邀請'}
+        </button>
+        {r.err && <span className="text-xs text-red-500">{r.err}</span>}
+      </div>
+    );
   };
 
   return (
@@ -169,48 +246,23 @@ export default function EmployeesPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {filtered.map(e => {
-                    const inv = inviteState[e.id];
-                    return (
-                      <tr key={e.id} className="border-t border-gray-50 hover:bg-gray-50">
-                        <td className="px-4 py-3 font-medium text-gray-800">
-                          {e.name}
-                          {e.job_title && <span className="ml-2 text-xs text-gray-400">{e.job_title}</span>}
-                        </td>
-                        <td className="px-4 py-3 text-gray-600">{e.work_email || '—'}</td>
-                        <td className="px-4 py-3 text-gray-600">{e.department_name || '—'}</td>
-                        <td className="px-4 py-3 text-center">
-                          {e.has_account ? (
-                            <span className="inline-block px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-700">已建立</span>
-                          ) : e.work_email ? (
-                            inv?.status === 'loading' ? (
-                              <span className="text-xs text-gray-400">取得中...</span>
-                            ) : inv?.status === 'ready' ? (
-                              <button onClick={() => copyInviteLink(e.id, inv.link!)}
-                                className="px-2 py-1 text-xs bg-blue-50 text-blue-600 hover:bg-blue-100 rounded font-medium">
-                                {inv.copied ? '已複製！' : '複製邀請連結'}
-                              </button>
-                            ) : inv?.status === 'error' ? (
-                              <span className="text-xs text-red-500">{inv.msg}</span>
-                            ) : (
-                              <button onClick={() => getInviteLink(e)}
-                                className="px-2 py-1 text-xs bg-blue-50 text-blue-600 hover:bg-blue-100 rounded font-medium">
-                                取得邀請連結
-                              </button>
-                            )
-                          ) : (
-                            <span className="text-xs text-gray-300">—</span>
-                          )}
-                        </td>
-                        <td className="px-4 py-3 text-right">
-                          <button onClick={() => openEdit(e)}
-                            className="text-xs text-gray-500 hover:text-gray-700 px-2 py-1 rounded hover:bg-gray-100">
-                            編輯
-                          </button>
-                        </td>
-                      </tr>
-                    );
-                  })}
+                  {filtered.map(e => (
+                    <tr key={e.id} className="border-t border-gray-50 hover:bg-gray-50">
+                      <td className="px-4 py-3 font-medium text-gray-800">
+                        {e.name}
+                        {e.job_title && <span className="ml-2 text-xs text-gray-400">{e.job_title}</span>}
+                      </td>
+                      <td className="px-4 py-3 text-gray-600">{e.work_email || '—'}</td>
+                      <td className="px-4 py-3 text-gray-600">{e.department_name || '—'}</td>
+                      <td className="px-4 py-3 text-center">{renderAccountCell(e)}</td>
+                      <td className="px-4 py-3 text-right">
+                        <button onClick={() => openEdit(e)}
+                          className="text-xs text-gray-500 hover:text-gray-700 px-2 py-1 rounded hover:bg-gray-100">
+                          編輯
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
                 </tbody>
               </table>
             )}
@@ -241,7 +293,7 @@ export default function EmployeesPage() {
                 <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
                 <input type="email" value={form.work_email} onChange={f('work_email')} placeholder="name@company.com"
                   className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500" />
-                {!editingId && <p className="text-xs text-gray-400 mt-1">填入後可在列表寄送邀請信，對方設定密碼後即可登入</p>}
+                {!editingId && <p className="text-xs text-gray-400 mt-1">填入後可在列表建立邀請；對方接受後即可登入</p>}
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">部門</label>
