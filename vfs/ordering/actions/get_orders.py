@@ -1,3 +1,18 @@
+def _scrub(v):
+    """遞迴把 Decimal/datetime 轉成 JSON 可序列化型別（ext path 寫 action_execution_logs JSONB 會 bomb）。"""
+    from decimal import Decimal
+    from datetime import datetime, date
+    if isinstance(v, Decimal):
+        return float(v)
+    if isinstance(v, (datetime, date)):
+        return v.isoformat()
+    if isinstance(v, dict):
+        return {k: _scrub(x) for k, x in v.items()}
+    if isinstance(v, list):
+        return [_scrub(x) for x in v]
+    return v
+
+
 def execute(ctx):
     user_email = ctx.params.get("user_email", "")
     if not user_email:
@@ -40,6 +55,6 @@ def execute(ctx):
     for order in my_orders:
         oid = str(order.get("id", ""))
         lines = [l for l in all_lines if str(l.get("order_id") or "") == oid]
-        result.append({"order": order, "lines": lines})
+        result.append({"order": _scrub(order), "lines": [_scrub(l) for l in lines]})
 
     ctx.response.json({"orders": result})
