@@ -50,10 +50,6 @@ export default function RouteDriversPage() {
         })
       );
 
-      const nameToUserId: Record<string, string> = {};
-      for (const e of (rawAllEmps || [])) {
-        if (e.user_id && e.name) nameToUserId[String(e.name)] = String(e.user_id);
-      }
       setEmployees(
         (rawAllEmps || [])
           .filter((e: any) => {
@@ -62,12 +58,7 @@ export default function RouteDriversPage() {
             const did = Array.isArray(e.department_id) ? e.department_id[0] : e.department_id;
             return String(did) === deliveryDeptId;
           })
-          .map((e: any) => {
-            const userId = e.user_id ? String(e.user_id) : (nameToUserId[String(e.name || '')] || '');
-            return { id: String(e.id), name: String(e.name || ''), userId };
-          })
-          .filter((e: Employee) => !!e.userId)
-          .filter((e, i, arr) => arr.findIndex(x => x.userId === e.userId) === i)
+          .map((e: any) => ({ id: String(e.id), name: String(e.name || ''), userId: String(e.id) }))
           .sort((a: Employee, b: Employee) => a.name.localeCompare(b.name, 'zh-Hant'))
       );
     } catch (e: any) {

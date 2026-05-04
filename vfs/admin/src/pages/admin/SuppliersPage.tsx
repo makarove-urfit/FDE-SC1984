@@ -36,22 +36,13 @@ export default function SuppliersPage() {
       ]);
       const purchaseDept = (rawDepts || []).find((d: any) => String(d.name || '').trim() === '採購');
       const purchaseDeptId = purchaseDept ? String(purchaseDept.id) : null;
-      const nameToUserId: Record<string, string> = {};
-      for (const e of (rawAllEmps || [])) {
-        if (e.user_id && e.name) nameToUserId[String(e.name)] = String(e.user_id);
-      }
       const rawEmps = (rawAllEmps || [])
         .filter((e: any) => {
           if (e.active === false) return false;
-          if (!purchaseDeptId) return !!e.user_id;
+          if (!purchaseDeptId) return true;
           const did = Array.isArray(e.department_id) ? e.department_id[0] : e.department_id;
           return String(did) === purchaseDeptId;
-        })
-        .map((e: any) => ({
-          ...e,
-          user_id: e.user_id || nameToUserId[String(e.name || '')] || null,
-        }))
-        .filter((e: any) => !!e.user_id);
+        });
       setSuppliers(
         (rawSups || []).map((r: any) => {
           const cd = (r.custom_data && typeof r.custom_data === 'object') ? r.custom_data : {};
@@ -59,9 +50,8 @@ export default function SuppliersPage() {
         }).sort((a: Supplier, b: Supplier) => a.name.localeCompare(b.name, 'zh-Hant'))
       );
       setEmployees(
-        (rawEmps || [])
-          .filter((e: any) => e.user_id)
-          .map((e: any) => ({ id: String(e.id), name: String(e.name || ''), userId: String(e.user_id) }))
+        rawEmps
+          .map((e: any) => ({ id: String(e.id), name: String(e.name || ''), userId: String(e.id) }))
           .sort((a: Employee, b: Employee) => a.name.localeCompare(b.name, 'zh-Hant'))
       );
     } catch (e: any) {

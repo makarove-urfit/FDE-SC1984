@@ -67,25 +67,16 @@ export default function CustomersPage() {
       const salesDept = (depts || []).find((d: any) => String(d.name || '').trim() === '業務');
       const salesDeptId = salesDept ? String(salesDept.id) : null;
       const allEmps = await db.query('hr_employees');
-      const nameToUserId: Record<string, string> = {};
-      for (const e of (allEmps || [])) {
-        if (e.user_id && e.name) nameToUserId[String(e.name)] = String(e.user_id);
-      }
       const emps = (allEmps || [])
         .filter((e: any) => {
           if (e.active === false) return false;
-          if (!salesDeptId) return !!e.user_id;
+          if (!salesDeptId) return true;
           const did = Array.isArray(e.department_id) ? e.department_id[0] : e.department_id;
           return String(did) === salesDeptId;
-        })
-        .map((e: any) => ({
-          ...e,
-          user_id: e.user_id || nameToUserId[String(e.name || '')] || null,
-        }))
-        .filter((e: any) => !!e.user_id);
+        });
 
       setAllCustomers(custs || []);
-      setEmployees((emps || []).map((e: any) => ({
+      setEmployees(emps.map((e: any) => ({
         id: String(e.id), name: String(e.name || ''),
         user_id: String(e.user_id || ''), job_title: String(e.job_title || ''),
       })));
@@ -438,7 +429,7 @@ export default function CustomersPage() {
                     <select value={editHq.salesperson_id} onChange={e => setEditHq(p => ({ ...p, salesperson_id: e.target.value }))} className={selectCls}>
                       <option value="">（請選擇）</option>
                       {employees.map(e => (
-                        <option key={e.id} value={e.user_id}>{e.name}{e.job_title ? ` · ${e.job_title}` : ''}</option>
+                        <option key={e.id} value={e.id}>{e.name}{e.job_title ? ` · ${e.job_title}` : ''}</option>
                       ))}
                     </select>
                   </div>
@@ -538,7 +529,7 @@ export default function CustomersPage() {
                       <select value={form.salesperson_id} onChange={f('salesperson_id')} className={selectCls}>
                         <option value="">（請選擇）</option>
                         {employees.map(e => (
-                          <option key={e.id} value={e.user_id}>{e.name}{e.job_title ? ` · ${e.job_title}` : ''}</option>
+                          <option key={e.id} value={e.id}>{e.name}{e.job_title ? ` · ${e.job_title}` : ''}</option>
                         ))}
                       </select>
                     </div>
