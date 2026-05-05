@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useData } from '../../data/DataProvider';
 import DatePickerWithCounts from '../../components/DatePickerWithCounts';
 import * as db from '../../db';
@@ -34,15 +34,27 @@ function LineTable({ rows }: { rows: { id:string; name:string; qty:number; price
   );
 }
 
+const resolveId = (raw: any) => Array.isArray(raw) ? String(raw[0] || '') : String(raw || '');
+
 export default function PurchaseListPage() {
   const nav = useNavigate();
-  const { orders, customers, orderLines: lines, products, uomMap, loading, selectedDate, setSelectedDate } = useData();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const { orders, customers, orderLines: lines, products, uomMap, suppliers, loading, refresh, selectedDate, setSelectedDate } = useData();
   const tmplUom = useMemo(() => {
     const m: Record<string, string> = {};
     for (const p of products) if (p.uom_id) m[p.id] = uomMap[p.uom_id] || '';
     return m;
   }, [products, uomMap]);
-  const [view, setView] = useState<'raw'|'customer'|'product'>('raw');
+
+  const view = (searchParams.get('view') as 'raw' | 'customer' | 'product') || 'raw';
+  const setView = (v: 'raw' | 'customer' | 'product') => {
+    setSearchParams(prev => { const p = new URLSearchParams(prev); p.set('view', v); return p; }, { replace: true });
+  };
+
+  const [assignModal, setAssignModal] = useState<{ templateId: string; productName: string } | null>(null);
+  const [assignSupplierId, setAssignSupplierId] = useState('');
+  const [assignSaving, setAssignSaving] = useState(false);
+
   const [priceLogs, setPriceLogs] = useState<any[]>([]);
 
   const PRICE_LOG_UUID = '390d4f0b-9a2b-4131-a35b-67fce21286be';
@@ -114,18 +126,60 @@ export default function PurchaseListPage() {
     return map;
   }, [draftOrders, lines, priceMap]);
 
-  // 按品項匯總：跨客戶跨訂單
+  // tmpl_id → supplier_id（與 ProcurementPage 同源：product_templates.custom_data.default_supplier_id）
+  const tmplSupplierMap = useMemo(() => {
+    const m: Record<string, string> = {};
+    for (const p of products) {
+      const defSup = p.custom_data?.default_supplier_id;
+      if (defSup) m[p.id] = defSup;
+    }
+    return m;
+  }, [products]);
+
+  const assignSupplier = async () => {
+    if (!assignModal || !assignSupplierId) return;
+    const prod = products.find(p => p.id === assignModal.templateId);
+    const currentCd = prod?.custom_data || {};
+    setAssignSaving(true);
+    try {
+      await db.update('product_templates', assignModal.templateId, {
+        custom_data: { ...currentCd, default_supplier_id: assignSupplierId },
+      });
+      refresh(true);
+    } catch (e: any) { console.error('指定供應商失敗:', e.message); }
+    setAssignSaving(false);
+    setAssignModal(null);
+    setAssignSupplierId('');
+  };
+
+  // 按品項匯總：跨客戶跨訂單，含供應商資訊
   const prodSummary = useMemo(() => {
-    const map = new Map<string,{name:string;totalQty:number;uom:string}>();
+    const map = new Map<string,{name:string;totalQty:number;uom:string;supplierId:string}>();
     for (const l of lines.filter(l => draftOrders.some(o => o.id === l.order_id))) {
       const key = l.product_template_id||l.product_id;
       const uom = tmplUom[l.product_template_id] || tmplUom[l.product_id] || '';
-      const ex = map.get(key) || { name: l.name||'—', totalQty: 0, uom };
+      const supplierId = tmplSupplierMap[key] || '';
+      const ex = map.get(key) || { name: l.name||'—', totalQty: 0, uom, supplierId };
       ex.totalQty += Number(l.product_uom_qty||0);
       map.set(key, ex);
     }
     return Array.from(map.entries()).sort((a,b) => b[1].totalQty - a[1].totalQty);
-  }, [lines, draftOrders]);
+  }, [lines, draftOrders, tmplSupplierMap]);
+
+  // 按供應商分組（未設定排最後）
+  const prodBySupplier = useMemo(() => {
+    const grouped = new Map<string, typeof prodSummary>();
+    for (const entry of prodSummary) {
+      const key = entry[1].supplierId || '__none__';
+      if (!grouped.has(key)) grouped.set(key, []);
+      grouped.get(key)!.push(entry);
+    }
+    return Array.from(grouped.entries()).sort(([a], [b]) => {
+      if (a === '__none__') return 1;
+      if (b === '__none__') return -1;
+      return (suppliers[a]?.name || a).localeCompare(suppliers[b]?.name || b, 'zh-Hant');
+    });
+  }, [prodSummary, suppliers]);
 
   const tabs: {key:'raw'|'customer'|'product'; label:string}[] = [
     { key: 'raw', label: '原始訂單' },
@@ -205,30 +259,72 @@ export default function PurchaseListPage() {
               })}
             </div>
           ):(
-            /* ── 按品項匯總：跨客戶跨訂單統計數量 ── */
-            <div className="bg-white rounded-xl border border-gray-100 overflow-hidden">
-              <table className="w-full text-sm">
-                <thead><tr className="bg-gray-50 border-b border-gray-100 text-gray-500">
-                  <th className="py-3 px-4 text-left font-medium">#</th>
-                  <th className="py-3 px-4 text-left font-medium">品名</th>
-                  <th className="py-3 px-4 text-right font-medium">需求總量</th>
-                  <th className="py-3 px-4 text-right font-medium">單位</th>
-                </tr></thead>
-                <tbody>
-                  {prodSummary.map(([id,d],i)=>(
-                    <tr key={id} className="border-b border-gray-50 hover:bg-gray-50">
-                      <td className="py-3 px-4 text-gray-400">{i+1}</td>
-                      <td className="py-3 px-4 font-medium">{d.name}</td>
-                      <td className="py-3 px-4 text-right font-bold text-primary">{fmtQty(d.totalQty)}</td>
-                      <td className="py-3 px-4 text-right text-gray-500">{d.uom||'—'}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+            /* ── 按品項匯總：依供應商分組，無數量（實際買多少依各訂單） ── */
+            <div className="space-y-4">
+              {prodBySupplier.map(([supId, items]) => (
+                <div key={supId} className="bg-white rounded-xl border border-gray-100 overflow-hidden">
+                  <div className="px-4 py-2.5 bg-gray-50 border-b border-gray-100">
+                    <p className="font-semibold text-gray-800">{supId === '__none__' ? '未設定供應商' : (suppliers[supId]?.name || supId)}</p>
+                    <p className="text-xs text-gray-400">{items.length} 品項</p>
+                  </div>
+                  <table className="w-full text-sm">
+                    <thead><tr className="border-b border-gray-100 text-gray-500">
+                      <th className="py-3 px-4 text-left font-medium">#</th>
+                      <th className="py-3 px-4 text-left font-medium">品名</th>
+                      <th className="py-3 px-4 text-right font-medium">單位</th>
+                    </tr></thead>
+                    <tbody>
+                      {items.map(([id,d],i)=>(
+                        <tr key={id} className="border-b border-gray-50 hover:bg-gray-50">
+                          <td className="py-3 px-4 text-gray-400">{i+1}</td>
+                          <td className="py-3 px-4 font-medium">
+                            <div className="flex items-center gap-2">
+                              {d.name}
+                              {supId === '__none__' && (
+                                <button
+                                  onClick={() => { setAssignModal({ templateId: id, productName: d.name }); setAssignSupplierId(''); }}
+                                  className="text-xs px-1.5 py-0.5 rounded bg-amber-50 text-amber-600 border border-amber-200 hover:bg-amber-100 whitespace-nowrap"
+                                >指定供應商</button>
+                              )}
+                            </div>
+                          </td>
+                          <td className="py-3 px-4 text-right text-gray-500">{d.uom||'—'}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              ))}
             </div>
           )}
         </div>
       </div>
+      {assignModal && (
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
+          <div className="bg-white rounded-xl shadow-xl p-6 w-80">
+            <h3 className="font-bold text-gray-900 mb-1">指定供應商</h3>
+            <p className="text-sm text-gray-500 mb-4">{assignModal.productName}</p>
+            <select
+              value={assignSupplierId}
+              onChange={e => setAssignSupplierId(e.target.value)}
+              className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm mb-4"
+            >
+              <option value="">請選擇供應商</option>
+              {Object.values(suppliers).map((s: any) => (
+                <option key={s.id} value={s.id}>{s.name}</option>
+              ))}
+            </select>
+            <div className="flex gap-2 justify-end">
+              <button onClick={() => setAssignModal(null)} className="px-3 py-1.5 text-sm text-gray-500 hover:text-gray-700">取消</button>
+              <button
+                onClick={assignSupplier}
+                disabled={!assignSupplierId || assignSaving}
+                className="px-4 py-1.5 text-sm bg-primary text-white rounded-lg disabled:opacity-40 hover:bg-green-700"
+              >{assignSaving ? '儲存中...' : '確認'}</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
