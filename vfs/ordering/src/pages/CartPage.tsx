@@ -3,6 +3,7 @@ import * as db from "../db";
 import { CartItem, AppUser, PriceEntry } from "../App";
 import { Product } from "./CatalogProductCard";
 import CartDateGroup from "./CartDateGroup";
+import { checkDeliveryDate, getAvailableDates } from "../utils/cutoff";
 
 function Toast({ msg, isError }: { msg: string; isError?: boolean }) {
   return <div className={`toast-msg${isError ? " error" : ""}`}>{msg}</div>;
@@ -23,9 +24,12 @@ interface Props {
   defaultNoteMap: Record<string, string>;
   setProductDefaultNote: (tmplId: string, note: string) => void;
   favoritesLoading: boolean;
+  cutoffTime: string;
+  holidays: Set<string>;
+  changeCartGroupDate: (oldDate: string, newDate: string) => void;
 }
 
-export default function CartPage({ cart, addToCart, setCartExact, clearCartDate, setCartItemNote, onNavigate, setDeliveryDate, uomMap, user, priceMap, allTemplates, defaultNoteMap, setProductDefaultNote, favoritesLoading }: Props) {
+export default function CartPage({ cart, addToCart, setCartExact, clearCartDate, setCartItemNote, onNavigate, setDeliveryDate, uomMap, user, priceMap, allTemplates, defaultNoteMap, setProductDefaultNote, favoritesLoading, cutoffTime, holidays, changeCartGroupDate }: Props) {
   const [groupNotes, setGroupNotes] = useState<Record<string, string>>({});
   const [submitting, setSubmitting] = useState<string | null>(null);
   const [toast, setToast] = useState<{ msg: string; error: boolean } | null>(null);
@@ -60,9 +64,13 @@ export default function CartPage({ cart, addToCart, setCartExact, clearCartDate,
       .map(([date, items]) => ({ date, items }));
   }, [cart]);
 
+  const availableDates = useMemo(() => getAvailableDates(holidays, cutoffTime), [holidays, cutoffTime]);
+
   const handleSubmit = async (date: string) => {
     const items = cart.filter(i => i.deliveryDate === date);
     if (!date) { showToast("此組未指定配送日期，請回商品頁重新選擇日期後加入", true); return; }
+    const check = checkDeliveryDate(date, cutoffTime);
+    if (check.blocked) { showToast(`${check.reason}，請改選新的配送日期`, true); return; }
     setSubmitting(date);
     try {
       const result = await db.runAction("place_order", {
@@ -107,7 +115,10 @@ export default function CartPage({ cart, addToCart, setCartExact, clearCartDate,
           isSubmitting={submitting === date} onSubmit={() => handleSubmit(date)}
           setDeliveryDate={setDeliveryDate} onNavigate={onNavigate}
           defaultNoteMap={defaultNoteMap} setItemNote={setCartItemNote}
-          setAsDefault={setAsDefault} favoritesLoading={favoritesLoading} />
+          setAsDefault={setAsDefault} favoritesLoading={favoritesLoading}
+          blocked={checkDeliveryDate(date, cutoffTime)}
+          availableDates={availableDates}
+          onChangeDate={(newDate) => changeCartGroupDate(date, newDate)} />
       ))}
     </div>
   );

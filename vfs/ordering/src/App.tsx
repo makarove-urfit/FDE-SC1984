@@ -65,11 +65,17 @@ function getPath(): string {
 }
 
 // ct = base64(JSON.stringify({ token, email }))，包成單一 param 避免平台過濾
+// 來源優先序：hash > search > liff.state（LIFF 外部瀏覽器會把原始 query 包進 liff.state）
 const _initInvite = (() => {
   try {
     const url = new URL(window.location.href);
-    const m = url.hash.replace(/^#/, "").match(/(?:^|&)ct=([^&]+)/);
-    const raw = m ? m[1] : null;
+    const fromHash = url.hash.replace(/^#/, "").match(/(?:^|&)ct=([^&]+)/)?.[1];
+    const fromSearch = url.searchParams.get("ct");
+    const liffState = url.searchParams.get("liff.state");
+    const fromLiffState = liffState
+      ? new URLSearchParams(liffState.startsWith("?") ? liffState.slice(1) : liffState).get("ct")
+      : null;
+    const raw = fromHash || fromSearch || fromLiffState;
     if (raw) {
       const b64 = raw.replace(/-/g, "+").replace(/_/g, "/");
       const padded = b64.padEnd(Math.ceil(b64.length / 4) * 4, "=");
@@ -187,6 +193,23 @@ export default function App() {
 
   const clearCartDate = (date: string) => setCart(prev => prev.filter(i => i.deliveryDate !== date));
 
+  const changeCartGroupDate = (oldDate: string, newDate: string) => {
+    if (!newDate || oldDate === newDate) return;
+    setCart(prev => {
+      const moving = prev.filter(i => i.deliveryDate === oldDate);
+      const result = prev.filter(i => i.deliveryDate !== oldDate);
+      for (const item of moving) {
+        const idx = result.findIndex(i => i.productId === item.productId && i.deliveryDate === newDate);
+        if (idx >= 0) {
+          result[idx] = { ...result[idx], qty: Number((result[idx].qty + item.qty).toFixed(2)) };
+        } else {
+          result.push({ ...item, deliveryDate: newDate });
+        }
+      }
+      return result;
+    });
+  };
+
   const setCartItemNote = (productId: string, delivDate: string, note: string) => {
     setCart(prev => prev.map(i => (i.productId === productId && i.deliveryDate === delivDate) ? { ...i, note } : i));
   };
@@ -201,14 +224,15 @@ export default function App() {
   return <AppShell user={user} cart={cart} addToCart={addToCart} setCartExact={setCartExact} clearCartDate={clearCartDate} setCartItemNote={setCartItemNote}
     uomMap={uomMap} holidays={holidays} priceMap={priceMap} allTemplates={allTemplates} categories={categories}
     configLoaded={configLoaded} cutoffTime={cutoffTime} deliveryDate={deliveryDate} setDeliveryDate={setDeliveryDate}
+    changeCartGroupDate={changeCartGroupDate}
     cartCount={cartCount} currentPath={currentPath} navigate={navigate} onLogout={handleLogout} />;
 }
 
-function AppShell({ user, cart, addToCart, setCartExact, clearCartDate, setCartItemNote, uomMap, holidays, priceMap, allTemplates, categories, configLoaded, cutoffTime, deliveryDate, setDeliveryDate, cartCount, currentPath, navigate, onLogout }: any) {
+function AppShell({ user, cart, addToCart, setCartExact, clearCartDate, setCartItemNote, uomMap, holidays, priceMap, allTemplates, categories, configLoaded, cutoffTime, deliveryDate, setDeliveryDate, changeCartGroupDate, cartCount, currentPath, navigate, onLogout }: any) {
   const { favoriteSet, toggleFavorite, defaultNoteMap, setProductDefaultNote, favoritesLoading } = useFavorites(user?.id || "");
   const pages: Record<string, React.ReactNode> = {
     "/products": <CatalogPage user={user} cart={cart} addToCart={addToCart} setCartExact={setCartExact} uomMap={uomMap} deliveryDate={deliveryDate} setDeliveryDate={setDeliveryDate} holidays={holidays} priceMap={priceMap} allTemplates={allTemplates} categories={categories} configLoaded={configLoaded} favoriteSet={favoriteSet} toggleFavorite={toggleFavorite} />,
-    "/cart": <CartPage cart={cart} addToCart={addToCart} setCartExact={setCartExact} clearCartDate={clearCartDate} setCartItemNote={setCartItemNote} onNavigate={navigate} setDeliveryDate={setDeliveryDate} uomMap={uomMap} user={user} priceMap={priceMap} allTemplates={allTemplates} defaultNoteMap={defaultNoteMap} setProductDefaultNote={setProductDefaultNote} favoritesLoading={favoritesLoading} />,
+    "/cart": <CartPage cart={cart} addToCart={addToCart} setCartExact={setCartExact} clearCartDate={clearCartDate} setCartItemNote={setCartItemNote} onNavigate={navigate} setDeliveryDate={setDeliveryDate} uomMap={uomMap} user={user} priceMap={priceMap} allTemplates={allTemplates} defaultNoteMap={defaultNoteMap} setProductDefaultNote={setProductDefaultNote} favoritesLoading={favoritesLoading} cutoffTime={cutoffTime} holidays={holidays} changeCartGroupDate={changeCartGroupDate} />,
     "/orders": <OrdersPage user={user} cutoffTime={cutoffTime} defaultNoteMap={defaultNoteMap} setProductDefaultNote={setProductDefaultNote} favoritesLoading={favoritesLoading} />,
     "/pickings": <PickingsPage user={user} />,
   };

@@ -1,5 +1,5 @@
 def execute(ctx):
-    from datetime import datetime, timezone
+    from datetime import datetime, timezone, timedelta
 
     items = ctx.params.get("items", [])
     note = ctx.params.get("note", "")
@@ -10,7 +10,40 @@ def execute(ctx):
         ctx.response.json({"error": "缺少必要參數"})
         return
 
-    today = delivery_date or datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    if not delivery_date:
+        ctx.response.json({"error": "未指定配送日期", "code": "DATE_BLOCKED"})
+        return
+
+    tw_now = datetime.now(timezone(timedelta(hours=8)))
+    today_tw = tw_now.strftime("%Y-%m-%d")
+
+    if delivery_date < today_tw:
+        ctx.response.json({"error": "配送日期已過，請改選新的配送日期", "code": "DATE_BLOCKED"})
+        return
+
+    if delivery_date == today_tw:
+        cutoff_time = ""
+        try:
+            setting_rows = ctx.db.query_object("x_app_settings", limit=100) or []
+            for r in setting_rows:
+                if r.get("key") == "order_cutoff_time":
+                    cutoff_time = str(r.get("value", ""))
+                    break
+        except Exception:
+            cutoff_time = ""
+        if cutoff_time and ":" in cutoff_time:
+            try:
+                h, m = [int(x) for x in cutoff_time.split(":")[:2]]
+                if tw_now.hour * 60 + tw_now.minute >= h * 60 + m:
+                    ctx.response.json({
+                        "error": f"已超過今日下單時間（{cutoff_time}），請改選新的配送日期",
+                        "code": "DATE_BLOCKED",
+                    })
+                    return
+            except Exception:
+                pass
+
+    today = delivery_date
     date_order = datetime.now(timezone.utc).strftime("%Y-%m-%d")
 
     # ctx.db.query 只支援 limit，無 filter，需 Python 側過濾

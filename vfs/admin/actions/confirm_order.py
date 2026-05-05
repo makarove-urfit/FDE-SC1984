@@ -89,7 +89,6 @@ def execute(ctx):
                     return [pid]
                 return [v for v, t in variant_to_tmpl.items() if t == pid]
 
-            shortage = []
             line_variants = {}
             for l in lines:
                 raw = l.get("product_id") or l.get("product_template_id")
@@ -98,15 +97,6 @@ def execute(ctx):
                     continue
                 vids = variants_of(raw)
                 line_variants[l["id"]] = vids
-                avail = 0.0
-                for v in vids:
-                    for q in quants_by_pid.get(v, []):
-                        avail += float(q.get("quantity") or 0)
-                if avail < req:
-                    shortage.append({"product_id": str(raw), "need": req, "have": avail, "name": l.get("name")})
-            if shortage:
-                errors.append({"order_id": oid, "error": "oversold", "shortage": shortage})
-                continue
 
             for l in lines:
                 req = float(l.get("product_uom_qty") or 0)

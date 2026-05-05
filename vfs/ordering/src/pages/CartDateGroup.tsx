@@ -2,12 +2,17 @@ import React from "react";
 import { Minus, Plus, Trash2, Send } from "lucide-react";
 import { CartItem, PriceEntry } from "../App";
 import { Product } from "./CatalogProductCard";
+import { BlockedInfo } from "../utils/cutoff";
 
 const DAY_NAMES = ["日","一","二","三","四","五","六"];
 function fmtDate(ymd: string): string {
   if (!ymd) return "未指定";
   const [y, m, d] = ymd.split("-").map(Number);
   return `${ymd}（週${DAY_NAMES[new Date(y, m-1, d).getDay()]}）`;
+}
+function fmtChip(ymd: string): string {
+  const [y, m, d] = ymd.split("-").map(Number);
+  return `${m}/${d}（週${DAY_NAMES[new Date(y, m-1, d).getDay()]}）`;
 }
 
 interface Props {
@@ -23,9 +28,12 @@ interface Props {
   setItemNote: (productId: string, deliveryDate: string, note: string) => void;
   setAsDefault: (productId: string, note: string) => void;
   favoritesLoading: boolean;
+  blocked: BlockedInfo;
+  availableDates: string[];
+  onChangeDate: (newDate: string) => void;
 }
 
-export default function CartDateGroup({ date, items, priceMap, uomMap, tmplMap, addToCart, setCartExact, note, onNoteChange, isSubmitting, onSubmit, setDeliveryDate, onNavigate, defaultNoteMap, setItemNote, setAsDefault, favoritesLoading }: Props) {
+export default function CartDateGroup({ date, items, priceMap, uomMap, tmplMap, addToCart, setCartExact, note, onNoteChange, isSubmitting, onSubmit, setDeliveryDate, onNavigate, defaultNoteMap, setItemNote, setAsDefault, favoritesLoading, blocked, availableDates, onChangeDate }: Props) {
   const groupTotal = items.reduce((sum, item) => sum + (priceMap[item.productId]?.price ?? 0) * item.qty, 0);
   const hasPrice = items.some(item => !!(priceMap[item.productId]));
   return (
@@ -102,10 +110,27 @@ export default function CartDateGroup({ date, items, priceMap, uomMap, tmplMap, 
         <textarea placeholder="此批備註（選填）" value={note} onChange={e => onNoteChange(e.target.value)} rows={2} />
       </div>
       <div style={{ padding: "0 14px 14px", borderRadius: "0 0 var(--radius) var(--radius)", background: "#fff" }}>
-        <button className="submit-btn" style={{ width: "100%", borderRadius: "var(--radius)" }}
-          onClick={onSubmit} disabled={!date || isSubmitting}>
-          <Send size={18} /><span>{isSubmitting ? "送出中..." : `確定送出（${items.length} 項）`}</span>
-        </button>
+        {blocked.blocked && date ? (
+          <div style={{ background: "#fef2f2", border: "1px solid #fecaca", borderRadius: "var(--radius)", padding: "10px 12px", marginBottom: 8 }}>
+            <div style={{ color: "#b91c1c", fontSize: 13, fontWeight: 600, marginBottom: 6 }}>
+              ⚠️ {blocked.reason}，請改選新的配送日期
+            </div>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+              {availableDates.length === 0 && <span style={{ fontSize: 12, color: "#6b7280" }}>暫無可選日期</span>}
+              {availableDates.map(d => (
+                <button key={d} className="date-chip" onClick={() => onChangeDate(d)}
+                  style={{ fontSize: 12 }}>
+                  {fmtChip(d)}
+                </button>
+              ))}
+            </div>
+          </div>
+        ) : (
+          <button className="submit-btn" style={{ width: "100%", borderRadius: "var(--radius)" }}
+            onClick={onSubmit} disabled={!date || isSubmitting}>
+            <Send size={18} /><span>{isSubmitting ? "送出中..." : `確定送出（${items.length} 項）`}</span>
+          </button>
+        )}
       </div>
     </div>
   );

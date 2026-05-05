@@ -7,6 +7,32 @@ const STORAGE_KEY = `custom_app_auth_${APP_SLUG}`;
 
 interface Props { onLogin: (u: AppUser) => void; }
 
+const DEBUG_INFO = (() => {
+  try {
+    const url = new URL(window.location.href);
+    const liffState = url.searchParams.get("liff.state");
+    const fromSearch = url.searchParams.get("ct");
+    const fromHash = url.hash.replace(/^#/, "").match(/(?:^|&)ct=([^&]+)/)?.[1];
+    const fromLiffState = liffState
+      ? new URLSearchParams(liffState.startsWith("?") ? liffState.slice(1) : liffState).get("ct")
+      : null;
+    const raw = fromHash || fromSearch || fromLiffState;
+    let decoded = null, err = null;
+    if (raw) {
+      try {
+        const b64 = raw.replace(/-/g, "+").replace(/_/g, "/");
+        const padded = b64.padEnd(Math.ceil(b64.length / 4) * 4, "=");
+        decoded = JSON.parse(atob(padded));
+      } catch (e: any) { err = String(e?.message || e); }
+    }
+    return JSON.stringify({
+      href: url.href,
+      liffState, fromSearch, fromHash, fromLiffState,
+      raw, decoded, err,
+    }, null, 2);
+  } catch (e: any) { return "DEBUG ERR: " + String(e); }
+})();
+
 export default function LoginPage({ onLogin }: Props) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -53,6 +79,8 @@ export default function LoginPage({ onLogin }: Props) {
       <div className="login-card">
         <div className="login-logo">🐟</div>
         <h2>雄泉鮮食</h2>
+        <textarea readOnly value={DEBUG_INFO} style={{width:"100%",fontSize:10,height:200,wordBreak:"break-all",fontFamily:"monospace"}} />
+
         <p className="login-subtitle">{isRegister ? "建立帳號" : "客戶登入"}</p>
         <form onSubmit={handleSubmit}>
           {isRegister && (
