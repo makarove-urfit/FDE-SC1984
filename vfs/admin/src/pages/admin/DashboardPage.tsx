@@ -20,7 +20,7 @@ export default function DashboardPage() {
   const steps = [
     {step:'1',label:'訂單接收',desc:`${cd()} 筆待處理`,href:'/admin/daily/purchase-list',count:cd()},
     {step:'2',label:'採購定價',desc:'管理採購',href:'/admin/daily/procurement',count:0},
-    {step:'3',label:'庫存總表',desc:'查看庫存',href:'/admin/daily/stock',count:0},
+    {step:'3',label:'採購單',desc:'按供應商查看採購明細',href:'/admin/daily/stock',count:0},
     {step:'4',label:'銷貨單',desc:`${cs()} 筆已確認`,href:'/admin/daily/sales-orders',count:cs()},
     {step:'5',label:'配送管理',desc:'出貨追蹤',href:'/admin/daily/delivery',count:0},
   ];
