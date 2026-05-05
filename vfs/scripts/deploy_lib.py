@@ -78,7 +78,7 @@ def verify_compile(h, app_id):
     if s != 200:
         sys.exit(f"❌ 取得 app slug 失敗：{s}")
     slug = (b or {}).get("slug") or app_id
-    s2, body = _req("POST", f"{API_BASE}/compile/compile/{slug}", h, {}, timeout=120)
+    s2, body = _req("POST", f"{API_BASE}/compile/compile/{slug}?dev=true", h, {}, timeout=120)
     success = bool((body or {}).get("success"))
     print(f"  編譯驗證: {s2} success={success}")
     if not success:
