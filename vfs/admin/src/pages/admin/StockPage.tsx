@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useData } from '../../data/DataProvider';
 import * as db from '../../db';
@@ -115,6 +115,16 @@ export default function StockPage() {
     if (next.has(sid)) next.delete(sid); else next.add(sid);
     return next;
   });
+
+  useEffect(() => {
+    const init: Record<string, number> = {};
+    for (const l of orderLines) {
+      if (String(l.delivery_date || '').slice(0, 10) !== selectedDate) continue;
+      if (l.qty_delivered != null) init[String(l.id)] = Number(l.qty_delivered);
+    }
+    setActualQtys(init);
+    setSavedAt(null);
+  }, [orderLines, selectedDate]);
 
   const getActual = (key: string, orderedQty: number) => actualQtys[key] ?? orderedQty;
 
