@@ -20,7 +20,7 @@ interface PricingItem {
 
 export default function ProcurementPage() {
   const nav = useNavigate();
-  const { orderLines, products, suppliers, stockQuants, stockLocations, productProducts, loading, selectedDate, setSelectedDate } = useData();
+  const { orderLines, products, suppliers, productProducts, loading, selectedDate, setSelectedDate } = useData();
   const [items, setItems] = useState<PricingItem[]>([]);
   const [expanded, setExpanded] = useState<string[]>([]);
   const [saving, setSaving] = useState(false);
@@ -149,53 +149,14 @@ export default function ProcurementPage() {
     }));
   };
 
-  // 取得內部庫位 ID：先從 state 找，找不到就 fresh fetch，再找不到就自動建立
-  const _getLocId = async (): Promise<string> => {
-    let locId = stockLocations.find((l:any) => l.usage === 'internal')?.id || stockLocations[0]?.id;
-    if (!locId) {
-      const fresh: any[] = await db.query('stock_locations').catch(() => []);
-      locId = fresh.find((l:any) => l.usage === 'internal')?.id || fresh[0]?.id;
-    }
-    if (!locId) {
-      const created = await db.insert('stock_locations', { name: 'WH/Stock', usage: 'internal', active: true });
-      locId = created?.id;
-    }
-    return locId || '';
-  };
-
-  // 累加庫存（stock_quants 是累計量，每次進貨 ADD）
-  const _upsertQuant = async (pid: string, qty: number, locId: string, _qid: (v:any)=>string): Promise<void> => {
-    let sq = stockQuants.find((q:any) => _qid(q.product_id) === pid);
-    if (!sq) {
-      const fresh: any[] = await db.queryFiltered('stock_quants', [{column:'product_id',op:'eq',value:pid}]).catch(() => []);
-      sq = fresh[0];
-    }
-    if (sq) {
-      await db.update('stock_quants', sq.id, { quantity: Number(sq.quantity||0) + qty });
-    } else {
-      await db.insert('stock_quants', { product_id: pid, location_id: locId, quantity: qty });
-    }
-  };
-
   const applyPricing = async (pid: string) => {
     const item = items.find(i => i.productId === pid);
     if (!item || item.sellingPrice <= 0) return;
     setSaving(true);
-    const _qid = (v: any) => Array.isArray(v) ? String(v[0]) : String(v || '');
     try {
-      // 寫入價格稽核 log（含當日實際進貨量）— 不再回填 sale_order_lines.price_unit
-      // 確認接受訂單時，confirm_order action 會從這個 log 取最新價快照寫入 stock_moves.price_unit
       await db.insertCustom(PRICE_LOG_UUID, { product_product_id: pid, lst_price: item.sellingPrice, standard_price: item.purchasePrice, effective_date: selectedDate, qty_delivered: item.actualQty });
       setItems(prev => prev.map(i => i.productId === pid ? {...i, state: 'priced'} : i));
     } catch(e: any) { console.error('定價失敗:', e.message); }
-    // 庫存更新獨立 try/catch，不受定價寫入失敗影響
-    try {
-      if (item.actualQty > 0) {
-        const locId = await _getLocId();
-        if (locId) { await _upsertQuant(pid, item.actualQty, locId, _qid); }
-        else { console.warn('[stock] 無法取得庫位，跳過庫存更新'); }
-      }
-    } catch(e: any) { console.error('庫存更新失敗:', e.message); }
     setSaving(false);
   };
 
@@ -203,13 +164,9 @@ export default function ProcurementPage() {
     const priceable = items.filter(i => i.sellingPrice > 0);
     if (priceable.length === 0) return;
     setSaving(true);
-    const _qid = (v: any) => Array.isArray(v) ? String(v[0]) : String(v || '');
-    const locId = await _getLocId();
     for (const item of priceable) {
       try {
-        // 寫入價格稽核 log（含當日實際進貨量）— 不再回填 sale_order_lines.price_unit
         await db.insertCustom(PRICE_LOG_UUID, { product_product_id: item.productId, lst_price: item.sellingPrice, standard_price: item.purchasePrice, effective_date: selectedDate, qty_delivered: item.actualQty });
-        if (item.actualQty > 0 && locId) { await _upsertQuant(item.productId, item.actualQty, locId, _qid); }
         setItems(prev => prev.map(i => i.productId === item.productId ? {...i, state: 'priced'} : i));
       } catch(e) { console.error(e); }
     }
