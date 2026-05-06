@@ -26,7 +26,7 @@ export default function App() {
       <Route path="/admin/daily" element={<DashboardPage />} />
       <Route path="/admin/daily/purchase-list" element={<PurchaseListPage />} />
       <Route path="/admin/daily/procurement" element={<ProcurementPage />} />
-      <Route path="/admin/daily/stock" element={<StockPage />} />
+      <Route path="/admin/daily/purchase" element={<StockPage />} />
       <Route path="/admin/daily/sales-orders" element={<SalesOrdersPage />} />
       <Route path="/admin/daily/delivery" element={<DeliveryPage />} />
       <Route path="/admin/settings" element={<DashboardPage />} />

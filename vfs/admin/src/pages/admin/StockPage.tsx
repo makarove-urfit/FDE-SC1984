@@ -1,6 +1,7 @@
 import { useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useData } from '../../data/DataProvider';
+import * as db from '../../db';
 import DatePickerWithCounts from '../../components/DatePickerWithCounts';
 import { fmtQty } from '../../utils/displayHelpers';
 
@@ -27,6 +28,8 @@ export default function StockPage() {
   const [actualQtys, setActualQtys] = useState<Record<string, number>>({});
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [allExpanded, setAllExpanded] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [savedAt, setSavedAt] = useState<Date|null>(null);
 
   const prodMap = useMemo(() => {
     const m: Record<string, any> = {};
@@ -115,6 +118,21 @@ export default function StockPage() {
 
   const getActual = (key: string, orderedQty: number) => actualQtys[key] ?? orderedQty;
 
+  const handleBatchSave = async () => {
+    setSaving(true);
+    try {
+      const allRows = supplierGroups.flatMap(g => g.rows);
+      await Promise.all(allRows.map(row =>
+        db.update('sale_order_lines', row.key, { qty_delivered: getActual(row.key, row.orderedQty) })
+      ));
+      setSavedAt(new Date());
+    } catch (e: any) {
+      alert('儲存失敗：' + (e.message || e));
+    } finally {
+      setSaving(false);
+    }
+  };
+
   const totalRows = supplierGroups.reduce((s, g) => s + g.rows.length, 0);
 
   if (loading) return <div className="min-h-screen bg-gray-50 flex items-center justify-center"><p className="text-gray-400">載入中...</p></div>;
@@ -123,7 +141,7 @@ export default function StockPage() {
     <div className="min-h-screen bg-gray-50">
       <header className="bg-white border-b border-gray-200 px-6 py-4 flex justify-between items-center">
         <div className="flex items-center gap-3">
-          <button onClick={() => nav('/admin/daily')} className="text-gray-400 hover:text-gray-600 w-8 h-8 flex items-center justify-center rounded-lg hover:bg-gray-100 transition-colors"><Arrow /></button>
+          <button onClick={() => nav('/admin/daily')} className="text-gray-400 hover:text-gray-600 w-8 h-8 flex items-center justify-center rounded-lg bg-transparent hover:bg-gray-100 transition-colors border-none"><Arrow /></button>
           <div>
             <h1 className="text-xl font-bold text-gray-900">採購單</h1>
             <p className="text-sm text-gray-400">{supplierGroups.length} 家供應商 · {totalRows} 筆明細</p>
@@ -137,6 +155,15 @@ export default function StockPage() {
               className="px-3 py-2 text-sm border border-gray-200 rounded-lg text-gray-600 hover:bg-gray-50 transition-colors whitespace-nowrap"
             >
               {allExpanded ? '全部收合' : '全部展開'}
+            </button>
+          )}
+          {totalRows > 0 && (
+            <button
+              onClick={handleBatchSave}
+              disabled={saving}
+              className="px-4 py-2 bg-primary text-white rounded-lg text-sm font-medium hover:bg-green-700 transition-colors disabled:opacity-50 whitespace-nowrap"
+            >
+              {saving ? '儲存中...' : savedAt ? `已儲存 ${savedAt.toLocaleTimeString('zh-TW', {hour:'2-digit',minute:'2-digit'})}` : '批次儲存'}
             </button>
           )}
         </div>
