@@ -26,7 +26,7 @@ export const REPORT_PRINT_CSS = `
 .purchase-half { padding-right: 4mm; border-right: 0.5pt solid #ccc; min-width: 0; }
 .purchase-half:last-child { border-right: none; padding-right: 0; padding-left: 4mm; }
 .supplier-section { padding-bottom: 6pt; }
-.supplier-meta { font-size: 10pt; color: #333; padding-bottom: 2pt; }
+.supplier-meta { display: flex; justify-content: space-between; gap: 8pt; font-size: 10pt; color: #333; padding-bottom: 2pt; }
 .supplier-header { font-weight: bold; font-size: 11pt; padding: 0 0 4pt; border-bottom: 1pt solid #000; margin-bottom: 4pt; }
 .supplier-header .meta { font-weight: normal; font-size: 9pt; color: #666; }
 .report-product-block { break-inside: avoid; margin-bottom: 4pt; }

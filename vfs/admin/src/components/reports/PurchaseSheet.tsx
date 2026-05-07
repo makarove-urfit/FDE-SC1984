@@ -1,20 +1,24 @@
 // vfs/admin/src/components/reports/PurchaseSheet.tsx
 // 一個廠商區段（可能是某廠商全部或續印的部分）。
-// isContinuation=true 時 header 加「（續）」標示。
+// header 固定顯示「出貨日期 + 單號」兩個 meta（左右半邊都印）。
+// 單號以廠商為單位，同廠商被切成多段時共用同一單號。
 import type { PurchaseSheet as Sheet } from '../../utils/reportData';
 
 interface Props {
   sheet: Sheet;
   date: string;
-  isContinuation?: boolean;
+  docNo: string;
 }
 
-export default function PurchaseSheet({ sheet, date, isContinuation = false }: Props) {
+export default function PurchaseSheet({ sheet, date, docNo }: Props) {
   return (
     <div className="supplier-section">
-      <div className="supplier-meta">出貨日期：{date}</div>
+      <div className="supplier-meta">
+        <span>出貨日期：{date}</span>
+        <span>單號：{docNo}</span>
+      </div>
       <div className="supplier-header">
-        廠商名稱：{sheet.supplierName}{isContinuation && '（續）'} <span className="meta">（{sheet.products.length} 品項）</span>
+        廠商名稱：{sheet.supplierName} <span className="meta">（{sheet.products.length} 品項）</span>
       </div>
       <div className="report-table-header">
         <span>客戶</span>
