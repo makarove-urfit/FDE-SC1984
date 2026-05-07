@@ -14,6 +14,13 @@ export default function PurchaseSheet({ sheet, date }: Props) {
         <span className="report-title">廠商名稱：{sheet.supplierName}</span>
         <span className="meta">{sheet.products.length} 品項</span>
       </div>
+      <div className="report-table-header">
+        <span>客戶</span>
+        <span>品名規格</span>
+        <span className="num">數量</span>
+        <span>單位</span>
+        <span>備註</span>
+      </div>
       <div className="report-columns">
         {sheet.products.map((block, i) => (
           <div key={i} className="report-product-block">

@@ -28,6 +28,12 @@ export default function PickingSheet({ sheet, date, company }: Props) {
           公司資訊尚未設定，請至「設定 → 系統設定 → 公司資訊」填寫。
         </div>
       )}
+      <div className="picking-table-header">
+        <span>店家</span>
+        <span>品名規格</span>
+        <span className="num">數量</span>
+        <span>單位</span>
+      </div>
       <div className="report-columns">
         {sheet.lines.map((row, j) => (
           <div key={j} className="picking-row">
