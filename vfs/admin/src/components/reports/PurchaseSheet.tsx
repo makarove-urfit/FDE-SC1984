@@ -1,16 +1,19 @@
 // vfs/admin/src/components/reports/PurchaseSheet.tsx
-// 一個廠商區段，內含廠商抬頭 + 欄位 header + 品項 list。
-// 不負責 page-break；由父元件用 column-count 流式排版自動分欄分頁。
+// 一個廠商區段（可能是某廠商全部或續印的部分）。
+// isContinuation=true 時 header 加「（續）」標示。
 import type { PurchaseSheet as Sheet } from '../../utils/reportData';
 
 interface Props {
   sheet: Sheet;
+  isContinuation?: boolean;
 }
 
-export default function PurchaseSheet({ sheet }: Props) {
+export default function PurchaseSheet({ sheet, isContinuation = false }: Props) {
   return (
     <div className="supplier-section">
-      <div className="supplier-header">廠商：{sheet.supplierName} <span className="meta">（{sheet.products.length} 品項）</span></div>
+      <div className="supplier-header">
+        廠商：{sheet.supplierName}{isContinuation && '（續）'} <span className="meta">（{sheet.products.length} 品項）</span>
+      </div>
       <div className="report-table-header">
         <span>客戶</span>
         <span>品名規格</span>
