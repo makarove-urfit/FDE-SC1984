@@ -22,9 +22,9 @@ interface Section {
   isContinuation: boolean;
 }
 
-// 視覺行 = product header (1) + 客戶 rows (n)
+// 視覺行 = 客戶 rows（每行已含品名，不再有獨立 product header 行）
 function visualRows(block: PurchaseProductBlock): number {
-  return block.rows.length + 1;
+  return block.rows.length;
 }
 
 // 內容夠多才切（小 supplier 維持單 section 不浪費紙）

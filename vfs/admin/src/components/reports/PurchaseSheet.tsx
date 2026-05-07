@@ -24,7 +24,6 @@ export default function PurchaseSheet({ sheet, isContinuation = false }: Props) 
       <div>
         {sheet.products.map((block, i) => (
           <div key={i} className="report-product-block">
-            <div className="report-product-name">{block.productName}</div>
             {block.rows.map((row, j) => (
               <div key={j} className="report-row">
                 <span>{row.customerCode}</span>
