@@ -1,14 +1,18 @@
 // vfs/admin/src/components/reports/PurchaseSheet.tsx
 import type { PurchaseSheet as Sheet } from '../../utils/reportData';
 
+interface CompanyInfo { name: string; phone: string; fax: string; }
+
 interface Props {
   sheet: Sheet;
   date: string;
+  company: CompanyInfo | null;
 }
 
-export default function PurchaseSheet({ sheet, date }: Props) {
+export default function PurchaseSheet({ sheet, date, company }: Props) {
   return (
     <div className="report-sheet">
+      {company?.name && <div className="report-company">{company.name}</div>}
       <div className="report-header">
         <span>出貨日期：{date}</span>
         <span className="report-title">廠商名稱：{sheet.supplierName}</span>

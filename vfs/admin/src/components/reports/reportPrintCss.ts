@@ -1,6 +1,7 @@
 export const REPORT_PRINT_CSS = `
 .report-sheet { page-break-after: always; }
 .report-sheet:last-child { page-break-after: auto; }
+.report-company { text-align: center; font-size: 14pt; font-weight: bold; padding-bottom: 4pt; margin-bottom: 4pt; letter-spacing: 2pt; }
 .report-header { display: flex; justify-content: space-between; align-items: baseline; border-bottom: 1.5pt solid #000; padding-bottom: 6pt; margin-bottom: 8pt; font-size: 12pt; font-weight: bold; }
 .report-header .meta { font-size: 10pt; font-weight: normal; }
 .report-title { font-size: 14pt; }

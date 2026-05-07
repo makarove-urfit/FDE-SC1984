@@ -163,10 +163,10 @@ export default function ReportsPage() {
                 <p className="text-center text-gray-400 py-12">{supplierFilter === 'all' ? '當日無待處理訂單' : '此供應商當日無訂單'}</p>
               )}
               {/* 螢幕預覽 */}
-              {filteredPurchaseSheets.map(s => <PurchaseSheet key={s.supplierId} sheet={s} date={selectedDate} />)}
+              {filteredPurchaseSheets.map(s => <PurchaseSheet key={s.supplierId} sheet={s} date={selectedDate} company={company} />)}
               {/* 列印區（隱藏） */}
               <PrintArea printRef={purchasePrint.contentRef}>
-                {filteredPurchaseSheets.map(s => <PurchaseSheet key={s.supplierId} sheet={s} date={selectedDate} />)}
+                {filteredPurchaseSheets.map(s => <PurchaseSheet key={s.supplierId} sheet={s} date={selectedDate} company={company} />)}
               </PrintArea>
             </>
           )}
