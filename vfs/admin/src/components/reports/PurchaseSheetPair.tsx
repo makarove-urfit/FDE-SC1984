@@ -22,34 +22,42 @@ interface Section {
   isContinuation: boolean;
 }
 
-const ROWS_PER_HALF = 35;
+// 視覺行 = product header (1) + 客戶 rows (n)
+function visualRows(block: PurchaseProductBlock): number {
+  return block.rows.length + 1;
+}
 
-// 把每個 supplier 切成多個 Section，每個 Section 行數 ≤ ROWS_PER_HALF。
+// 內容夠多才切（小 supplier 維持單 section 不浪費紙）
+const SPLIT_THRESHOLD = 12;
+
+// 把每個 supplier 切成 1 或 2 個 Section：
+//   - visual rows ≤ SPLIT_THRESHOLD → 單 section（左半放完）
+//   - visual rows > SPLIT_THRESHOLD → 切兩等分（左半 + 右半「（續）」）
 // 切點限制在 product block 邊界（不切在品項中間）。
 function splitToSections(sheets: Sheet[]): Section[] {
   const out: Section[] = [];
   for (const sheet of sheets) {
-    const totalRows = sheet.products.reduce((s, p) => s + p.rows.length, 0);
-    if (totalRows <= ROWS_PER_HALF) {
+    const total = sheet.products.reduce((s, p) => s + visualRows(p), 0);
+    if (total <= SPLIT_THRESHOLD) {
       out.push({ sheet, isContinuation: false });
       continue;
     }
+    const halfTarget = Math.ceil(total / 2);
     let buf: PurchaseProductBlock[] = [];
     let bufRows = 0;
-    let isCont = false;
+    let pushed = false;
     for (const block of sheet.products) {
-      const blockRows = block.rows.length + 1; // +1 for product name row
-      if (bufRows + blockRows > ROWS_PER_HALF && buf.length > 0) {
-        out.push({ sheet: { ...sheet, products: buf }, isContinuation: isCont });
+      if (!pushed && bufRows >= halfTarget && buf.length > 0) {
+        out.push({ sheet: { ...sheet, products: buf }, isContinuation: false });
         buf = [];
         bufRows = 0;
-        isCont = true;
+        pushed = true;
       }
       buf.push(block);
-      bufRows += blockRows;
+      bufRows += visualRows(block);
     }
     if (buf.length > 0) {
-      out.push({ sheet: { ...sheet, products: buf }, isContinuation: isCont });
+      out.push({ sheet: { ...sheet, products: buf }, isContinuation: pushed });
     }
   }
   return out;
