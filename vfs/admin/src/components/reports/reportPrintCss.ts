@@ -6,6 +6,9 @@ export const REPORT_PRINT_CSS = `
 .report-header .meta { font-size: 10pt; font-weight: normal; }
 .report-title { font-size: 14pt; }
 .report-columns { column-count: 2; column-gap: 8mm; column-rule: 0.5pt solid #ccc; font-size: 10pt; }
+.report-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8mm; font-size: 10pt; }
+.report-col { border-right: 0.5pt solid #ccc; padding-right: 4mm; }
+.report-col:last-child { border-right: none; padding-right: 0; }
 .report-product-block { break-inside: avoid; margin-bottom: 4pt; }
 .report-product-block + .report-product-block { border-top: 0.5pt dashed #999; padding-top: 3pt; }
 .report-product-name { font-weight: bold; font-size: 10pt; margin-bottom: 2pt; }
