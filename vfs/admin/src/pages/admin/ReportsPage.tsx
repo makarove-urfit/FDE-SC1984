@@ -8,7 +8,7 @@ import { PrintArea, usePrint } from '../../components/PrintProvider';
 import { buildPurchaseSheets, buildPickingSheets } from '../../utils/reportData';
 import { buildCsv, downloadCsv } from '../../utils/csvExport';
 import { REPORT_PRINT_CSS } from '../../components/reports/reportPrintCss';
-import PurchaseSheetPair from '../../components/reports/PurchaseSheetPair';
+import PurchaseSheetPaged from '../../components/reports/PurchaseSheetPaged';
 import PickingSheet from '../../components/reports/PickingSheet';
 import PickingList from '../../components/reports/PickingList';
 
@@ -164,10 +164,10 @@ export default function ReportsPage() {
                 <p className="text-center text-gray-400 py-12">{supplierFilter === 'all' ? '當日無待處理訂單' : '此供應商當日無訂單'}</p>
               )}
               {/* 螢幕預覽：所有廠商雙欄流式排版，同廠商過長自動接續 */}
-              <PurchaseSheetPair sheets={filteredPurchaseSheets} date={selectedDate} company={company} />
+              <PurchaseSheetPaged sheets={filteredPurchaseSheets} date={selectedDate} company={company} />
               {/* 列印區（隱藏） */}
               <PrintArea printRef={purchasePrint.contentRef}>
-                <PurchaseSheetPair sheets={filteredPurchaseSheets} date={selectedDate} company={company} />
+                <PurchaseSheetPaged sheets={filteredPurchaseSheets} date={selectedDate} company={company} />
               </PrintArea>
             </>
           )}

@@ -18,13 +18,14 @@ export const REPORT_PRINT_CSS = `
 .report-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8mm; font-size: 10pt; }
 .report-col { border-right: 0.5pt solid #ccc; padding-right: 4mm; }
 .report-col:last-child { border-right: none; padding-right: 0; }
-.purchase-print-table { width: 100%; border-collapse: collapse; font-size: 10pt; }
-.purchase-print-table > thead > tr > td { padding: 0 0 6pt; }
-.purchase-print-table > tbody > tr > td { padding: 0; }
+.purchase-page { page-break-after: always; font-size: 10pt; padding-bottom: 4mm; }
+.purchase-page:last-child { page-break-after: auto; }
 .purchase-page-header { text-align: center; padding-bottom: 4pt; margin-bottom: 6pt; border-bottom: 1.5pt solid #000; }
 .purchase-page-header .report-company { padding: 0; margin: 0; border: none; font-size: 14pt; font-weight: bold; letter-spacing: 2pt; }
-.purchase-flow { column-count: 2; column-gap: 8mm; column-rule: 0.5pt solid #ccc; }
-.supplier-section { padding-bottom: 6pt; break-inside: avoid; page-break-inside: avoid; }
+.purchase-row { display: grid; grid-template-columns: 1fr 1fr; gap: 8mm; }
+.purchase-half { padding-right: 4mm; border-right: 0.5pt solid #ccc; min-width: 0; }
+.purchase-half:last-child { border-right: none; padding-right: 0; padding-left: 4mm; }
+.supplier-section { padding-bottom: 6pt; }
 .supplier-meta { display: flex; justify-content: space-between; gap: 8pt; font-size: 10pt; color: #333; padding-bottom: 2pt; }
 .supplier-header { font-weight: bold; font-size: 11pt; padding: 0 0 4pt; border-bottom: 1pt solid #000; margin-bottom: 4pt; }
 .supplier-header .meta { font-weight: normal; font-size: 9pt; color: #666; }
