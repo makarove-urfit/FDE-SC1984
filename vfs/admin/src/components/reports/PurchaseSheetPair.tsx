@@ -75,16 +75,17 @@ export default function PurchaseSheetPair({ sheets, date, company }: Props) {
     <>
       {pages.map((page, idx) => (
         <div key={idx} className="purchase-page">
-          <div className="purchase-page-header">
-            {company?.name && <div className="report-company">{company.name}</div>}
-            <div className="purchase-page-meta">出貨日期：{date}</div>
-          </div>
+          {company?.name && (
+            <div className="purchase-page-header">
+              <div className="report-company">{company.name}</div>
+            </div>
+          )}
           <div className="purchase-row">
             <div className="purchase-half">
-              <PurchaseSheet sheet={page.left.sheet} isContinuation={page.left.isContinuation} />
+              <PurchaseSheet sheet={page.left.sheet} date={date} isContinuation={page.left.isContinuation} />
             </div>
             <div className="purchase-half">
-              {page.right && <PurchaseSheet sheet={page.right.sheet} isContinuation={page.right.isContinuation} />}
+              {page.right && <PurchaseSheet sheet={page.right.sheet} date={date} isContinuation={page.right.isContinuation} />}
             </div>
           </div>
         </div>

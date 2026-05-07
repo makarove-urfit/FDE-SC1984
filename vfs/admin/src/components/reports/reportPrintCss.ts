@@ -12,13 +12,13 @@ export const REPORT_PRINT_CSS = `
 .purchase-page { page-break-after: always; font-size: 10pt; padding-bottom: 4mm; }
 .purchase-page:last-child { page-break-after: auto; }
 .purchase-page-header { text-align: center; padding-bottom: 4pt; margin-bottom: 6pt; border-bottom: 1.5pt solid #000; }
-.purchase-page-header .report-company { padding: 0; margin: 0; border: none; }
-.purchase-page-meta { font-size: 11pt; padding-top: 2pt; }
+.purchase-page-header .report-company { padding: 0; margin: 0; border: none; font-size: 14pt; font-weight: bold; letter-spacing: 2pt; }
 .purchase-row { display: grid; grid-template-columns: 1fr 1fr; gap: 8mm; }
 .purchase-half { padding-right: 4mm; border-right: 0.5pt solid #ccc; min-width: 0; }
 .purchase-half:last-child { border-right: none; padding-right: 0; padding-left: 4mm; }
 .supplier-section { padding-bottom: 6pt; }
-.supplier-header { font-weight: bold; font-size: 11pt; padding: 4pt 0 2pt; }
+.supplier-meta { font-size: 10pt; color: #333; padding-bottom: 2pt; }
+.supplier-header { font-weight: bold; font-size: 11pt; padding: 0 0 4pt; border-bottom: 1pt solid #000; margin-bottom: 4pt; }
 .supplier-header .meta { font-weight: normal; font-size: 9pt; color: #666; }
 .report-product-block { break-inside: avoid; margin-bottom: 4pt; }
 .report-product-block + .report-product-block { border-top: 0.5pt dashed #999; padding-top: 3pt; }

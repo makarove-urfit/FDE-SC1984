@@ -5,14 +5,16 @@ import type { PurchaseSheet as Sheet } from '../../utils/reportData';
 
 interface Props {
   sheet: Sheet;
+  date: string;
   isContinuation?: boolean;
 }
 
-export default function PurchaseSheet({ sheet, isContinuation = false }: Props) {
+export default function PurchaseSheet({ sheet, date, isContinuation = false }: Props) {
   return (
     <div className="supplier-section">
+      <div className="supplier-meta">出貨日期：{date}</div>
       <div className="supplier-header">
-        廠商：{sheet.supplierName}{isContinuation && '（續）'} <span className="meta">（{sheet.products.length} 品項）</span>
+        廠商名稱：{sheet.supplierName}{isContinuation && '（續）'} <span className="meta">（{sheet.products.length} 品項）</span>
       </div>
       <div className="report-table-header">
         <span>客戶</span>
