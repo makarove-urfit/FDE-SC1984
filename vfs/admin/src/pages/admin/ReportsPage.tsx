@@ -216,8 +216,14 @@ export default function ReportsPage() {
                       <PickingSheet sheet={previewingSheet} date={selectedDate} company={company} />
                     </PrintArea>
                   </div>
+                ) : pickingSheets.length === 0 ? (
+                  <p className="text-center text-gray-400 py-12">當日無待處理訂單</p>
                 ) : (
-                  <p className="text-center text-gray-400 py-12">點左側「預覽」查看單張點貨單</p>
+                  <div className="flex flex-col gap-4">
+                    {pickingSheets.map(s => (
+                      <PickingSheet key={s.customerId} sheet={s} date={selectedDate} company={company} />
+                    ))}
+                  </div>
                 )}
               </div>
               {/* 全部 / 選取列印區（依 printMode 決定渲染哪些 sheet） */}
