@@ -44,16 +44,15 @@ export default function PickingSheet({ sheet, date, company }: Props) {
   const [leftRows, rightRows] = splitRows(sheet.lines);
   return (
     <div className="report-sheet">
-      <div className="report-header">
-        <div>
-          <div>連絡電話：{company?.phone || '—'}</div>
-          <div>傳真號碼：{company?.fax || '—'}</div>
+      <div className="report-header report-header-picking">
+        <div className="hdr-cell hdr-left hdr-row-1">連絡電話：{company?.phone || '—'}</div>
+        <div className="hdr-cell hdr-center hdr-row-1 report-title">
+          {company?.name || '— 請至設定頁填寫公司資訊'}
         </div>
-        <div className="report-title">{company?.name || '— 請至設定頁填寫公司資訊'}</div>
-        <div>
-          <div>訂購日期：{date}</div>
-          <div className="meta">點貨單</div>
-        </div>
+        <div className="hdr-cell hdr-left hdr-row-2">傳真號碼：{company?.fax || '—'}</div>
+        <div className="hdr-cell hdr-center hdr-row-2" />
+        <div className="hdr-cell hdr-left hdr-row-3">訂購日期：{date}</div>
+        <div className="hdr-cell hdr-center hdr-row-3 hdr-subtitle">點貨單</div>
       </div>
       {!company && (
         <div className="report-warning">

@@ -5,6 +5,15 @@ export const REPORT_PRINT_CSS = `
 .report-header { display: flex; justify-content: space-between; align-items: baseline; border-bottom: 1.5pt solid #000; padding-bottom: 6pt; margin-bottom: 8pt; font-size: 12pt; font-weight: bold; }
 .report-header .meta { font-size: 10pt; font-weight: normal; }
 .report-title { font-size: 14pt; }
+.report-header-picking { display: grid; grid-template-columns: 1fr 1fr; grid-template-rows: auto auto auto; column-gap: 8mm; row-gap: 2pt; align-items: center; }
+.report-header-picking .hdr-cell { line-height: 1.4; }
+.report-header-picking .hdr-left { text-align: left; font-size: 11pt; font-weight: normal; }
+.report-header-picking .hdr-center { text-align: center; }
+.report-header-picking .hdr-row-1 { grid-row: 1; }
+.report-header-picking .hdr-row-2 { grid-row: 2; }
+.report-header-picking .hdr-row-3 { grid-row: 3; }
+.report-header-picking .report-title { font-size: 16pt; font-weight: bold; letter-spacing: 2pt; }
+.report-header-picking .hdr-subtitle { font-size: 13pt; font-weight: bold; letter-spacing: 4pt; }
 .report-columns { column-count: 2; column-gap: 8mm; column-rule: 0.5pt solid #ccc; font-size: 10pt; }
 .report-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8mm; font-size: 10pt; }
 .report-col { border-right: 0.5pt solid #ccc; padding-right: 4mm; }
