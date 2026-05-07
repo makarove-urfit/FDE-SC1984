@@ -9,6 +9,11 @@ export const REPORT_PRINT_CSS = `
 .report-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8mm; font-size: 10pt; }
 .report-col { border-right: 0.5pt solid #ccc; padding-right: 4mm; }
 .report-col:last-child { border-right: none; padding-right: 0; }
+.sheet-pair { display: grid; grid-template-columns: 1fr 1fr; gap: 8mm; page-break-after: always; font-size: 10pt; }
+.sheet-pair:last-child { page-break-after: auto; }
+.purchase-half { padding-right: 4mm; border-right: 0.5pt solid #ccc; }
+.sheet-pair > .purchase-half:last-child { border-right: none; padding-right: 0; padding-left: 4mm; }
+.purchase-half-empty { /* 右半空白佔位 */ }
 .report-product-block { break-inside: avoid; margin-bottom: 4pt; }
 .report-product-block + .report-product-block { border-top: 0.5pt dashed #999; padding-top: 3pt; }
 .report-product-name { font-weight: bold; font-size: 10pt; margin-bottom: 2pt; }

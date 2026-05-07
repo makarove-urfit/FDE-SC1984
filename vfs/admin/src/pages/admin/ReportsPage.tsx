@@ -8,7 +8,7 @@ import { PrintArea, usePrint } from '../../components/PrintProvider';
 import { buildPurchaseSheets, buildPickingSheets } from '../../utils/reportData';
 import { buildCsv, downloadCsv } from '../../utils/csvExport';
 import { REPORT_PRINT_CSS } from '../../components/reports/reportPrintCss';
-import PurchaseSheet from '../../components/reports/PurchaseSheet';
+import PurchaseSheetPair from '../../components/reports/PurchaseSheetPair';
 import PickingSheet from '../../components/reports/PickingSheet';
 import PickingList from '../../components/reports/PickingList';
 
@@ -80,6 +80,15 @@ export default function ReportsPage() {
     if (supplierFilter === 'all') return purchaseSheets;
     return purchaseSheets.filter(s => s.supplierId === supplierFilter);
   }, [purchaseSheets, supplierFilter]);
+
+  // 把 sheets 兩兩配對成 [left, right][]，奇數張時最後一對 right=null
+  const purchaseSheetPairs = useMemo(() => {
+    const pairs: { left: typeof filteredPurchaseSheets[0]; right: typeof filteredPurchaseSheets[0] | null }[] = [];
+    for (let i = 0; i < filteredPurchaseSheets.length; i += 2) {
+      pairs.push({ left: filteredPurchaseSheets[i], right: filteredPurchaseSheets[i + 1] || null });
+    }
+    return pairs;
+  }, [filteredPurchaseSheets]);
 
   // 列印 hook
   const purchasePrint = usePrint(REPORT_PRINT_CSS);
@@ -162,11 +171,15 @@ export default function ReportsPage() {
               {filteredPurchaseSheets.length === 0 && (
                 <p className="text-center text-gray-400 py-12">{supplierFilter === 'all' ? '當日無待處理訂單' : '此供應商當日無訂單'}</p>
               )}
-              {/* 螢幕預覽 */}
-              {filteredPurchaseSheets.map(s => <PurchaseSheet key={s.supplierId} sheet={s} date={selectedDate} company={company} />)}
+              {/* 螢幕預覽：每張 A4 = 兩間廠商並排 */}
+              {purchaseSheetPairs.map((pair, i) => (
+                <PurchaseSheetPair key={i} left={pair.left} right={pair.right} date={selectedDate} company={company} />
+              ))}
               {/* 列印區（隱藏） */}
               <PrintArea printRef={purchasePrint.contentRef}>
-                {filteredPurchaseSheets.map(s => <PurchaseSheet key={s.supplierId} sheet={s} date={selectedDate} company={company} />)}
+                {purchaseSheetPairs.map((pair, i) => (
+                  <PurchaseSheetPair key={i} left={pair.left} right={pair.right} date={selectedDate} company={company} />
+                ))}
               </PrintArea>
             </>
           )}
