@@ -1,25 +1,16 @@
 // vfs/admin/src/components/reports/PurchaseSheet.tsx
+// 一個廠商區段，內含廠商抬頭 + 欄位 header + 品項 list。
+// 不負責 page-break；由父元件用 column-count 流式排版自動分欄分頁。
 import type { PurchaseSheet as Sheet } from '../../utils/reportData';
-
-interface CompanyInfo { name: string; phone: string; fax: string; }
 
 interface Props {
   sheet: Sheet;
-  date: string;
-  company: CompanyInfo | null;
 }
 
-// 單一廠商採購單，佔半張 A4 寬度（左半或右半）；
-// 兩兩配對由父層 SheetPair 控制。
-export default function PurchaseSheet({ sheet, date, company }: Props) {
+export default function PurchaseSheet({ sheet }: Props) {
   return (
-    <div className="purchase-half">
-      {company?.name && <div className="report-company">{company.name}</div>}
-      <div className="report-header">
-        <span>出貨日期：{date}</span>
-        <span className="report-title">廠商：{sheet.supplierName}</span>
-        <span className="meta">{sheet.products.length} 品項</span>
-      </div>
+    <div className="supplier-section">
+      <div className="supplier-header">廠商：{sheet.supplierName} <span className="meta">（{sheet.products.length} 品項）</span></div>
       <div className="report-table-header">
         <span>客戶</span>
         <span>品名規格</span>

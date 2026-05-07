@@ -1,26 +1,29 @@
 // vfs/admin/src/components/reports/PurchaseSheetPair.tsx
-// 一張 A4 紙裝兩間廠商（左半 + 右半），對齊紙本印刷格式。
+// 採購單列印容器：頁頂 page header（公司名 / 日期）跨整頁，
+// 下方所有廠商 section 用 column-count 雙欄流式排版 — 同廠商太長
+// 自動接續到右欄／下一頁，左欄有餘力就接下個廠商。
 import type { PurchaseSheet as Sheet } from '../../utils/reportData';
 import PurchaseSheet from './PurchaseSheet';
 
 interface CompanyInfo { name: string; phone: string; fax: string; }
 
 interface Props {
-  left: Sheet;
-  right: Sheet | null;
+  sheets: Sheet[];
   date: string;
   company: CompanyInfo | null;
 }
 
-export default function PurchaseSheetPair({ left, right, date, company }: Props) {
+export default function PurchaseSheetPair({ sheets, date, company }: Props) {
+  if (sheets.length === 0) return null;
   return (
-    <div className="sheet-pair">
-      <PurchaseSheet sheet={left} date={date} company={company} />
-      {right ? (
-        <PurchaseSheet sheet={right} date={date} company={company} />
-      ) : (
-        <div className="purchase-half-empty" />
-      )}
+    <div className="purchase-flow">
+      <div className="purchase-page-header">
+        {company?.name && <div className="report-company">{company.name}</div>}
+        <div className="purchase-page-meta">出貨日期：{date}</div>
+      </div>
+      <div className="purchase-columns">
+        {sheets.map(s => <PurchaseSheet key={s.supplierId} sheet={s} />)}
+      </div>
     </div>
   );
 }
