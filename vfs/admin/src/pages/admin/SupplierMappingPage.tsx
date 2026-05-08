@@ -52,7 +52,7 @@ function SearchSelect({ options, value, onChange, placeholder }: {
   };
 
   return (
-    <div ref={wrapRef} className="relative flex-1 min-w-48">
+    <div ref={wrapRef} style={{ position: 'relative', flex: 1, minWidth: '12rem' }}>
       <input
         type="text"
         value={q}
@@ -73,15 +73,26 @@ function SearchSelect({ options, value, onChange, placeholder }: {
         className="w-full border border-gray-200 rounded px-3 py-1.5 text-sm bg-white"
       />
       {open && (
-        <ul className="absolute left-0 right-0 top-full mt-1 max-h-60 overflow-auto bg-white border border-gray-200 rounded-lg shadow-lg z-10">
+        <ul style={{
+          position: 'absolute', left: 0, right: 0, top: 'calc(100% + 4px)',
+          maxHeight: '15rem', overflowY: 'auto',
+          background: '#fff', border: '1px solid #e5e7eb', borderRadius: '8px',
+          boxShadow: '0 10px 15px -3px rgba(0,0,0,0.1), 0 4px 6px -4px rgba(0,0,0,0.1)',
+          listStyle: 'none', margin: 0, padding: '4px 0', zIndex: 50,
+        }}>
           {filtered.length === 0 ? (
-            <li className="px-3 py-2 text-sm text-gray-400">無符合項目</li>
+            <li style={{ padding: '6px 12px', fontSize: 13, color: '#9ca3af' }}>無符合項目</li>
           ) : filtered.map((o, i) => (
             <li
               key={o.id}
               onMouseDown={e => { e.preventDefault(); commit(o); }}
               onMouseEnter={() => setHi(i)}
-              className={`px-3 py-1.5 text-sm cursor-pointer ${i===hi?'bg-blue-50':''} ${o.id===value?'text-blue-700 font-medium':'text-gray-800'}`}
+              style={{
+                padding: '6px 12px', fontSize: 13, cursor: 'pointer',
+                background: i === hi ? '#eff6ff' : 'transparent',
+                color: o.id === value ? '#1d4ed8' : '#1f2937',
+                fontWeight: o.id === value ? 600 : 400,
+              }}
             >
               {o.name}
             </li>
