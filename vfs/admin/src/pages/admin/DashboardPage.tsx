@@ -35,6 +35,7 @@ export default function DashboardPage() {
     ]},
     {title:'採購組', items:[
       {label:'供應商管理', desc:'供應商資料與預設採購員指派', href:'/admin/settings/suppliers'},
+      {label:'供應商-產品對應', desc:'指定產品的進貨來源廠商', href:'/admin/settings/supplier-mapping'},
     ]},
     {title:'商品設定', items:[
       {label:'產品管理', desc:'編輯產品、上下架、分類', href:'/admin/settings/products'},
