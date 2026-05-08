@@ -1,8 +1,11 @@
+// 主供應商 SSOT：product_templates.custom_data.default_supplier_id（與 ProcurementPage / ProductsPage / reportData 同源）
+// 不寫 product_supplierinfo — 該表 partner_id NOT NULL 但平台 ctx.db.insert 不接受 partner_id 欄位，無法直接 INSERT。
 import { useState, useEffect, useMemo, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import * as db from '../../db';
-type Mapping = { id:string; productTmplId:string; supplierId:string };
+type Mapping = { productTmplId:string; supplierId:string };
 type Opt = { id:string; name:string };
+type Tmpl = { id:string; name:string; customData:any };
 const resolveId = (raw:any) => Array.isArray(raw) ? String(raw[0]||'') : String(raw||'');
 
 function SearchSelect({ options, value, onChange, placeholder }: {
@@ -104,8 +107,7 @@ function SearchSelect({ options, value, onChange, placeholder }: {
 }
 export default function SupplierMappingPage() {
   const nav = useNavigate();
-  const [maps, setMaps] = useState<Mapping[]>([]);
-  const [tmpls, setTmpls] = useState<Opt[]>([]);
+  const [tmpls, setTmpls] = useState<Tmpl[]>([]);
   const [sups, setSups] = useState<Opt[]>([]);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState('');
@@ -116,29 +118,41 @@ export default function SupplierMappingPage() {
   const load = async () => {
     setLoading(true); setErr('');
     try {
-      const [rawMaps, rawTmpls, rawSups] = await Promise.all([
-        db.query('product_supplierinfo'),
+      const [rawTmpls, rawSups] = await Promise.all([
         db.queryFiltered('product_templates', [{column:'active',op:'eq',value:true}]),
         db.queryFiltered('suppliers', [{column:'active',op:'eq',value:true}]),
       ]);
-      setMaps((rawMaps||[]).map((r:any)=>({id:String(r.id), productTmplId:resolveId(r.product_tmpl_id), supplierId:resolveId(r.supplier_id)})));
-      setTmpls((rawTmpls||[]).map((r:any)=>({id:String(r.id), name:String(r.name||'')})).sort((a,b)=>a.name.localeCompare(b.name,'zh-Hant')));
+      setTmpls((rawTmpls||[])
+        .map((r:any)=>({id:String(r.id), name:String(r.name||''), customData:r.custom_data||{}}))
+        .sort((a,b)=>a.name.localeCompare(b.name,'zh-Hant')));
       setSups((rawSups||[]).map((r:any)=>({id:String(r.id), name:String(r.name||'')})).sort((a,b)=>a.name.localeCompare(b.name,'zh-Hant')));
     } catch(e:any) { setErr(e?.message||'載入失敗'); } finally { setLoading(false); }
   };
   useEffect(()=>{ load(); }, []);
+  const tmplOpts: Opt[] = useMemo(() => tmpls.map(t => ({id:t.id, name:t.name})), [tmpls]);
   const tmplName = (id:string) => tmpls.find(t=>t.id===id)?.name || id;
   const supName = (id:string) => sups.find(s=>s.id===id)?.name || id;
+  const maps: Mapping[] = useMemo(() => tmpls
+    .map(t => ({ productTmplId: t.id, supplierId: resolveId(t.customData?.default_supplier_id) }))
+    .filter(m => m.supplierId), [tmpls]);
   const add = async () => {
     if (!tmplId || !supId) { alert('請選擇產品與供應商'); return; }
     setBusy(true);
-    try { await db.insert('product_supplierinfo', {product_tmpl_id: tmplId, supplier_id: supId}); setTmplId(''); setSupId(''); setShowForm(false); await load(); }
-    catch(e:any) { alert(e?.message||'新增失敗'); } finally { setBusy(false); }
+    try {
+      const cur = tmpls.find(t => t.id === tmplId)?.customData || {};
+      await db.update('product_templates', tmplId, { custom_data: { ...cur, default_supplier_id: supId } });
+      setTmplId(''); setSupId(''); setShowForm(false); await load();
+    } catch(e:any) { alert(e?.message||'新增失敗'); } finally { setBusy(false); }
   };
-  const del = async (id:string) => {
+  const del = async (productTmplId:string) => {
     if (!confirm('刪除此對應？')) return;
-    try { await db.deleteRow('product_supplierinfo', id); await load(); }
-    catch(e:any) { alert(e?.message||'刪除失敗'); }
+    try {
+      const cur = tmpls.find(t => t.id === productTmplId)?.customData || {};
+      const { default_supplier_id, ...rest } = cur;
+      void default_supplier_id;
+      await db.update('product_templates', productTmplId, { custom_data: rest });
+      await load();
+    } catch(e:any) { alert(e?.message||'刪除失敗'); }
   };
   const grouped = useMemo(() => {
     const m = new Map<string, Mapping[]>();
@@ -162,7 +176,7 @@ export default function SupplierMappingPage() {
           <div className="bg-white rounded-xl border border-gray-100 p-4 space-y-3">
             <p className="font-medium text-gray-700">新增對應</p>
             <div className="flex gap-3 flex-wrap">
-              <SearchSelect options={tmpls} value={tmplId} onChange={setTmplId} placeholder="搜尋產品..." />
+              <SearchSelect options={tmplOpts} value={tmplId} onChange={setTmplId} placeholder="搜尋產品..." />
               <SearchSelect options={sups} value={supId} onChange={setSupId} placeholder="搜尋供應商..." />
               <button onClick={add} disabled={busy} className="px-4 py-1.5 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 disabled:opacity-50">確認新增</button>
               <button onClick={()=>setShowForm(false)} className="px-4 py-1.5 bg-gray-100 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-200">取消</button>
@@ -182,9 +196,9 @@ export default function SupplierMappingPage() {
                   </header>
                   <ul className="divide-y divide-gray-50">
                     {items.map(m => (
-                      <li key={m.id} className="flex items-center justify-between px-4 py-2.5">
+                      <li key={m.productTmplId} className="flex items-center justify-between px-4 py-2.5">
                         <span className="text-sm text-gray-800">{tmplName(m.productTmplId)}</span>
-                        <button onClick={()=>del(m.id)} className="px-2 py-1 text-xs text-red-600 hover:bg-red-50 rounded">刪除</button>
+                        <button onClick={()=>del(m.productTmplId)} className="px-2 py-1 text-xs text-red-600 hover:bg-red-50 rounded">刪除</button>
                       </li>
                     ))}
                   </ul>
