@@ -137,9 +137,13 @@ export default function SupplierMappingPage() {
     .filter(m => m.supplierId), [tmpls]);
   const add = async () => {
     if (!tmplId || !supId) { alert('請選擇產品與供應商'); return; }
+    const cur = tmpls.find(t => t.id === tmplId)?.customData || {};
+    const existing = resolveId(cur.default_supplier_id);
+    if (existing && existing !== supId) {
+      if (!confirm(`「${tmplName(tmplId)}」目前已對應「${supName(existing)}」，要改成「${supName(supId)}」嗎？`)) return;
+    }
     setBusy(true);
     try {
-      const cur = tmpls.find(t => t.id === tmplId)?.customData || {};
       await db.update('product_templates', tmplId, { custom_data: { ...cur, default_supplier_id: supId } });
       setTmplId(''); setSupId(''); setShowForm(false); await load();
     } catch(e:any) { alert(e?.message||'新增失敗'); } finally { setBusy(false); }
