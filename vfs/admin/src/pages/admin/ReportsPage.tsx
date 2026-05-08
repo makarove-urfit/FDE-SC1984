@@ -163,12 +163,10 @@ export default function ReportsPage() {
               {filteredPurchaseSheets.length === 0 && (
                 <p className="text-center text-gray-400 py-12">{supplierFilter === 'all' ? '當日無待處理訂單' : '此供應商當日無訂單'}</p>
               )}
-              {/* 螢幕預覽：所有廠商雙欄流式排版，同廠商過長自動接續 */}
-              <PurchaseSheetPaged sheets={filteredPurchaseSheets} date={selectedDate} company={company} />
-              {/* 列印區（隱藏） */}
-              <PrintArea printRef={purchasePrint.contentRef}>
+              {/* 螢幕預覽 + 列印 source 同一份元件實例，避免兩階段量測跑兩次 */}
+              <div ref={purchasePrint.contentRef}>
                 <PurchaseSheetPaged sheets={filteredPurchaseSheets} date={selectedDate} company={company} />
-              </PrintArea>
+              </div>
             </>
           )}
 

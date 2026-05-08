@@ -89,7 +89,9 @@ export default function PurchaseSheetPaged({ sheets, date, company }: Props) {
     setMeasured(null);
   }, [sheets, date]);
 
-  // 每次 render 後檢查：portal DOM mount 完整就量
+  // measured 為 null 時量 portal DOM 高度；deps 包含 measured 避免 setState 後重跑、
+  // 包含 sheets.length / flatRows.length 是因為 portal 內節點數依賴它們，DOM 尚未對齊
+  // 時 querySelectorAll 數量不符就 early return，下一輪 effect 會再試
   useEffect(() => {
     if (measured !== null) return;
     const ref = measureRef.current;
@@ -101,7 +103,7 @@ export default function PurchaseSheetPaged({ sheets, date, company }: Props) {
     const overhead = Array.from(headers).map(h => h.offsetHeight);
     const rowH = Array.from(rows).map(r => r.offsetHeight);
     setMeasured({ overhead, rowH });
-  });
+  }, [measured, sheets.length, flatRows.length]);
 
   if (sheets.length === 0) return null;
 
