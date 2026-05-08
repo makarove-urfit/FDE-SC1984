@@ -1,9 +1,96 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import * as db from '../../db';
 type Mapping = { id:string; productTmplId:string; supplierId:string };
 type Opt = { id:string; name:string };
 const resolveId = (raw:any) => Array.isArray(raw) ? String(raw[0]||'') : String(raw||'');
+
+function SearchSelect({ options, value, onChange, placeholder }: {
+  options: Opt[];
+  value: string;
+  onChange: (id: string) => void;
+  placeholder: string;
+}) {
+  const [q, setQ] = useState('');
+  const [open, setOpen] = useState(false);
+  const [hi, setHi] = useState(0);
+  const wrapRef = useRef<HTMLDivElement>(null);
+  const internalRef = useRef(false);
+
+  useEffect(() => {
+    if (internalRef.current) { internalRef.current = false; return; }
+    if (!value) { setQ(''); return; }
+    const opt = options.find(o => o.id === value);
+    if (opt) setQ(opt.name);
+  }, [value, options]);
+
+  useEffect(() => {
+    const onDoc = (e: MouseEvent) => {
+      if (wrapRef.current && !wrapRef.current.contains(e.target as Node)) {
+        setOpen(false);
+        const opt = options.find(o => o.id === value);
+        setQ(opt?.name || '');
+      }
+    };
+    document.addEventListener('mousedown', onDoc);
+    return () => document.removeEventListener('mousedown', onDoc);
+  }, [options, value]);
+
+  const filtered = useMemo(() => {
+    const qq = q.trim().toLowerCase();
+    if (!qq) return options;
+    return options.filter(o => o.name.toLowerCase().includes(qq));
+  }, [options, q]);
+
+  useEffect(() => { setHi(0); }, [q]);
+
+  const commit = (opt: Opt) => {
+    internalRef.current = true;
+    onChange(opt.id);
+    setQ(opt.name);
+    setOpen(false);
+  };
+
+  return (
+    <div ref={wrapRef} className="relative flex-1 min-w-48">
+      <input
+        type="text"
+        value={q}
+        onChange={e => {
+          setQ(e.target.value);
+          setOpen(true);
+          if (value) { internalRef.current = true; onChange(''); }
+        }}
+        onFocus={() => setOpen(true)}
+        onKeyDown={e => {
+          if (!open) return;
+          if (e.key === 'ArrowDown') { e.preventDefault(); setHi(i => Math.min(i+1, filtered.length-1)); }
+          else if (e.key === 'ArrowUp') { e.preventDefault(); setHi(i => Math.max(i-1, 0)); }
+          else if (e.key === 'Enter' && filtered[hi]) { e.preventDefault(); commit(filtered[hi]); }
+          else if (e.key === 'Escape') setOpen(false);
+        }}
+        placeholder={placeholder}
+        className="w-full border border-gray-200 rounded px-3 py-1.5 text-sm bg-white"
+      />
+      {open && (
+        <ul className="absolute left-0 right-0 top-full mt-1 max-h-60 overflow-auto bg-white border border-gray-200 rounded-lg shadow-lg z-10">
+          {filtered.length === 0 ? (
+            <li className="px-3 py-2 text-sm text-gray-400">無符合項目</li>
+          ) : filtered.map((o, i) => (
+            <li
+              key={o.id}
+              onMouseDown={e => { e.preventDefault(); commit(o); }}
+              onMouseEnter={() => setHi(i)}
+              className={`px-3 py-1.5 text-sm cursor-pointer ${i===hi?'bg-blue-50':''} ${o.id===value?'text-blue-700 font-medium':'text-gray-800'}`}
+            >
+              {o.name}
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
 export default function SupplierMappingPage() {
   const nav = useNavigate();
   const [maps, setMaps] = useState<Mapping[]>([]);
@@ -64,14 +151,8 @@ export default function SupplierMappingPage() {
           <div className="bg-white rounded-xl border border-gray-100 p-4 space-y-3">
             <p className="font-medium text-gray-700">新增對應</p>
             <div className="flex gap-3 flex-wrap">
-              <select value={tmplId} onChange={e=>setTmplId(e.target.value)} className="border border-gray-200 rounded px-3 py-1.5 text-sm bg-white flex-1 min-w-48">
-                <option value="">選擇產品...</option>
-                {tmpls.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
-              </select>
-              <select value={supId} onChange={e=>setSupId(e.target.value)} className="border border-gray-200 rounded px-3 py-1.5 text-sm bg-white flex-1 min-w-48">
-                <option value="">選擇供應商...</option>
-                {sups.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
-              </select>
+              <SearchSelect options={tmpls} value={tmplId} onChange={setTmplId} placeholder="搜尋產品..." />
+              <SearchSelect options={sups} value={supId} onChange={setSupId} placeholder="搜尋供應商..." />
               <button onClick={add} disabled={busy} className="px-4 py-1.5 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 disabled:opacity-50">確認新增</button>
               <button onClick={()=>setShowForm(false)} className="px-4 py-1.5 bg-gray-100 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-200">取消</button>
             </div>
