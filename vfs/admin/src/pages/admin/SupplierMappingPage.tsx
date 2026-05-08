@@ -120,10 +120,11 @@ export default function SupplierMappingPage() {
     setLoading(true); setErr('');
     try {
       const [rawTmpls, rawSups] = await Promise.all([
-        db.queryFiltered('product_templates', [{column:'active',op:'eq',value:true}]),
-        db.query('suppliers'),   // 不 filter active：要顯示孤兒對應指到的已停用供應商名稱
+        db.query('product_templates'),   // 全查；用 convention r.active !== false 篩，避免 active=null 被 SQL 過濾漏掉
+        db.query('suppliers'),
       ]);
       setTmpls((rawTmpls||[])
+        .filter((r:any) => r.active !== false)
         .map((r:any)=>({id:String(r.id), name:String(r.name||''), customData:r.custom_data||{}}))
         .sort((a,b)=>a.name.localeCompare(b.name,'zh-Hant')));
       setSups((rawSups||[])
