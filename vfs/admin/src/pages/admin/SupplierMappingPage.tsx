@@ -5,6 +5,7 @@ import { useNavigate } from 'react-router-dom';
 import * as db from '../../db';
 type Mapping = { productTmplId:string; supplierId:string };
 type Opt = { id:string; name:string };
+type Sup = { id:string; name:string; active:boolean };
 type Tmpl = { id:string; name:string; customData:any };
 const resolveId = (raw:any) => Array.isArray(raw) ? String(raw[0]||'') : String(raw||'');
 
@@ -108,7 +109,7 @@ function SearchSelect({ options, value, onChange, placeholder }: {
 export default function SupplierMappingPage() {
   const nav = useNavigate();
   const [tmpls, setTmpls] = useState<Tmpl[]>([]);
-  const [sups, setSups] = useState<Opt[]>([]);
+  const [sups, setSups] = useState<Sup[]>([]);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState('');
   const [showForm, setShowForm] = useState(false);
@@ -120,18 +121,25 @@ export default function SupplierMappingPage() {
     try {
       const [rawTmpls, rawSups] = await Promise.all([
         db.queryFiltered('product_templates', [{column:'active',op:'eq',value:true}]),
-        db.queryFiltered('suppliers', [{column:'active',op:'eq',value:true}]),
+        db.query('suppliers'),   // 不 filter active：要顯示孤兒對應指到的已停用供應商名稱
       ]);
       setTmpls((rawTmpls||[])
         .map((r:any)=>({id:String(r.id), name:String(r.name||''), customData:r.custom_data||{}}))
         .sort((a,b)=>a.name.localeCompare(b.name,'zh-Hant')));
-      setSups((rawSups||[]).map((r:any)=>({id:String(r.id), name:String(r.name||'')})).sort((a,b)=>a.name.localeCompare(b.name,'zh-Hant')));
+      setSups((rawSups||[])
+        .map((r:any)=>({id:String(r.id), name:String(r.name||''), active: r.active !== false}))
+        .sort((a,b)=>a.name.localeCompare(b.name,'zh-Hant')));
     } catch(e:any) { setErr(e?.message||'載入失敗'); } finally { setLoading(false); }
   };
   useEffect(()=>{ load(); }, []);
   const tmplOpts: Opt[] = useMemo(() => tmpls.map(t => ({id:t.id, name:t.name})), [tmpls]);
+  const supOpts: Opt[] = useMemo(() => sups.filter(s => s.active).map(s => ({id:s.id, name:s.name})), [sups]);
   const tmplName = (id:string) => tmpls.find(t=>t.id===id)?.name || id;
-  const supName = (id:string) => sups.find(s=>s.id===id)?.name || id;
+  const supName = (id:string) => {
+    const s = sups.find(x => x.id === id);
+    if (!s) return `（找不到供應商 ${id}）`;
+    return s.active ? s.name : `[已停用] ${s.name}`;
+  };
   const maps: Mapping[] = useMemo(() => tmpls
     .map(t => ({ productTmplId: t.id, supplierId: resolveId(t.customData?.default_supplier_id) }))
     .filter(m => m.supplierId), [tmpls]);
@@ -181,7 +189,7 @@ export default function SupplierMappingPage() {
             <p className="font-medium text-gray-700">新增對應</p>
             <div className="flex gap-3 flex-wrap">
               <SearchSelect options={tmplOpts} value={tmplId} onChange={setTmplId} placeholder="搜尋產品..." />
-              <SearchSelect options={sups} value={supId} onChange={setSupId} placeholder="搜尋供應商..." />
+              <SearchSelect options={supOpts} value={supId} onChange={setSupId} placeholder="搜尋供應商..." />
               <button onClick={add} disabled={busy} className="px-4 py-1.5 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 disabled:opacity-50">確認新增</button>
               <button onClick={()=>setShowForm(false)} className="px-4 py-1.5 bg-gray-100 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-200">取消</button>
             </div>
