@@ -45,8 +45,9 @@ interface Measured {
   rowH: number[];    // 每個 flatRow 的高度 px
 }
 
-// A4 297 - @page margin 上下 24 - body padding 上下 ~10 - page-header(公司名+border) ~9 ≈ 254；取 248 留緩衝
-const PAGE_CONTENT_MM = 248;
+// A4 297 - @page margin 上下 24 - body padding 上下 ~10 - page-header(公司名+border) ~9 ≈ 254；
+// 取 240 給字型 metrics 偏差 / sub-pixel rounding 留 buffer，搭配 break-inside: avoid 確保不跨頁
+const PAGE_CONTENT_MM = 240;
 const MM_TO_PX = 96 / 25.4;
 const PAGE_CONTENT_PX = PAGE_CONTENT_MM * MM_TO_PX;
 // A4 210 - @page margin 左右 30 - body padding 左右 ~10 = 170；雙欄 + gap 8mm → 一欄 ≈ 81；取 80
