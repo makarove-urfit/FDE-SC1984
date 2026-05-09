@@ -28,5 +28,8 @@
   },
   "list_my_branches": {
     "description": "回傳目前 user 綁定且 kind=branch 的客戶清單，給下單前 branch picker 用"
+  },
+  "debug_ctx_user": {
+    "description": "[debug] 純讀，回傳 ctx.user 的 type / dir / 各 attribute 值，用來確認平台真實 shape"
   }
 }

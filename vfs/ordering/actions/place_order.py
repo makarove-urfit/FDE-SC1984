@@ -17,7 +17,7 @@ def execute(ctx):
     branch_id = str(ctx.params.get("branch_id") or "")
     note = ctx.params.get("note", "")
     delivery_date = ctx.params.get("delivery_date", "")
-    uid = str((ctx.user.get("id") or ctx.user.get("custom_app_user_id")) or "")
+    uid = str(getattr(ctx.user, "id", "") or "")
 
     if not items or not branch_id:
         ctx.response.json({"error": "缺少必要參數（items / branch_id）"})

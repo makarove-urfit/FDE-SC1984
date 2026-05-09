@@ -49,5 +49,8 @@
   },
   "backfill_sale_orders_branch": {
     "description": "[dev 一次性] 把指向 hq 的 sale_orders 隨機 backfill 到該 hq 底下的 branch；ghost 訂單依 fallback_strategy 處理"
+  },
+  "_insert_test_rel": {
+    "description": "[dev one-off hack] 直接 insert rel，繞過 redeem_invite_token pre-existing bug"
   }
 }

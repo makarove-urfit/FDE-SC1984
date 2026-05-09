@@ -20,7 +20,7 @@ def _scrub(v):
 def execute(ctx):
     diag = {"step": "init"}
     try:
-        uid = str((ctx.user.get("id") or ctx.user.get("custom_app_user_id")) or "")
+        uid = str(getattr(ctx.user, "id", "") or "")
         diag["uid_present"] = bool(uid)
         if not uid:
             ctx.response.json({"pickings": [], "diag": diag, "error": "未登入"})
