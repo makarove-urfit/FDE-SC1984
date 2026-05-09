@@ -4,6 +4,7 @@ import { CartItem, AppUser, PriceEntry } from "../App";
 import { Product } from "./CatalogProductCard";
 import CartDateGroup from "./CartDateGroup";
 import { checkDeliveryDate, getAvailableDates } from "../utils/cutoff";
+import { clearSelectedBranch, type SelectedBranch } from "../utils/branchSession";
 
 function Toast({ msg, isError }: { msg: string; isError?: boolean }) {
   return <div className={`toast-msg${isError ? " error" : ""}`}>{msg}</div>;
@@ -27,9 +28,11 @@ interface Props {
   cutoffTime: string;
   holidays: Set<string>;
   changeCartGroupDate: (oldDate: string, newDate: string) => void;
+  selectedBranch: SelectedBranch | null;
+  onBranchInvalid: () => void;
 }
 
-export default function CartPage({ cart, addToCart, setCartExact, clearCartDate, setCartItemNote, onNavigate, setDeliveryDate, uomMap, user, priceMap, allTemplates, defaultNoteMap, setProductDefaultNote, favoritesLoading, cutoffTime, holidays, changeCartGroupDate }: Props) {
+export default function CartPage({ cart, addToCart, setCartExact, clearCartDate, setCartItemNote, onNavigate, setDeliveryDate, uomMap, user, priceMap, allTemplates, defaultNoteMap, setProductDefaultNote, favoritesLoading, cutoffTime, holidays, changeCartGroupDate, selectedBranch, onBranchInvalid }: Props) {
   const [groupNotes, setGroupNotes] = useState<Record<string, string>>({});
   const [submitting, setSubmitting] = useState<string | null>(null);
   const [toast, setToast] = useState<{ msg: string; error: boolean } | null>(null);
@@ -71,10 +74,15 @@ export default function CartPage({ cart, addToCart, setCartExact, clearCartDate,
     if (!date) { showToast("此組未指定配送日期，請回商品頁重新選擇日期後加入", true); return; }
     const check = checkDeliveryDate(date, cutoffTime);
     if (check.blocked) { showToast(`${check.reason}，請改選新的配送日期`, true); return; }
+    if (!selectedBranch) {
+      showToast("請先選擇分店", true);
+      onBranchInvalid();
+      return;
+    }
     setSubmitting(date);
     try {
       const result = await db.runAction("place_order", {
-        user_email: user.email,
+        branch_id: selectedBranch.branch_id,
         delivery_date: date,
         note: groupNotes[date] || "",
         items: items.map(item => ({
@@ -85,6 +93,12 @@ export default function CartPage({ cart, addToCart, setCartExact, clearCartDate,
           note: ((item.note ?? defaultNoteMap[item.productId]) ?? "").trim(),
         })),
       });
+      if (result?.code === "BRANCH_FORBIDDEN") {
+        clearSelectedBranch();
+        onBranchInvalid();
+        showToast("分店權限失效，請重新選擇分店", true);
+        return;
+      }
       if (result?.error) throw new Error(result.error);
       clearCartDate(date);
       const [, m, d] = date.split("-").map(Number);
