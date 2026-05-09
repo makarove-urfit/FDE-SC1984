@@ -66,7 +66,7 @@
 **用途**：給前端 picker 拉「我能下單的 branch 清單」。
 
 **邏輯**：
-1. `uid = ctx.user_id`，無則回空陣列。
+1. `uid = ctx.user.get("id") or ctx.user.get("custom_app_user_id")`，無則回空陣列。（與 redeem_invite_token.py 慣例一致；ordering 平台 ctx 把 user info 放在 `ctx.user` dict，不是 `ctx.user_id` attribute。）
 2. query `customer_custom_app_user_rel`，過濾 `custom_app_user_id == uid`，得 my_customer_ids。
 3. query `customers`，建 id → customer 字典。
 4. 對 my_customer_ids 中每個 cid：必須 `kind == 'branch'`、`active != False`，才納入結果。
@@ -81,7 +81,7 @@
 
 **新增邏輯（在 delivery_date 驗證之後、寫 sale_orders 之前）**：
 ```python
-uid = str(getattr(ctx, "user_id", "") or "")
+uid = str((ctx.user.get("id") or ctx.user.get("custom_app_user_id")) or "")
 branch_id = str(ctx.params.get("branch_id") or "")
 if not uid:
     ctx.response.json({"error": "未登入"}); return
@@ -130,7 +130,7 @@ customer_id = branch_id
 
 | 情境 | 後端回傳 | 前端行為 |
 |------|---------|----------|
-| ctx.user_id 為空 | `{"error": "未登入"}` | 導回登入頁 |
+| `ctx.user` 取不到 id | `{"error": "未登入"}` | 導回登入頁 |
 | 無 branch_id | `{"error": "缺少必要參數（items / branch_id）"}` | 顯示「請先選分店」+ 強制開 picker |
 | branch_id 不在 rel | `{"error": "無權對此分店下單", "code": "BRANCH_FORBIDDEN"}` | toast「分店權限失效」+ 清 localStorage + 強制開 picker |
 

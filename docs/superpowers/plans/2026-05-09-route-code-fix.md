@@ -154,12 +154,16 @@ def _filter_branches(uid, rels, customers):
 
 
 def execute(ctx):
-    uid = str(getattr(ctx, "user_id", "") or "")
+    uid = str((ctx.user.get("id") or ctx.user.get("custom_app_user_id")) or "")
     if not uid:
         ctx.response.json({"branches": [], "error": "no user_id"})
         return
-    rels = ctx.db.query("customer_custom_app_user_rel", limit=2000) or []
-    customers = ctx.db.query("customers", limit=2000) or []
+    try:
+        rels = ctx.db.query("customer_custom_app_user_rel", limit=2000) or []
+        customers = ctx.db.query("customers", limit=2000) or []
+    except Exception as e:
+        ctx.response.json({"branches": [], "error": str(e)})
+        return
     ctx.response.json({"branches": _filter_branches(uid, rels, customers)})
 
 
@@ -174,13 +178,15 @@ if __name__ == "__main__":
         {"id": "b1", "name": "B-One", "active": True,  "custom_data": {"kind": "branch", "parent_customer_id": "h1"}},
         {"id": "b2", "name": "B-Two", "active": True,  "custom_data": {"kind": "branch", "parent_customer_id": "h2"}},
         {"id": "b3_inactive", "name": "B-Off", "active": False, "custom_data": {"kind": "branch", "parent_customer_id": "h1"}},
+        {"id": "b4_active_null", "name": "B-Null", "custom_data": {"kind": "branch", "parent_customer_id": "h1"}},  # active 省略 → None，依 active=null convention 應放行
         {"id": "h1", "name": "HQ-One", "active": True, "custom_data": {"kind": "headquarters"}},
         {"id": "h2", "name": "HQ-Two", "active": True, "custom_data": {"kind": "headquarters"}},
     ]
+    rels.append({"customer_id": "b4_active_null", "custom_app_user_id": "u1"})
     r = _filter_branches("u1", rels, customers)
-    assert len(r) == 1, f"u1 should see 1 branch (b1), got {r}"
-    assert r[0]["branch_id"] == "b1"
-    assert r[0]["hq_name"] == "HQ-One"
+    assert len(r) == 2, f"u1 should see 2 branches (b1, b4_active_null), got {r}"
+    ids = {b["branch_id"] for b in r}
+    assert ids == {"b1", "b4_active_null"}, f"unexpected ids {ids}"
     assert _filter_branches("u_unknown", rels, customers) == []
     assert _filter_branches("u2", rels, customers)[0]["branch_id"] == "b2"
     print("✅ list_my_branches._filter_branches tests pass")
@@ -255,7 +261,7 @@ def execute(ctx):
     branch_id = str(ctx.params.get("branch_id") or "")
     note = ctx.params.get("note", "")
     delivery_date = ctx.params.get("delivery_date", "")
-    uid = str(getattr(ctx, "user_id", "") or "")
+    uid = str((ctx.user.get("id") or ctx.user.get("custom_app_user_id")) or "")
 
     if not items or not branch_id:
         ctx.response.json({"error": "缺少必要參數（items / branch_id）"})
