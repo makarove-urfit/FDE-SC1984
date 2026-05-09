@@ -141,9 +141,9 @@ customer_id = branch_id
 ```ts
 const KEY = "selected_branch";
 export interface SelectedBranch { branch_id: string; branch_name: string; hq_name: string; }
-export const getSelectedBranch = (): SelectedBranch | null => { ... };
-export const setSelectedBranch = (b: SelectedBranch) => { ... };
-export const clearSelectedBranch = () => localStorage.removeItem(KEY);
+// getSelectedBranch: localStorage.getItem(KEY) → JSON.parse，try/catch 失敗回 null
+// setSelectedBranch: localStorage.setItem(KEY, JSON.stringify(b))
+// clearSelectedBranch: localStorage.removeItem(KEY)
 ```
 
 不引入 React Context，App.tsx top-level state + props drill 即可。
@@ -179,12 +179,17 @@ Modal 元件。Props：
 - `fallback_strategy`: `"any_branch" | "skip"` (default: `"any_branch"`)
 
 **邏輯**：
-1. query `sale_orders`、`customers`，建 id → customer 字典。
+1. query `sale_orders`、`customers`，建 id → customer 字典；建「hq_id → [branches]」字典與「all_active_branches」全集池。
 2. 對每筆 sale_orders，看 customer_id 對應的 customer：
-   - 已是 branch → 跳過（記錄 skipped_already_branch）
-   - 是 hq → 找該 hq 底下所有 active branch，**隨機**挑一個
-   - 是 (empty) kind ghost → 依 `fallback_strategy`：`any_branch` 隨機塞任一 branch、`skip` 跳過
-3. 改寫呼叫 `ctx.db.update("sale_orders", id, {"customer_id": new_branch_id})`，dry_run=true 時只統計。
+   - 已是 branch → 跳過（記錄 `skipped_already_branch`）
+   - 是 hq：
+     - 該 hq 底下有 active branch → 隨機挑一個（記錄 `rewrote_hq_to_branch`）
+     - 該 hq 底下無 active branch → 不寫入（記錄 `no_branch_available`）
+   - 是 (empty) kind ghost（無 parent_customer_id）→ 依 `fallback_strategy`：
+     - `any_branch`：從 `all_active_branches` **全集池**中隨機挑一個（記錄 `rewrote_ghost_to_random_branch`）
+     - `skip`：跳過（記錄 `skipped_ghost`）
+3. 改寫呼叫 `ctx.db.update("sale_orders", id, {"customer_id": new_branch_id})`，`dry_run=true` 時只統計不寫入。
+4. 若 `all_active_branches` 為空，整個 action 直接回 `{"error": "no branches available, cannot backfill"}`。
 
 **回傳結構**：
 ```json
