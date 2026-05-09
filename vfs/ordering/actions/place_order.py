@@ -1,4 +1,5 @@
-"""place_order — 客戶下單。改吃前端傳的 branch_id，verify rel 通過才寫入 customer_id。"""
+"""place_order — 客戶下單。改吃前端傳的 branch_id，verify rel 通過才寫入 customer_id。
+單元測試在 tests/test_place_order_auth.py，不可放在這支檔案（沙箱無 __name__、NameError 等 builtins）。"""
 
 def _is_authorized(uid, branch_id, rels):
     """純函式：給定 uid、branch_id、rel list，判斷 user 是否真的綁這個 branch。"""
@@ -108,15 +109,3 @@ def execute(ctx):
         "items_count": len(items),
     })
 
-
-if __name__ == "__main__":
-    rels = [
-        {"customer_id": "b1", "custom_app_user_id": "u1"},
-        {"customer_id": "h1", "custom_app_user_id": "u1"},
-    ]
-    assert _is_authorized("u1", "b1", rels), "u1 應該能下 b1"
-    assert _is_authorized("u1", "h1", rels), "u1 也綁 hq（雖然不該被選）"
-    assert not _is_authorized("u2", "b1", rels), "u2 不該能下 b1"
-    assert not _is_authorized("u1", "b_unknown", rels), "u1 沒綁的 branch 要擋"
-    assert not _is_authorized("", "b1", rels), "空 uid 一律擋"
-    print("✅ place_order._is_authorized tests pass")
