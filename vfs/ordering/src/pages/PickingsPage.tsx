@@ -17,7 +17,7 @@ export default function PickingsPage({ user }: { user: AppUser }) {
   const load = async () => {
     setLoading(true); setErrorInfo("");
     try {
-      const result = await db.runAction("get_pickings", { user_email: user.email });
+      const result = await db.runAction("get_pickings", {});
       const pickings: PickingWithMoves[] = (result?.pickings ?? []).sort((a: any, b: any) => {
         const da = a.picking.scheduled_date || a.picking.created_at || "";
         const dbv = b.picking.scheduled_date || b.picking.created_at || "";
