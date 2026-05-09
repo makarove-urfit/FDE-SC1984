@@ -22,7 +22,7 @@ def execute(ctx):
         ctx.response.json({"error": "缺少必要參數（items / branch_id）"})
         return
     if not uid:
-        ctx.response.json({"error": "未登入"})
+        ctx.response.json({"error": "未登入", "code": "UNAUTHORIZED"})
         return
     if not delivery_date:
         ctx.response.json({"error": "未指定配送日期", "code": "DATE_BLOCKED"})
@@ -56,7 +56,11 @@ def execute(ctx):
                 pass
 
     # ── 權限驗證：user 必須真的綁這個 branch ──
-    rels = ctx.db.query("customer_custom_app_user_rel", limit=2000) or []
+    try:
+        rels = ctx.db.query("customer_custom_app_user_rel", limit=2000) or []
+    except Exception as e:
+        ctx.response.json({"error": "權限驗證暫時不可用，請稍後再試", "code": "SERVER_ERROR", "detail": str(e)})
+        return
     if not _is_authorized(uid, branch_id, rels):
         ctx.response.json({"error": "無權對此分店下單", "code": "BRANCH_FORBIDDEN"})
         return
