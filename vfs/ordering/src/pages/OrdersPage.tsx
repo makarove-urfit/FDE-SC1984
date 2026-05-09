@@ -44,7 +44,7 @@ function canEditOrder(order: any, cutoffTime: string, lines: any[]): boolean {
 
 interface OrderWithLines { order: any; lines: any[]; }
 
-export default function OrdersPage({ user, cutoffTime, defaultNoteMap, setProductDefaultNote, favoritesLoading }: { user: AppUser; cutoffTime: string; defaultNoteMap: Record<string, string>; setProductDefaultNote: (tmplId: string, note: string) => void; favoritesLoading: boolean; }) {
+export default function OrdersPage({ user, cutoffTime, defaultNoteMap, setProductDefaultNote, favoritesLoading, branchId }: { user: AppUser; cutoffTime: string; defaultNoteMap: Record<string, string>; setProductDefaultNote: (tmplId: string, note: string) => void; favoritesLoading: boolean; branchId: string; }) {
   const [items, setItems] = useState<OrderWithLines[]>([]);
   const [loading, setLoading] = useState(true);
   const [errorInfo, setErrorInfo] = useState("");
@@ -56,9 +56,10 @@ export default function OrdersPage({ user, cutoffTime, defaultNoteMap, setProduc
   const [sortBy, setSortBy] = useState<"delivery_date" | "order_date">("delivery_date");
 
   const load = async () => {
+    if (!branchId) { setItems([]); setLoading(false); return; }
     setLoading(true); setErrorInfo(""); setEditOrderId(null);
     try {
-      const result = await db.runAction("get_orders", {});
+      const result = await db.runAction("get_orders", { branch_id: branchId });
       const orders: OrderWithLines[] = (result?.orders ?? []).sort((a: any, b: any) =>
         new Date(b.order.date_order || 0).getTime() - new Date(a.order.date_order || 0).getTime()
       );
@@ -70,7 +71,7 @@ export default function OrdersPage({ user, cutoffTime, defaultNoteMap, setProduc
     }
   };
 
-  useEffect(() => { load(); }, []);
+  useEffect(() => { load(); }, [branchId]);
 
   const startEdit = (o: any, lines: any[]) => {
     const qtys: Record<string, number> = {};
@@ -93,7 +94,7 @@ export default function OrdersPage({ user, cutoffTime, defaultNoteMap, setProduc
           return { id: l.id, qty: editQtys[l.id] ?? Number(l.product_uom_qty || 0), note: nextNote };
         }),
       });
-      const refreshed = await db.runAction("get_orders", {});
+      const refreshed = await db.runAction("get_orders", { branch_id: branchId });
       const updated = (refreshed?.orders ?? []).find((i: any) => String(i.order.id) === String(orderId));
       if (updated) setItems(prev => prev.map(item => String(item.order.id) === String(orderId) ? updated : item));
       setEditOrderId(null); setSaveError("");
