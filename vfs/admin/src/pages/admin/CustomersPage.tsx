@@ -5,7 +5,7 @@ import * as db from '../../db';
 const ORDERING_APP = 'https://ordering.apps.ai-go.app/ext-runtime';
 
 type Customer = {
-  id: string; name: string; vat: string; email: string;
+  id: string; name: string; short_name?: string; vat: string; email: string;
   phone: string; payment_term: string; salesperson_id: string;
   contact_address: string; custom_data: any; is_company: boolean;
 };
@@ -37,7 +37,7 @@ const EMPTY_EDIT_HQ = {
   name: '', vat: '', email: '', payment_term: '', salesperson_id: '', invoice_format: '',
 };
 const EMPTY_EDIT_BRANCH = {
-  name: '', phone: '', contact_address: '', region_tag_id: '', contact_email: '',
+  name: '', short_name: '', phone: '', contact_address: '', region_tag_id: '', contact_email: '',
 };
 
 export default function CustomersPage() {
@@ -175,6 +175,7 @@ export default function CustomersPage() {
     setEditTarget({ type: 'branch', record: b });
     setEditBranch({
       name: b.name || '',
+      short_name: b.short_name || '',
       phone: b.phone || '',
       contact_address: b.contact_address || '',
       region_tag_id: String(cd.region_tag_id || ''),
@@ -259,6 +260,7 @@ export default function CustomersPage() {
         const cd = record.custom_data || {};
         await db.update('customers', record.id, {
           name: editBranch.name.trim(),
+          short_name: editBranch.short_name.trim() || null,
           phone: editBranch.phone.trim(),
           contact_address: editBranch.contact_address.trim(),
           custom_data: {
@@ -573,6 +575,11 @@ export default function CustomersPage() {
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">店名 <span className="text-red-500">*</span></label>
                     <input type="text" value={editBranch.name} onChange={e => setEditBranch(p => ({ ...p, name: e.target.value }))} className={inputCls} />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">採購單顯示簡稱</label>
+                    <input type="text" value={editBranch.short_name} onChange={e => setEditBranch(p => ({ ...p, short_name: e.target.value }))} placeholder="例：王品台南" className={inputCls} />
+                    <p className="text-xs text-gray-400 mt-1">採購單上以「路線碼+簡稱」顯示（如 C60王品台南）；未填則取店名前 3 字。</p>
                   </div>
                   <div className="grid grid-cols-2 gap-3">
                     <div>

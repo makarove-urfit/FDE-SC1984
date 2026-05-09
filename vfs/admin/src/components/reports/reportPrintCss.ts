@@ -32,9 +32,9 @@ export const REPORT_PRINT_CSS = `
 .report-product-block { break-inside: avoid; margin-bottom: 4pt; }
 .report-product-block + .report-product-block { border-top: 0.5pt dashed #999; padding-top: 3pt; }
 .report-product-name { font-weight: bold; font-size: 10pt; margin-bottom: 2pt; }
-.report-table-header { display: grid; grid-template-columns: 4em 1fr 4em 4em 1fr; gap: 4pt; padding: 3pt 0; margin-bottom: 4pt; border-bottom: 1pt solid #000; font-weight: bold; font-size: 10pt; }
+.report-table-header { display: grid; grid-template-columns: 8em 1fr 4em 4em 0.6fr; gap: 4pt; padding: 3pt 0; margin-bottom: 4pt; border-bottom: 1pt solid #000; font-weight: bold; font-size: 10pt; }
 .report-table-header .num { text-align: right; }
-.report-row { display: grid; grid-template-columns: 4em 1fr 4em 4em 1fr; gap: 4pt; padding: 1pt 0; break-inside: avoid; }
+.report-row { display: grid; grid-template-columns: 8em 1fr 4em 4em 0.6fr; gap: 4pt; padding: 1pt 0; break-inside: avoid; }
 .report-row .num { text-align: right; font-variant-numeric: tabular-nums; }
 .report-row .note { color: #444; font-size: 9pt; }
 .picking-table-header { display: grid; grid-template-columns: 5em 1fr 4em 4em; gap: 4pt; padding: 3pt 0; margin-bottom: 4pt; border-bottom: 1pt solid #000; font-weight: bold; font-size: 10pt; }
