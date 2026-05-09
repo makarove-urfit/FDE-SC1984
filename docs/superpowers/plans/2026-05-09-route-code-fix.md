@@ -499,15 +499,29 @@ def execute(ctx):
     seed = (ctx.params or {}).get("seed")
     rng = random.Random(seed) if seed is not None else random.Random()
 
-    orders = ctx.db.query("sale_orders", limit=2000) or []
-    customers = ctx.db.query("customers", limit=2000) or []
+    ORDER_LIMIT = 5000
+    CUSTOMER_LIMIT = 5000
+    try:
+        orders = ctx.db.query("sale_orders", limit=ORDER_LIMIT) or []
+        customers = ctx.db.query("customers", limit=CUSTOMER_LIMIT) or []
+    except Exception as e:
+        ctx.response.json({"error": str(e), "code": "SERVER_ERROR"})
+        return
+
+    truncated = []
+    if len(orders) >= ORDER_LIMIT:
+        truncated.append(f"sale_orders={len(orders)} hit limit, may be incomplete")
+    if len(customers) >= CUSTOMER_LIMIT:
+        truncated.append(f"customers={len(customers)} hit limit, may be incomplete")
 
     changes, stats = _assign_branches(orders, customers, fallback_strategy, rng)
     if "error" in stats:
-        ctx.response.json(stats)
+        ctx.response.json({**stats, "truncated_warning": truncated})
         return
 
     actually_updated = 0
+    update_errors = 0
+    failed_samples = []
     if not dry_run:
         for ch in changes:
             try:
@@ -515,12 +529,18 @@ def execute(ctx):
                 actually_updated += 1
             except Exception as e:
                 ch["error"] = str(e)
+                update_errors += 1
+                if len(failed_samples) < 5:
+                    failed_samples.append(ch)
 
     ctx.response.json({
         "dry_run": dry_run,
         "fallback_strategy": fallback_strategy,
         **stats,
         "actually_updated": actually_updated,
+        "update_errors": update_errors,
+        "failed_samples": failed_samples,
+        "truncated_warning": truncated,
         "sample_changes": changes[:10],
         "total_changes": len(changes),
     })
