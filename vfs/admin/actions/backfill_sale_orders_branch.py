@@ -1,15 +1,29 @@
 """backfill_sale_orders_branch — dev 期一次性，把指 hq 的 sale_orders 隨機改寫成 branch。
-spec: docs/superpowers/specs/2026-05-09-route-code-fix-design.md §7"""
-import random
+spec: docs/superpowers/specs/2026-05-09-route-code-fix-design.md §7
+
+注意：AI GO 平台沙箱禁止 import random，因此用自製 _pick (deterministic hash) 取代 random.choice。
+單元測試在 tests/test_backfill_sale_orders_branch.py，不可放在這支檔案（沙箱無 __name__、NameError 等 builtins）。"""
 
 
 def _kind(c):
     return ((c or {}).get("custom_data") or {}).get("kind") or ""
 
 
-def _assign_branches(orders, customers, fallback_strategy, rng):
+def _pick(pool, key, salt):
+    """從 pool 裡用 deterministic hash 挑一個元素，取代 random.choice。
+    same (pool, key, salt) → same result，可重現的 pseudo-random。"""
+    if not pool:
+        raise ValueError("pool is empty")
+    h = salt & 0xffffffff
+    for ch in str(key):
+        h = (h * 31 + ord(ch)) & 0xffffffff
+    return pool[h % len(pool)]
+
+
+def _assign_branches(orders, customers, fallback_strategy, salt):
     """純函式：對每筆 sale_order 決定要 rewrite 成哪個 branch_id。
-    回傳 (changes, stats)。dry_run 與 actual update 都用這個結果。"""
+    回傳 (changes, stats)。dry_run 與 actual update 都用這個結果。
+    salt 控制分配差異（同 salt → 同結果，等同 RNG seed 的角色）。"""
     cust_by_id = {str(c.get("id") or ""): c for c in customers}
     branches_by_hq = {}
     all_active_branches = []
@@ -51,7 +65,7 @@ def _assign_branches(orders, customers, fallback_strategy, rng):
             if not pool:
                 stats["no_branch_available"] += 1
                 continue
-            new_b = rng.choice(pool)
+            new_b = _pick(pool, oid, salt)
             changes.append({
                 "order_id": oid,
                 "from_kind": c_kind,
@@ -66,7 +80,7 @@ def _assign_branches(orders, customers, fallback_strategy, rng):
         if fallback_strategy == "skip":
             stats["skipped_ghost"] += 1
             continue
-        new_b = rng.choice(all_active_branches)
+        new_b = _pick(all_active_branches, oid, salt)
         changes.append({
             "order_id": oid,
             "from_kind": c_kind or "(empty)",
@@ -82,8 +96,7 @@ def _assign_branches(orders, customers, fallback_strategy, rng):
 def execute(ctx):
     dry_run = bool((ctx.params or {}).get("dry_run", True))
     fallback_strategy = str((ctx.params or {}).get("fallback_strategy", "any_branch"))
-    seed = (ctx.params or {}).get("seed")
-    rng = random.Random(seed) if seed is not None else random.Random()
+    salt = int((ctx.params or {}).get("seed", 42))   # 預設 42 確保 dry_run 與 actual 結果一致
 
     ORDER_LIMIT = 5000
     CUSTOMER_LIMIT = 5000
@@ -100,7 +113,7 @@ def execute(ctx):
     if len(customers) >= CUSTOMER_LIMIT:
         truncated.append(f"customers={len(customers)} hit limit, may be incomplete")
 
-    changes, stats = _assign_branches(orders, customers, fallback_strategy, rng)
+    changes, stats = _assign_branches(orders, customers, fallback_strategy, salt)
     if "error" in stats:
         ctx.response.json({**stats, "truncated_warning": truncated})
         return
@@ -130,40 +143,3 @@ def execute(ctx):
         "sample_changes": changes[:10],
         "total_changes": len(changes),
     })
-
-
-if __name__ == "__main__":
-    customers = [
-        {"id": "h1", "name": "HQ-One", "custom_data": {"kind": "headquarters"}},
-        {"id": "h2", "name": "HQ-Two", "custom_data": {"kind": "headquarters"}},
-        {"id": "b1", "name": "B-One",  "active": True, "custom_data": {"kind": "branch", "parent_customer_id": "h1"}},
-        {"id": "b2", "name": "B-Two",  "active": True, "custom_data": {"kind": "branch", "parent_customer_id": "h2"}},
-        {"id": "g1", "name": "Ghost",  "custom_data": {}},
-    ]
-    orders = [
-        {"id": "o1", "customer_id": "h1"},
-        {"id": "o2", "customer_id": "h2"},
-        {"id": "o3", "customer_id": "b1"},
-        {"id": "o4", "customer_id": "g1"},
-    ]
-    rng = random.Random(42)
-    changes, stats = _assign_branches(orders, customers, "any_branch", rng)
-    assert stats["skipped_already_branch"] == 1, stats
-    assert stats["rewrote_hq_to_branch"] == 2, stats
-    assert stats["rewrote_ghost_to_random_branch"] == 1, stats
-    assert stats["no_branch_available"] == 0, stats
-    assert len(changes) == 3
-    by_oid = {c["order_id"]: c for c in changes}
-    assert by_oid["o1"]["to_branch_id"] == "b1", "h1 only has b1 underneath"
-    assert by_oid["o2"]["to_branch_id"] == "b2", "h2 only has b2 underneath"
-
-    # skip fallback
-    changes2, stats2 = _assign_branches(orders, customers, "skip", random.Random(42))
-    assert stats2["skipped_ghost"] == 1
-    assert stats2["rewrote_ghost_to_random_branch"] == 0
-
-    # no branch at all → error
-    _, stats3 = _assign_branches(orders, [c for c in customers if _kind(c) != "branch"], "any_branch", random.Random(42))
-    assert "error" in stats3
-
-    print("✅ backfill_sale_orders_branch._assign_branches tests pass")
