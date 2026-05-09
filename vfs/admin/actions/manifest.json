@@ -43,5 +43,11 @@
   },
   "confirm_order": {
     "description": "確認接受訂單：扣庫存、建立 stock_pickings + stock_moves（含實價快照與行備註抄寫）、更新 sale_orders.state='sale'。params.order_ids[] 或 params.order_id"
+  },
+  "debug_route_code": {
+    "description": "[debug] 純讀，回傳 customers / sale_orders / rel 表的統計與抽樣，驗證採購單路線代號 root cause"
+  },
+  "backfill_sale_orders_branch": {
+    "description": "[dev 一次性] 把指向 hq 的 sale_orders 隨機 backfill 到該 hq 底下的 branch；ghost 訂單依 fallback_strategy 處理"
   }
 }
