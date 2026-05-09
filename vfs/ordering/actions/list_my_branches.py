@@ -30,7 +30,7 @@ def _filter_branches(uid, rels, customers):
 def execute(ctx):
     uid = str(getattr(ctx.user, "id", "") or "")
     if not uid:
-        ctx.response.json({"branches": [], "error": "no user_id"})
+        ctx.response.json({"branches": [], "error": "未登入", "code": "UNAUTHORIZED"})
         return
     try:
         rels = ctx.db.query("customer_custom_app_user_rel", limit=2000) or []

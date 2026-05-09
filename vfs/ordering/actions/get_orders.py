@@ -20,7 +20,7 @@ def _scrub(v):
 def execute(ctx):
     uid = str(getattr(ctx.user, "id", "") or "")
     if not uid:
-        ctx.response.json({"orders": [], "error": "未登入"})
+        ctx.response.json({"orders": [], "error": "未登入", "code": "UNAUTHORIZED"})
         return
 
     try:

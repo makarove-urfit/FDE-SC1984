@@ -23,7 +23,7 @@ def execute(ctx):
         uid = str(getattr(ctx.user, "id", "") or "")
         diag["uid_present"] = bool(uid)
         if not uid:
-            ctx.response.json({"pickings": [], "diag": diag, "error": "未登入"})
+            ctx.response.json({"pickings": [], "diag": diag, "error": "未登入", "code": "UNAUTHORIZED"})
             return
 
         diag["step"] = "query_rels"
