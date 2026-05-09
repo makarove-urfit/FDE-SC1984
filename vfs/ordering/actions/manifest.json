@@ -25,5 +25,8 @@
   },
   "manage_favorites": {
     "description": "管理客戶收藏商品：op=list/add/remove"
+  },
+  "list_my_branches": {
+    "description": "回傳目前 user 綁定且 kind=branch 的客戶清單，給下單前 branch picker 用"
   }
 }
