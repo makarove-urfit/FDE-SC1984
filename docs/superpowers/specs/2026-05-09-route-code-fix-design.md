@@ -111,7 +111,7 @@ customer_id = branch_id
 ```python
 {"table_name": "customer_custom_app_user_rel",
  "columns": ["id", "customer_id", "custom_app_user_id"],
- "permissions": {"read": True}}
+ "permissions": ["read", "create"]}
 ```
 （insert 已在 redeem_invite_token 用，這次補 read。）
 
@@ -119,10 +119,10 @@ customer_id = branch_id
 ```python
 {"table_name": "customer_custom_app_user_rel",
  "columns": ["id", "customer_id", "custom_app_user_id"],
- "permissions": {"read": True, "write": True}}
+ "permissions": ["read", "create", "update"]}
 {"table_name": "custom_app_users",
  "columns": ["id", "email", "display_name"],
- "permissions": {"read": True}}
+ "permissions": ["read"]}
 ```
 （修 Phase 1 發現的 admin 端 403、未來 backfill 與分析需要。）
 
