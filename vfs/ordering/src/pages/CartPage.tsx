@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from "react";
 import * as db from "../db";
-import { CartItem, AppUser, PriceEntry } from "../App";
+import { CartItem, PriceEntry } from "../App";
 import { Product } from "./CatalogProductCard";
 import CartDateGroup from "./CartDateGroup";
 import { checkDeliveryDate, getAvailableDates } from "../utils/cutoff";
@@ -19,7 +19,6 @@ interface Props {
   onNavigate: (p: string) => void;
   setDeliveryDate: (d: string) => void;
   uomMap: Record<string, string>;
-  user: AppUser;
   priceMap: Record<string, PriceEntry>;
   allTemplates: Product[];
   defaultNoteMap: Record<string, string>;
@@ -32,7 +31,7 @@ interface Props {
   onBranchInvalid: () => void;
 }
 
-export default function CartPage({ cart, addToCart, setCartExact, clearCartDate, setCartItemNote, onNavigate, setDeliveryDate, uomMap, user, priceMap, allTemplates, defaultNoteMap, setProductDefaultNote, favoritesLoading, cutoffTime, holidays, changeCartGroupDate, selectedBranch, onBranchInvalid }: Props) {
+export default function CartPage({ cart, addToCart, setCartExact, clearCartDate, setCartItemNote, onNavigate, setDeliveryDate, uomMap, priceMap, allTemplates, defaultNoteMap, setProductDefaultNote, favoritesLoading, cutoffTime, holidays, changeCartGroupDate, selectedBranch, onBranchInvalid }: Props) {
   const [groupNotes, setGroupNotes] = useState<Record<string, string>>({});
   const [submitting, setSubmitting] = useState<string | null>(null);
   const [toast, setToast] = useState<{ msg: string; error: boolean } | null>(null);
