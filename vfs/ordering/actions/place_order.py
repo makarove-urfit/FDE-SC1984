@@ -1,26 +1,38 @@
+"""place_order — 客戶下單。改吃前端傳的 branch_id，verify rel 通過才寫入 customer_id。"""
+
+def _is_authorized(uid, branch_id, rels):
+    """純函式：給定 uid、branch_id、rel list，判斷 user 是否真的綁這個 branch。"""
+    return any(
+        str(r.get("custom_app_user_id") or "") == uid
+        and str(r.get("customer_id") or "") == branch_id
+        for r in rels
+    )
+
+
 def execute(ctx):
     from datetime import datetime, timezone, timedelta
 
     items = ctx.params.get("items", [])
+    branch_id = str(ctx.params.get("branch_id") or "")
     note = ctx.params.get("note", "")
     delivery_date = ctx.params.get("delivery_date", "")
-    user_email = ctx.params.get("user_email", "")
+    uid = str((ctx.user.get("id") or ctx.user.get("custom_app_user_id")) or "")
 
-    if not items or not user_email:
-        ctx.response.json({"error": "缺少必要參數"})
+    if not items or not branch_id:
+        ctx.response.json({"error": "缺少必要參數（items / branch_id）"})
         return
-
+    if not uid:
+        ctx.response.json({"error": "未登入"})
+        return
     if not delivery_date:
         ctx.response.json({"error": "未指定配送日期", "code": "DATE_BLOCKED"})
         return
 
     tw_now = datetime.now(timezone(timedelta(hours=8)))
     today_tw = tw_now.strftime("%Y-%m-%d")
-
     if delivery_date < today_tw:
         ctx.response.json({"error": "配送日期已過，請改選新的配送日期", "code": "DATE_BLOCKED"})
         return
-
     if delivery_date == today_tw:
         cutoff_time = ""
         try:
@@ -43,28 +55,15 @@ def execute(ctx):
             except Exception:
                 pass
 
+    # ── 權限驗證：user 必須真的綁這個 branch ──
+    rels = ctx.db.query("customer_custom_app_user_rel", limit=2000) or []
+    if not _is_authorized(uid, branch_id, rels):
+        ctx.response.json({"error": "無權對此分店下單", "code": "BRANCH_FORBIDDEN"})
+        return
+
+    customer_id = branch_id
     today = delivery_date
     date_order = datetime.now(timezone.utc).strftime("%Y-%m-%d")
-
-    # ctx.db.query 只支援 limit，無 filter，需 Python 側過濾
-    customers = ctx.db.query("customers", limit=500)
-    customer_id = None
-    for c in (customers or []):
-        if c.get("email") == user_email:
-            customer_id = c.get("id")
-            break
-
-    if not customer_id:
-        new_cust = ctx.db.insert("customers", {
-            "name": user_email.split("@")[0],
-            "email": user_email,
-            "customer_type": "company",
-        })
-        customer_id = new_cust.get("id") if new_cust else None
-
-    if not customer_id:
-        ctx.response.json({"error": "無法找到或建立客戶記錄"})
-        return
 
     order_note = f"配送日期：{today}"
     if note:
@@ -76,7 +75,6 @@ def execute(ctx):
         "note": order_note,
         "state": "draft",
     })
-
     order_id = order.get("id") if order else None
     if not order_id:
         ctx.response.json({"error": "建立訂單失敗"})
@@ -105,3 +103,16 @@ def execute(ctx):
         "delivery_date": today,
         "items_count": len(items),
     })
+
+
+if __name__ == "__main__":
+    rels = [
+        {"customer_id": "b1", "custom_app_user_id": "u1"},
+        {"customer_id": "h1", "custom_app_user_id": "u1"},
+    ]
+    assert _is_authorized("u1", "b1", rels), "u1 應該能下 b1"
+    assert _is_authorized("u1", "h1", rels), "u1 也綁 hq（雖然不該被選）"
+    assert not _is_authorized("u2", "b1", rels), "u2 不該能下 b1"
+    assert not _is_authorized("u1", "b_unknown", rels), "u1 沒綁的 branch 要擋"
+    assert not _is_authorized("", "b1", rels), "空 uid 一律擋"
+    print("✅ place_order._is_authorized tests pass")
