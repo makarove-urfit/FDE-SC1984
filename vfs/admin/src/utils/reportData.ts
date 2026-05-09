@@ -26,11 +26,18 @@ export interface PickingRow {
   note: string;
 }
 
-export interface PickingSheet {
+export interface PickingCustomerSection {
   customerId: string;
   customerCode: string;     // 路線代號 + 客戶簡稱
   customerFullName: string;
   lines: PickingRow[];
+}
+
+export interface PickingSheet {
+  routeId: string;          // region_tag.id 或 '__none__'
+  routeName: string;        // tag.name 或 '未分配路線'
+  customers: PickingCustomerSection[];
+  totalLines: number;       // 該路線所有客戶品項加總（給列表顯示）
 }
 
 export interface ReportInput {
@@ -163,13 +170,13 @@ export function buildPickingSheets(input: ReportInput): PickingSheet[] {
     String(l.delivery_date || '').slice(0, 10) === selectedDate
   );
 
-  // 分組 customer → rows
-  const grouped = new Map<string, PickingRow[]>();
+  // 第一階段：分組 customer → rows
+  const byCust = new Map<string, PickingRow[]>();
   for (const l of todaysLines) {
     const cid = orderIdToCust[_id(l.order_id)];
     if (!cid) continue;
-    if (!grouped.has(cid)) grouped.set(cid, []);
-    grouped.get(cid)!.push({
+    if (!byCust.has(cid)) byCust.set(cid, []);
+    byCust.get(cid)!.push({
       productName: String(l.name || '—'),
       qty: Number(l.product_uom_qty || 0),
       uom: lineUom(l, productsById, uomMap),
@@ -177,18 +184,40 @@ export function buildPickingSheets(input: ReportInput): PickingSheet[] {
     });
   }
 
-  const sheets: PickingSheet[] = Array.from(grouped.entries())
-    .map(([cid, rows]) => {
-      const cust = customers[cid];
-      return {
-        customerId: cid,
-        customerCode: customerCode(cust, tagsById),
-        customerFullName: String(cust?.name || cust?.short_name || ''),
-        lines: rows.sort((a, b) => a.productName.localeCompare(b.productName, 'zh-Hant')),
-      };
-    })
-    .filter(s => s.lines.length > 0)
-    .sort((a, b) => a.customerCode.localeCompare(b.customerCode, 'zh-Hant'));
+  // 第二階段：每客戶 build section、再按 region_tag (路線) 分組
+  const byRoute = new Map<string, { routeId: string; routeName: string; customers: PickingCustomerSection[] }>();
+  for (const [cid, rows] of byCust.entries()) {
+    if (rows.length === 0) continue;
+    const cust = customers[cid];
+    const tagId = _id(cust?.custom_data?.region_tag_id);
+    const route = tagId ? tagsById[tagId] : null;
+    const routeId = (tagId && route) ? tagId : '__none__';
+    const routeName = route?.name || '未分配路線';
 
-  return sheets;
+    const section: PickingCustomerSection = {
+      customerId: cid,
+      customerCode: customerCode(cust, tagsById),
+      customerFullName: String(cust?.name || cust?.short_name || ''),
+      lines: rows.sort((a, b) => a.productName.localeCompare(b.productName, 'zh-Hant')),
+    };
+
+    if (!byRoute.has(routeId)) {
+      byRoute.set(routeId, { routeId, routeName, customers: [] });
+    }
+    byRoute.get(routeId)!.customers.push(section);
+  }
+
+  return Array.from(byRoute.values())
+    .map(r => ({
+      routeId: r.routeId,
+      routeName: r.routeName,
+      customers: r.customers.sort((a, b) => a.customerCode.localeCompare(b.customerCode, 'zh-Hant')),
+      totalLines: r.customers.reduce((sum, c) => sum + c.lines.length, 0),
+    }))
+    .filter(r => r.totalLines > 0)
+    .sort((a, b) => {
+      if (a.routeId === '__none__') return 1;
+      if (b.routeId === '__none__') return -1;
+      return a.routeName.localeCompare(b.routeName, 'zh-Hant');
+    });
 }

@@ -75,17 +75,46 @@ export function runReportDataSelfTest() {
   assert(none.supplierName === '未設定供應商', '__none__ 顯示名');
   assert(none.products[0].rows[0].customerCode === 'F60梵', '__none__ 也用客戶代號');
 
-  // ── buildPickingSheets ──
+  // ── buildPickingSheets（按路線分組）──
   const picks = buildPickingSheets(fixture);
-  assert(picks.length === 2, 'buildPickingSheets 兩個客戶');
-  assert(picks[0].customerCode === 'F33炸料', '客戶按代號排序');
-  assert(picks[1].customerCode === 'F60梵',   '第二個客戶');
-  assert(picks[0].lines.length === 2, '炸料兩個品項');
-  assert(picks[0].lines[0].productName === '巴西里', '客戶內品項中文排序');
-  assert(picks[0].lines[1].productName === '綠節瓜', '客戶內品項排序');
-  assert(picks[1].lines.length === 2, '梵兩個品項（綠節瓜+無供應商品）');
-  assert(picks[0].lines[1].qty === 1.0 && picks[0].lines[1].uom === '台斤', '炸料的綠節瓜數量+單位');
-  assert(picks[0].customerFullName === fixture.customers.c1.short_name || picks[0].customerFullName === '炸料', '存 customerFullName');
+  assert(picks.length === 2, 'buildPickingSheets 兩條路線（c1 在 F33、c2 在 F60）');
+  assert(picks[0].routeName === 'F33', '路線按名稱排序：F33 < F60');
+  assert(picks[1].routeName === 'F60', '第二條路線');
+  assert(picks[0].customers.length === 1, 'F33 路線一個客戶');
+  assert(picks[0].customers[0].customerCode === 'F33炸料', '客戶代號');
+  assert(picks[0].customers[0].lines.length === 2, '炸料兩個品項');
+  assert(picks[0].customers[0].lines[0].productName === '巴西里', '客戶內品項中文排序');
+  assert(picks[0].customers[0].lines[1].qty === 1.0 && picks[0].customers[0].lines[1].uom === '台斤', '炸料綠節瓜數量+單位');
+  assert(picks[0].totalLines === 2, '路線總品項數');
+  assert(picks[1].customers[0].lines.length === 2, '梵兩個品項（綠節瓜+無供應商品）');
+
+  // ── 多客戶共用同一路線 ──
+  const sharedRouteFixture = {
+    ...fixture,
+    customers: {
+      c1: { id: 'c1', short_name: '炸料', custom_data: { region_tag_id: 't1' } },
+      c2: { id: 'c2', short_name: '梵',   custom_data: { region_tag_id: 't1' } },  // 改成同 t1
+    },
+  };
+  const sharedPicks = buildPickingSheets(sharedRouteFixture);
+  assert(sharedPicks.length === 1, '同路線兩客戶 → 一張 picking sheet');
+  assert(sharedPicks[0].customers.length === 2, '一張 sheet 含兩客戶');
+  assert(sharedPicks[0].totalLines === 4, '兩客戶共 4 品項');
+  assert(sharedPicks[0].customers[0].customerCode === 'F33炸料', '客戶內按代號排序：炸料先');
+
+  // ── 客戶無 region_tag → __none__ ──
+  const noRouteFixture = {
+    ...fixture,
+    customers: {
+      c1: { id: 'c1', short_name: '炸料', custom_data: {} },  // 沒 region_tag_id
+      c2: { id: 'c2', short_name: '梵',   custom_data: { region_tag_id: 't2' } },
+    },
+  };
+  const noRoutePicks = buildPickingSheets(noRouteFixture);
+  assert(noRoutePicks.length === 2, '兩條路線（F60 + 未分配）');
+  assert(noRoutePicks[0].routeName === 'F60', 'F60 排前面');
+  assert(noRoutePicks[1].routeId === '__none__', '__none__ 排最後');
+  assert(noRoutePicks[1].routeName === '未分配路線', '未分配路線顯示名');
 
   console.log('🎉 reportData helpers self-test passed');
 }
