@@ -28,6 +28,9 @@ Thumbs.db
 # Gemini Agent
 .gemini/
 
+# Claude Code 個人設定（不入 git）
+CLAUDE.local.md
+
 # 暫存
 展示/
 
