@@ -75,6 +75,26 @@
    - (a) 不准（同 LINE 只能綁一店）— 簡單但限制大
    - (b) 准（一 LINE → N branches）— UI 要做切換，shema 要改成 N:N
 
+## 「外部應用—下單」wrapper 真相（2026-05-10 查證 AI-GO repo 後校正）
+
+**之前在 S1 測試報告誤判**為「平台強制要求 email + 密碼」，實際完全不同：
+
+- 那個畫面是 **AI GO 平台前端的 `CustomAppAuthLogin` 元件**（`AI-GO/frontend/src/components/CustomAppAuthLogin.tsx`）
+- 跳出來的原因是 `useAppRuntime` hook（`AI-GO/frontend/src/hooks/useAppRuntime.ts`）**完全不知道 LIFF 是什麼** — 它只認 localStorage 的 Custom App user token、與 `?oauth_token=` query callback；LIFF 把 token 塞 hash，掉在死角
+- `password_hash` 在 model 可為 NULL（`AI-GO/backend/app/models/custom_app_auth.py:36`），**OAuth 用戶不必設密碼**
+- 但 email 仍強制（`/custom-app-oauth/{slug}/oauth/complete-email` 端點 body.email 必填，無 setting flag 可繞）
+- wrapper **只跳第一次**（首次綁該 LINE userId）；之後 localStorage 有 token 就跳過，永遠無縫
+
+### S2 三條解法
+
+| 方案 | 客戶體驗 | 工程成本 |
+|------|---------|---------|
+| **A. 接受 wrapper 第一次跳** ⭐ | 第一次填 email（不必密碼），之後永遠無縫 | 0 改動，純 onboarding 文宣調整 |
+| B. ordering main.tsx 早於 useAppRuntime 自己 swap LINE id_token → Custom App user token，寫 localStorage | 完全無縫 | 需要平台提供 id_token-swap endpoint（**跨產品線、要協調 Logos 主管**），或 ordering 自己驗 LINE 簽章後直接呼叫 platform 內部 API |
+| C. LIFF App 啟用 email scope | 部分客戶仍卡（沒設 LINE email 的人） | 改 LINE Developers Console 設定，但客戶端不可控 |
+
+**建議走 A**：「不必設密碼」已達成 80% 無密碼精神，一次性填 email 是可接受成本（業務發連結時可協助）。B 跨團隊協調成本太高，C 不可控。
+
 ## S2 spec 撰寫前必做
 
 1. 等 S1 測試報告（`docs/superpowers/specs/2026-05-09-liff-test-results.md`，待產）

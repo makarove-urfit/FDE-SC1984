@@ -148,15 +148,25 @@ function extractAccessToken(): string | null {
 - server 查 `customers` where `custom_data.line_user_id = sub` → 找到對應分店 → 直接發 token 登入
 - 不再經過 InvitePage / LoginPage
 
-### 「外部應用—下單」platform wrapper 的處理
+### 「外部應用—下單」wrapper 真相（2026-05-10 查證 AI-GO repo 後校正）
 
-⚠️ **重要待解問題**：第一次進來的 LINE 客戶會被 AI GO 平台強制要求建立 email/密碼的 platform 帳號，這違背「無密碼下單」目標。可能解法：
+**初版誤判**是「平台強制 email + 密碼」，查證 AI-GO repo 後實際情況：
 
-1. **A. 接受平台限制**：第一次進來仍要設一次 platform 密碼，但客戶**只設一次**且不需要再用密碼登入（之後永遠走 LINE）。寫進 customer onboarding 文宣即可。
-2. **B. 找 AI GO 平台另一條路**：研究有沒有「不開 email/密碼帳號的 LINE-only 客戶模式」。需要去問 AI GO 團隊（記憶顯示主管 Logos 仍在公司可問）。
-3. **C. 改用 admin 預先把 LINE-only customer 建好**：admin 在發邀請連結前，後端先用 line_user_id 預建 platform user（如果平台 API 支援這種無密碼建立模式）。
+- 那個畫面是 AI-GO 平台前端的 `CustomAppAuthLogin` 元件（`AI-GO/frontend/src/components/CustomAppAuthLogin.tsx`）
+- 出現原因：`useAppRuntime` hook（`AI-GO/frontend/src/hooks/useAppRuntime.ts:182-191`）**不認得 LIFF 塞的 hash token**，只認 localStorage 的 Custom App user token 與 `?oauth_token=` query callback；LIFF 把 token 塞 hash 掉在死角，hook 判定 `needsAuth=true`，顯示登入頁
+- `password_hash` model 允許 NULL（`AI-GO/backend/app/models/custom_app_auth.py:36`），**OAuth 用戶不必設密碼**
+- email 仍強制（`/custom-app-oauth/{slug}/oauth/complete-email` body.email 必填，無 flag 可繞）
+- wrapper **只跳第一次**，之後 localStorage 有 token 永遠無縫
 
-S2 brainstorm 時要先確認這層平台限制能不能繞，否則路線 1 的「無密碼」價值會打折。
+### S2 三條解法（建議走 A）
+
+| 方案 | 客戶體驗 | 工程成本 | 評價 |
+|------|---------|---------|------|
+| **A. 接受 wrapper 第一次跳** | 第一次填 email（無密碼），之後永遠無縫 | 0 程式改動 | ⭐ 推薦 |
+| B. ordering 自己 swap LINE id_token → Custom App user token | 完全無縫 | 需平台提供 endpoint，跨產品線協調 | 跨團隊成本高 |
+| C. LIFF App 啟用 email scope | 部分客戶 LINE 沒設 email 仍卡 | LINE Developers Console 設定 | 不可控 |
+
+「不必設密碼」已達成 80% 無密碼精神；一次性填 email 由業務在發連結時協助即可。
 
 ## 不在範圍內的後續
 
