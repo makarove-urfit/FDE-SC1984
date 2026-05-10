@@ -28,8 +28,9 @@ function getFirstAvailableDate(holidays: Set<string>): string {
 }
 
 // LIFF 參數測試模式：true 時整個 app 變成 LiffTestPage，跳過所有登入/路由
-// 測完改 false 或 git revert；spec/plan 在 docs/superpowers/{specs,plans}/2026-05-09-liff-param-test-page*
-const LIFF_TEST_MODE = true;
+// 測試結果在 docs/superpowers/specs/2026-05-09-liff-test-results.md（路線 1 可行）
+// LiffTestPage.tsx 保留以便未來再開測，平時保持 false
+const LIFF_TEST_MODE = false;
 
 const APP_SLUG = (window as any).__APP_SLUG__ || "";
 const STORAGE_KEY = `custom_app_auth_${APP_SLUG}`;
