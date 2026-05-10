@@ -72,11 +72,43 @@ const SECTION_TITLE: React.CSSProperties = {
   color: "#111827",
 };
 
+const TEST_URLS = [
+  `https://liff.line.me/${LIFF_ID}`,
+  `https://liff.line.me/${LIFF_ID}?cust=ABC123`,
+  `https://liff.line.me/${LIFF_ID}?cust=ABC&token=XYZ`,
+  `https://liff.line.me/${LIFF_ID}#cust=ABC123`,
+  `https://liff.line.me/${LIFF_ID}/some/path?cust=ABC`,
+];
+
 export default function LiffTestPage() {
   const urlReport = useMemo(parseUrl, []);
   const renderedAt = useMemo(() => new Date().toISOString(), []);
   const [sdk, setSdk] = useState<SdkReport>(INITIAL_SDK_REPORT);
   const [probeNonce, setProbeNonce] = useState(0);
+
+  const copyAllAsJson = async () => {
+    const payload = {
+      renderedAt,
+      userAgent: navigator.userAgent,
+      url: urlReport,
+      sdk,
+    };
+    const text = JSON.stringify(payload, null, 2);
+    try {
+      await navigator.clipboard.writeText(text);
+      alert("已複製到剪貼簿");
+    } catch {
+      const ta = document.createElement("textarea");
+      ta.value = text;
+      document.body.appendChild(ta);
+      ta.select();
+      try { document.execCommand("copy"); alert("已複製（fallback）"); }
+      catch { alert("複製失敗，請手動 select pre 內文"); }
+      document.body.removeChild(ta);
+    }
+  };
+
+  const rerunProbe = () => setProbeNonce(n => n + 1);
 
   useEffect(() => {
     let cancelled = false;
@@ -178,6 +210,43 @@ export default function LiffTestPage() {
 
       <div style={SECTION_TITLE}>區塊 3：LIFF SDK 探測</div>
       <pre style={PRE_STYLE}>{JSON.stringify(sdk, null, 2)}</pre>
+
+      <div style={SECTION_TITLE}>區塊 4：操作</div>
+      <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
+        <button
+          onClick={copyAllAsJson}
+          style={{
+            padding: "8px 12px",
+            fontSize: 13,
+            background: "#10b981",
+            color: "#fff",
+            border: "none",
+            borderRadius: 6,
+            cursor: "pointer",
+          }}
+        >
+          複製全部結果為 JSON
+        </button>
+        <button
+          onClick={rerunProbe}
+          style={{
+            padding: "8px 12px",
+            fontSize: 13,
+            background: "#fff",
+            color: "#374151",
+            border: "1px solid #d1d5db",
+            borderRadius: 6,
+            cursor: "pointer",
+          }}
+        >
+          重新跑 SDK 探測
+        </button>
+      </div>
+
+      <div style={{ ...SECTION_TITLE, fontSize: 12, color: "#6b7280" }}>
+        測試 URL 範本（複製貼到 LINE 對話內點擊）
+      </div>
+      <pre style={PRE_STYLE}>{TEST_URLS.map((u, i) => `${i + 1}. ${u}`).join("\n")}</pre>
     </div>
   );
 }
