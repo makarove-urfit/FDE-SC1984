@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import LoginPage from "./pages/LoginPage";
 import InvitePage from "./pages/InvitePage";
+import LiffTestPage from "./pages/LiffTestPage";
 import CatalogPage from "./pages/CatalogPage";
 import CartPage from "./pages/CartPage";
 import OrdersPage from "./pages/OrdersPage";
@@ -25,6 +26,10 @@ function getFirstAvailableDate(holidays: Set<string>): string {
   }
   return toYMD(new Date(today.setDate(today.getDate() + 1)));
 }
+
+// LIFF 參數測試模式：true 時整個 app 變成 LiffTestPage，跳過所有登入/路由
+// 測完改 false 或 git revert；spec/plan 在 docs/superpowers/{specs,plans}/2026-05-09-liff-param-test-page*
+const LIFF_TEST_MODE = true;
 
 const APP_SLUG = (window as any).__APP_SLUG__ || "";
 const STORAGE_KEY = `custom_app_auth_${APP_SLUG}`;
@@ -90,6 +95,8 @@ const INVITE_TOKEN: string = _initInvite.token || "";
 const INVITE_EMAIL: string = _initInvite.email || "";
 
 export default function App() {
+  if (LIFF_TEST_MODE) return <LiffTestPage />;
+
   const [user, setUser] = useState<AppUser | null>(null);
   const [loading, setLoading] = useState(true);
   const [currentPath, setCurrentPath] = useState<string>(getPath);
