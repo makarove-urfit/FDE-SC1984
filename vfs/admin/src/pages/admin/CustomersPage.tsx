@@ -2,7 +2,9 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import * as db from '../../db';
 
-const ORDERING_APP = 'https://ordering.apps.ai-go.app/ext-runtime';
+// LIFF URL — 點擊後 LINE SDK 處理 OAuth、平台 /liff-swap 換 token、ordering 走 redeem_invite_token 綁定
+// invite=<branch.custom_data.invite_token>；不再走舊 #ct=base64({token,email}) 格式
+const LIFF_INVITE_URL = 'https://liff.line.me/2009976374-VYUpM905';
 
 type Customer = {
   id: string; name: string; short_name?: string; vat: string; email: string;
@@ -130,11 +132,10 @@ export default function CustomersPage() {
     return emp?.name || '—';
   };
 
-  const inviteLink = (token: string, email: string) => {
+  const inviteLink = (token: string, _email: string) => {
     if (!token) return '';
-    const payload = btoa(JSON.stringify({ token, email: email || '' }))
-      .replace(/\+/g, '-').replace(/\//g, '_').replace(/=/g, '');
-    return `${ORDERING_APP}#ct=${payload}`;
+    // email 參數已過時（LIFF 流程不需要、由 LINE OAuth 自動取得身分），保留簽名只是不破壞既有 callers
+    return `${LIFF_INVITE_URL}?invite=${token}`;
   };
 
   const copyLink = async (token: string, email: string, branchId: string) => {
