@@ -1,3 +1,7 @@
+"""get_pickings — 回傳目前 user 綁定的所有 branch 名下的銷貨單（含 stock_moves 明細）。
+改自 user_email 比對 → customer_custom_app_user_rel 反查（Task 5 backfill 後 stock_pickings 都指 branch，沒 email 可比）。"""
+
+
 def _scrub(v):
     """遞迴把 Decimal/datetime 轉成 JSON 可序列化型別（ext path 寫 action_execution_logs JSONB 會 bomb）。"""
     from decimal import Decimal
@@ -16,24 +20,19 @@ def _scrub(v):
 def execute(ctx):
     diag = {"step": "init"}
     try:
-        user_email = ctx.params.get("user_email", "")
-        diag["user_email_present"] = bool(user_email)
-        if not user_email:
-            ctx.response.json({"pickings": [], "diag": diag})
+        uid = str(getattr(ctx.user, "id", "") or "")
+        diag["uid_present"] = bool(uid)
+        if not uid:
+            ctx.response.json({"pickings": [], "diag": diag, "error": "未登入", "code": "UNAUTHORIZED"})
             return
 
-        diag["step"] = "query_customers"
-        customers = ctx.db.query("customers", limit=1000) or []
-        diag["customers_count"] = len(customers)
+        diag["step"] = "query_rels"
+        rels = ctx.db.query("customer_custom_app_user_rel", limit=2000) or []
+        my_customer_ids = {str(r.get("customer_id") or "") for r in rels
+                           if str(r.get("custom_app_user_id") or "") == uid}
+        diag["my_customer_count"] = len(my_customer_ids)
 
-        customer_id = None
-        for c in customers:
-            if c.get("email") == user_email:
-                customer_id = str(c.get("id", ""))
-                break
-        diag["customer_id"] = customer_id
-
-        if not customer_id:
+        if not my_customer_ids:
             ctx.response.json({"pickings": [], "diag": diag})
             return
 
@@ -44,7 +43,7 @@ def execute(ctx):
         ) or []
         diag["pickings_count"] = len(all_pickings)
 
-        mine = [p for p in all_pickings if str(p.get("customer_id") or "") == customer_id]
+        mine = [p for p in all_pickings if str(p.get("customer_id") or "") in my_customer_ids]
         diag["mine_count"] = len(mine)
 
         diag["step"] = "query_stock_moves"

@@ -4,7 +4,7 @@ def execute(ctx):
         ctx.response.json({"error": "缺少 token"})
         return
 
-    user_id = str(ctx.user.get("id") or ctx.user.get("custom_app_user_id") or "")
+    user_id = str(getattr(ctx.user, "id", "") or "")
     if not user_id:
         ctx.response.json({"error": "未登入"})
         return

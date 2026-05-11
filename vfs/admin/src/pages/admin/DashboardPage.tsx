@@ -23,6 +23,7 @@ export default function DashboardPage() {
     {step:'3',label:'採購單',desc:'按供應商查看採購明細',href:'/admin/daily/purchase',count:0},
     {step:'4',label:'銷貨單',desc:`${cs()} 筆已確認`,href:'/admin/daily/sales-orders',count:cs()},
     {step:'5',label:'配送管理',desc:'出貨追蹤',href:'/admin/daily/delivery',count:0},
+    {step:'6',label:'報表列印',desc:'採購單／點貨單／CSV',href:'/admin/daily/reports',count:0},
   ];
   const settingsGroups: {title:string; items:{label:string;desc:string;href:string;disabled?:boolean}[]}[] = [
     {title:'人員', items:[
@@ -34,6 +35,7 @@ export default function DashboardPage() {
     ]},
     {title:'採購組', items:[
       {label:'供應商管理', desc:'供應商資料與預設採購員指派', href:'/admin/settings/suppliers'},
+      {label:'供應商-產品對應', desc:'指定產品的進貨來源廠商', href:'/admin/settings/supplier-mapping'},
     ]},
     {title:'商品設定', items:[
       {label:'產品管理', desc:'編輯產品、上下架、分類', href:'/admin/settings/products'},
@@ -86,7 +88,7 @@ export default function DashboardPage() {
           </div>
           <div className="bg-white rounded-xl border border-gray-100 p-6">
             <h2 className="font-bold text-gray-900 mb-4">{selectedDate} 作業流程</h2>
-            <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+            <div className="grid grid-cols-2 md:grid-cols-6 gap-3">
               {steps.map(s=>(
                 <button key={s.label} onClick={()=>nav(s.href)} className="rounded-xl border border-gray-100 bg-white hover:bg-gray-50 p-4 text-left transition-colors">
                   <div className="flex items-center justify-between">

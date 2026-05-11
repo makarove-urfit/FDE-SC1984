@@ -58,7 +58,7 @@ export default function OrdersPage({ user, cutoffTime, defaultNoteMap, setProduc
   const load = async () => {
     setLoading(true); setErrorInfo(""); setEditOrderId(null);
     try {
-      const result = await db.runAction("get_orders", { user_email: user.email });
+      const result = await db.runAction("get_orders", {});
       const orders: OrderWithLines[] = (result?.orders ?? []).sort((a: any, b: any) =>
         new Date(b.order.date_order || 0).getTime() - new Date(a.order.date_order || 0).getTime()
       );
@@ -93,7 +93,7 @@ export default function OrdersPage({ user, cutoffTime, defaultNoteMap, setProduc
           return { id: l.id, qty: editQtys[l.id] ?? Number(l.product_uom_qty || 0), note: nextNote };
         }),
       });
-      const refreshed = await db.runAction("get_orders", { user_email: user.email });
+      const refreshed = await db.runAction("get_orders", {});
       const updated = (refreshed?.orders ?? []).find((i: any) => String(i.order.id) === String(orderId));
       if (updated) setItems(prev => prev.map(item => String(item.order.id) === String(orderId) ? updated : item));
       setEditOrderId(null); setSaveError("");

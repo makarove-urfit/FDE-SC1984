@@ -26,11 +26,11 @@ thead{display:table-header-group}
 `;
 
 /** 透過 window.open() 列印，避免 Shadow DOM 問題 */
-export function triggerPrint(contentElement: HTMLElement | null) {
+export function triggerPrint(contentElement: HTMLElement | null, extraCss = '') {
   if (!contentElement) return;
   const printWin = window.open('', '_blank', 'width=800,height=600');
   if (!printWin) { alert('請允許彈出視窗以使用列印功能'); return; }
-  printWin.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>列印</title><style>${PRINT_CSS}</style></head><body>${contentElement.innerHTML}</body></html>`);
+  printWin.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>列印</title><style>${PRINT_CSS}\n${extraCss}</style></head><body>${contentElement.innerHTML}</body></html>`);
   printWin.document.close();
   printWin.focus();
   setTimeout(() => { printWin.print(); setTimeout(() => printWin.close(), 1000); }, 300);
@@ -42,8 +42,8 @@ export function PrintArea({ children, printRef }: { children: ReactNode; printRe
 }
 
 /** usePrint — React Hook */
-export function usePrint() {
+export function usePrint(extraCss = '') {
   const contentRef = useRef<HTMLDivElement>(null);
-  const print = useCallback(() => { triggerPrint(contentRef.current); }, []);
+  const print = useCallback(() => { triggerPrint(contentRef.current, extraCss); }, [extraCss]);
   return { contentRef, print };
 }

@@ -1,3 +1,7 @@
+"""get_orders — 回傳目前 user 綁定的所有 branch 名下的訂單（含明細）。
+改自 user_email 比對 → customer_custom_app_user_rel 反查（Task 5 backfill 後 sale_orders 都指 branch，沒 email 可比）。"""
+
+
 def _scrub(v):
     """遞迴把 Decimal/datetime 轉成 JSON 可序列化型別（ext path 寫 action_execution_logs JSONB 會 bomb）。"""
     from decimal import Decimal
@@ -14,24 +18,20 @@ def _scrub(v):
 
 
 def execute(ctx):
-    user_email = ctx.params.get("user_email", "")
-    if not user_email:
-        ctx.response.json({"orders": []})
+    uid = str(getattr(ctx.user, "id", "") or "")
+    if not uid:
+        ctx.response.json({"orders": [], "error": "未登入", "code": "UNAUTHORIZED"})
         return
 
     try:
-        customers = ctx.db.query("customers", limit=1000) or []
+        rels = ctx.db.query("customer_custom_app_user_rel", limit=2000) or []
     except Exception:
         ctx.response.json({"orders": []})
         return
 
-    customer_id = None
-    for c in customers:
-        if c.get("email") == user_email:
-            customer_id = str(c.get("id", ""))
-            break
-
-    if not customer_id:
+    my_customer_ids = {str(r.get("customer_id") or "") for r in rels
+                       if str(r.get("custom_app_user_id") or "") == uid}
+    if not my_customer_ids:
         ctx.response.json({"orders": []})
         return
 
@@ -44,7 +44,7 @@ def execute(ctx):
         ctx.response.json({"orders": []})
         return
 
-    my_orders = [o for o in all_orders if str(o.get("customer_id") or "") == customer_id]
+    my_orders = [o for o in all_orders if str(o.get("customer_id") or "") in my_customer_ids]
 
     try:
         all_lines = ctx.db.query("sale_order_lines", limit=5000) or []

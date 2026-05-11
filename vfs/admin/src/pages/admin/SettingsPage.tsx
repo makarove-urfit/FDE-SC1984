@@ -3,12 +3,19 @@ import { useNavigate } from 'react-router-dom';
 import * as db from '../../db';
 type Holiday = { id:string; date:string; label:string };
 type CutoffSetting = { id:string; value:string } | null;
+type CompanyInfoSetting = { id: string; value: string } | null;
 const KEY_CUTOFF = 'order_cutoff_time';
+const KEY_COMPANY = 'company_info';
 export default function SettingsPage() {
   const nav = useNavigate();
   const [cutoff, setCutoff] = useState<CutoffSetting>(null);
   const [cutoffTime, setCutoffTime] = useState('14:00');
   const [cutoffBusy, setCutoffBusy] = useState(false);
+  const [company, setCompany] = useState<CompanyInfoSetting>(null);
+  const [companyName, setCompanyName] = useState('');
+  const [companyPhone, setCompanyPhone] = useState('');
+  const [companyFax, setCompanyFax] = useState('');
+  const [companyBusy, setCompanyBusy] = useState(false);
   const [holidays, setHolidays] = useState<Holiday[]>([]);
   const [newDate, setNewDate] = useState('');
   const [newLabel, setNewLabel] = useState('');
@@ -24,6 +31,17 @@ export default function SettingsPage() {
       ]);
       const cu = (rawSettings||[]).find((r:any) => (r.data?.key || r.key) === KEY_CUTOFF);
       if (cu) { const d = cu.data || cu; setCutoff({id:String(cu.id||d.id), value:String(d.value||'14:00')}); setCutoffTime(String(d.value||'14:00')); }
+      const co = (rawSettings || []).find((r: any) => (r.data?.key || r.key) === KEY_COMPANY);
+      if (co) {
+        const d = co.data || co;
+        setCompany({ id: String(co.id || d.id), value: String(d.value || '') });
+        try {
+          const parsed = JSON.parse(d.value || '{}');
+          setCompanyName(parsed.name || '');
+          setCompanyPhone(parsed.phone || '');
+          setCompanyFax(parsed.fax || '');
+        } catch { /* ignore */ }
+      }
       const today = new Date().toISOString().slice(0,10);
       const hs: Holiday[] = (rawHols||[]).map((r:any) => { const d = r.data||r; return {id:String(r.id||d.id), date:String(d.date||''), label:String(d.label||d.reason||'假日')}; })
         .filter(h => h.date && h.date >= today)
@@ -44,6 +62,21 @@ export default function SettingsPage() {
       }
       alert(`已儲存：${cutoffTime}`);
     } catch(e:any) { alert(e?.message||'儲存失敗'); } finally { setCutoffBusy(false); }
+  };
+  const saveCompany = async () => {
+    setCompanyBusy(true);
+    try {
+      const payload = JSON.stringify({ name: companyName.trim(), phone: companyPhone.trim(), fax: companyFax.trim() });
+      const now = new Date().toISOString();
+      if (company) {
+        await db.updateCustom(company.id, { key: KEY_COMPANY, value: payload, updated_at: now });
+      } else {
+        const created = await db.insertCustom('x_app_settings', { key: KEY_COMPANY, value: payload, updated_at: now });
+        setCompany({ id: String(created?.id || ''), value: payload });
+      }
+      alert('已儲存公司資訊');
+    } catch (e: any) { alert(e?.message || '儲存失敗'); }
+    finally { setCompanyBusy(false); }
   };
   const addHoliday = async () => {
     if (!newDate) { alert('請選擇日期'); return; }
@@ -104,6 +137,27 @@ export default function SettingsPage() {
               <button onClick={saveCutoff} disabled={cutoffBusy} className="px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 disabled:opacity-50">{cutoffBusy?'儲存中...':'儲存'}</button>
             </div>
           }
+        </section>
+        <section className="bg-white rounded-xl border border-gray-100 p-6 space-y-4">
+          <h2 className="text-lg font-bold text-gray-900">公司資訊</h2>
+          <p className="text-sm text-gray-500">將顯示在點貨單抬頭。</p>
+          {loading ? <p className="text-sm text-gray-400">載入中...</p> : (
+            <div className="space-y-2">
+              <input type="text" placeholder="公司名稱（如：雄泉鮮食企業股份有限公司）" value={companyName}
+                onChange={e => setCompanyName(e.target.value)}
+                className="w-full px-3 py-2 border border-gray-200 rounded-lg bg-gray-50 text-sm text-gray-700" />
+              <input type="text" placeholder="連絡電話" value={companyPhone}
+                onChange={e => setCompanyPhone(e.target.value)}
+                className="w-full px-3 py-2 border border-gray-200 rounded-lg bg-gray-50 text-sm text-gray-700" />
+              <input type="text" placeholder="傳真號碼" value={companyFax}
+                onChange={e => setCompanyFax(e.target.value)}
+                className="w-full px-3 py-2 border border-gray-200 rounded-lg bg-gray-50 text-sm text-gray-700" />
+              <button onClick={saveCompany} disabled={companyBusy}
+                className="px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 disabled:opacity-50">
+                {companyBusy ? '儲存中...' : '儲存'}
+              </button>
+            </div>
+          )}
         </section>
         <section className="bg-white rounded-xl border border-gray-100 p-6 space-y-4">
           <div className="flex items-center justify-between">

@@ -6,6 +6,7 @@ import ProcurementPage from "./pages/admin/ProcurementPage";
 import StockPage from "./pages/admin/StockPage";
 import SalesOrdersPage from "./pages/admin/SalesOrdersPage";
 import DeliveryPage from "./pages/admin/DeliveryPage";
+import ReportsPage from "./pages/admin/ReportsPage";
 import ProductsPage from "./pages/admin/ProductsPage";
 import ProductCategoriesPage from "./pages/admin/ProductCategoriesPage";
 import CategoryBuyerPage from "./pages/admin/CategoryBuyerPage";
@@ -29,6 +30,7 @@ export default function App() {
       <Route path="/admin/daily/purchase" element={<StockPage />} />
       <Route path="/admin/daily/sales-orders" element={<SalesOrdersPage />} />
       <Route path="/admin/daily/delivery" element={<DeliveryPage />} />
+      <Route path="/admin/daily/reports" element={<ReportsPage />} />
       <Route path="/admin/settings" element={<DashboardPage />} />
       <Route path="/admin/settings/products" element={<ProductsPage />} />
       <Route path="/admin/settings/product-categories" element={<ProductCategoriesPage />} />

@@ -1,26 +1,39 @@
+"""place_order — 客戶下單。改吃前端傳的 branch_id，verify rel 通過才寫入 customer_id。
+單元測試在 tests/test_place_order_auth.py，不可放在這支檔案（沙箱無 __name__、NameError 等 builtins）。"""
+
+def _is_authorized(uid, branch_id, rels):
+    """純函式：給定 uid、branch_id、rel list，判斷 user 是否真的綁這個 branch。"""
+    return any(
+        str(r.get("custom_app_user_id") or "") == uid
+        and str(r.get("customer_id") or "") == branch_id
+        for r in rels
+    )
+
+
 def execute(ctx):
     from datetime import datetime, timezone, timedelta
 
     items = ctx.params.get("items", [])
+    branch_id = str(ctx.params.get("branch_id") or "")
     note = ctx.params.get("note", "")
     delivery_date = ctx.params.get("delivery_date", "")
-    user_email = ctx.params.get("user_email", "")
+    uid = str(getattr(ctx.user, "id", "") or "")
 
-    if not items or not user_email:
-        ctx.response.json({"error": "缺少必要參數"})
+    if not items or not branch_id:
+        ctx.response.json({"error": "缺少必要參數（items / branch_id）"})
         return
-
+    if not uid:
+        ctx.response.json({"error": "未登入", "code": "UNAUTHORIZED"})
+        return
     if not delivery_date:
         ctx.response.json({"error": "未指定配送日期", "code": "DATE_BLOCKED"})
         return
 
     tw_now = datetime.now(timezone(timedelta(hours=8)))
     today_tw = tw_now.strftime("%Y-%m-%d")
-
     if delivery_date < today_tw:
         ctx.response.json({"error": "配送日期已過，請改選新的配送日期", "code": "DATE_BLOCKED"})
         return
-
     if delivery_date == today_tw:
         cutoff_time = ""
         try:
@@ -43,28 +56,19 @@ def execute(ctx):
             except Exception:
                 pass
 
+    # ── 權限驗證：user 必須真的綁這個 branch ──
+    try:
+        rels = ctx.db.query("customer_custom_app_user_rel", limit=2000) or []
+    except Exception as e:
+        ctx.response.json({"error": "權限驗證暫時不可用，請稍後再試", "code": "SERVER_ERROR", "detail": str(e)})
+        return
+    if not _is_authorized(uid, branch_id, rels):
+        ctx.response.json({"error": "無權對此分店下單", "code": "BRANCH_FORBIDDEN"})
+        return
+
+    customer_id = branch_id
     today = delivery_date
     date_order = datetime.now(timezone.utc).strftime("%Y-%m-%d")
-
-    # ctx.db.query 只支援 limit，無 filter，需 Python 側過濾
-    customers = ctx.db.query("customers", limit=500)
-    customer_id = None
-    for c in (customers or []):
-        if c.get("email") == user_email:
-            customer_id = c.get("id")
-            break
-
-    if not customer_id:
-        new_cust = ctx.db.insert("customers", {
-            "name": user_email.split("@")[0],
-            "email": user_email,
-            "customer_type": "company",
-        })
-        customer_id = new_cust.get("id") if new_cust else None
-
-    if not customer_id:
-        ctx.response.json({"error": "無法找到或建立客戶記錄"})
-        return
 
     order_note = f"配送日期：{today}"
     if note:
@@ -76,7 +80,6 @@ def execute(ctx):
         "note": order_note,
         "state": "draft",
     })
-
     order_id = order.get("id") if order else None
     if not order_id:
         ctx.response.json({"error": "建立訂單失敗"})
@@ -105,3 +108,4 @@ def execute(ctx):
         "delivery_date": today,
         "items_count": len(items),
     })
+

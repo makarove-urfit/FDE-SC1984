@@ -10,6 +10,8 @@ import BottomNav from "./components/BottomNav";
 import * as db from "./db";
 import { Category } from "./pages/useCatalogData";
 import { Product } from "./pages/CatalogProductCard";
+import BranchPicker from "./components/BranchPicker";
+import { getSelectedBranch, setSelectedBranch as saveSelectedBranch, clearSelectedBranch, type SelectedBranch } from "./utils/branchSession";
 
 function toYMD(d: Date): string {
   return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
@@ -100,6 +102,11 @@ export default function App() {
   const [categories, setCategories] = useState<Category[]>([]);
   const [allTemplates, setAllTemplates] = useState<Product[]>([]);
   const [configLoaded, setConfigLoaded] = useState(false);
+  const [selectedBranch, setSelectedBranchState] = useState<SelectedBranch | null>(getSelectedBranch);
+  const [branches, setBranches] = useState<SelectedBranch[]>([]);
+  const [branchesLoading, setBranchesLoading] = useState(false);
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const [pickerCanDismiss, setPickerCanDismiss] = useState(false);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -153,6 +160,27 @@ export default function App() {
       }).catch(() => {});
   }, [user]);
 
+  useEffect(() => {
+    if (!user) return;
+    setBranchesLoading(true);
+    db.runAction("list_my_branches", {})
+      .then((d: any) => {
+        const list = Array.isArray(d?.branches) ? d.branches : [];
+        setBranches(list);
+        const cur = getSelectedBranch();
+        if (cur && list.some((b: SelectedBranch) => b.branch_id === cur.branch_id)) {
+          setSelectedBranchState(cur);
+        } else {
+          clearSelectedBranch();
+          setSelectedBranchState(null);
+          setPickerCanDismiss(false);
+          setPickerOpen(true);
+        }
+      })
+      .catch(() => {})
+      .finally(() => setBranchesLoading(false));
+  }, [user]);
+
   const navigate = (path: string) => { window.location.hash = path; setCurrentPath(path); };
   useEffect(() => {
     const onHash = () => setCurrentPath(getPath());
@@ -166,6 +194,22 @@ export default function App() {
     (window as any).__APP_TOKEN__ = "";
     setUser(null); setCart([]); setUomMap({}); setHolidays(new Set()); setPriceMap({});
     setCategories([]); setAllTemplates([]); navigate("/products");
+  };
+
+  const handleSelectBranch = (b: SelectedBranch) => {
+    saveSelectedBranch(b);
+    setSelectedBranchState(b);
+    setPickerOpen(false);
+  };
+  const handleOpenSwitcher = () => {
+    setPickerCanDismiss(true);
+    setPickerOpen(true);
+  };
+  const handleInvalidateBranch = () => {
+    clearSelectedBranch();
+    setSelectedBranchState(null);
+    setPickerCanDismiss(false);
+    setPickerOpen(true);
   };
 
   const addToCart = (productId: string, qty: number, delivDate: string) => {
@@ -221,18 +265,32 @@ export default function App() {
   if (INVITE_TOKEN && !user) return <InvitePage token={INVITE_TOKEN} defaultEmail={INVITE_EMAIL} onLogin={handleLogin} />;
   if (!user) return <LoginPage onLogin={handleLogin} />;
 
-  return <AppShell user={user} cart={cart} addToCart={addToCart} setCartExact={setCartExact} clearCartDate={clearCartDate} setCartItemNote={setCartItemNote}
-    uomMap={uomMap} holidays={holidays} priceMap={priceMap} allTemplates={allTemplates} categories={categories}
-    configLoaded={configLoaded} cutoffTime={cutoffTime} deliveryDate={deliveryDate} setDeliveryDate={setDeliveryDate}
-    changeCartGroupDate={changeCartGroupDate}
-    cartCount={cartCount} currentPath={currentPath} navigate={navigate} onLogout={handleLogout} />;
+  return (
+    <>
+      <AppShell user={user} cart={cart} addToCart={addToCart} setCartExact={setCartExact} clearCartDate={clearCartDate} setCartItemNote={setCartItemNote}
+        uomMap={uomMap} holidays={holidays} priceMap={priceMap} allTemplates={allTemplates} categories={categories}
+        configLoaded={configLoaded} cutoffTime={cutoffTime} deliveryDate={deliveryDate} setDeliveryDate={setDeliveryDate}
+        changeCartGroupDate={changeCartGroupDate}
+        cartCount={cartCount} currentPath={currentPath} navigate={navigate} onLogout={handleLogout}
+        selectedBranch={selectedBranch} onOpenBranchSwitcher={handleOpenSwitcher} onInvalidateBranch={handleInvalidateBranch} />
+      {pickerOpen && (
+        <BranchPicker
+          branches={branches}
+          loading={branchesLoading}
+          canDismiss={pickerCanDismiss}
+          onSelect={handleSelectBranch}
+          onDismiss={() => setPickerOpen(false)}
+        />
+      )}
+    </>
+  );
 }
 
-function AppShell({ user, cart, addToCart, setCartExact, clearCartDate, setCartItemNote, uomMap, holidays, priceMap, allTemplates, categories, configLoaded, cutoffTime, deliveryDate, setDeliveryDate, changeCartGroupDate, cartCount, currentPath, navigate, onLogout }: any) {
+function AppShell({ user, cart, addToCart, setCartExact, clearCartDate, setCartItemNote, uomMap, holidays, priceMap, allTemplates, categories, configLoaded, cutoffTime, deliveryDate, setDeliveryDate, changeCartGroupDate, cartCount, currentPath, navigate, onLogout, selectedBranch, onOpenBranchSwitcher, onInvalidateBranch }: any) {
   const { favoriteSet, toggleFavorite, defaultNoteMap, setProductDefaultNote, favoritesLoading } = useFavorites(user?.id || "");
   const pages: Record<string, React.ReactNode> = {
     "/products": <CatalogPage user={user} cart={cart} addToCart={addToCart} setCartExact={setCartExact} uomMap={uomMap} deliveryDate={deliveryDate} setDeliveryDate={setDeliveryDate} holidays={holidays} priceMap={priceMap} allTemplates={allTemplates} categories={categories} configLoaded={configLoaded} favoriteSet={favoriteSet} toggleFavorite={toggleFavorite} />,
-    "/cart": <CartPage cart={cart} addToCart={addToCart} setCartExact={setCartExact} clearCartDate={clearCartDate} setCartItemNote={setCartItemNote} onNavigate={navigate} setDeliveryDate={setDeliveryDate} uomMap={uomMap} user={user} priceMap={priceMap} allTemplates={allTemplates} defaultNoteMap={defaultNoteMap} setProductDefaultNote={setProductDefaultNote} favoritesLoading={favoritesLoading} cutoffTime={cutoffTime} holidays={holidays} changeCartGroupDate={changeCartGroupDate} />,
+    "/cart": <CartPage cart={cart} addToCart={addToCart} setCartExact={setCartExact} clearCartDate={clearCartDate} setCartItemNote={setCartItemNote} onNavigate={navigate} setDeliveryDate={setDeliveryDate} uomMap={uomMap} priceMap={priceMap} allTemplates={allTemplates} defaultNoteMap={defaultNoteMap} setProductDefaultNote={setProductDefaultNote} favoritesLoading={favoritesLoading} cutoffTime={cutoffTime} holidays={holidays} changeCartGroupDate={changeCartGroupDate} selectedBranch={selectedBranch} onBranchInvalid={onInvalidateBranch} />,
     "/orders": <OrdersPage user={user} cutoffTime={cutoffTime} defaultNoteMap={defaultNoteMap} setProductDefaultNote={setProductDefaultNote} favoritesLoading={favoritesLoading} />,
     "/pickings": <PickingsPage user={user} />,
   };
@@ -241,7 +299,22 @@ function AppShell({ user, cart, addToCart, setCartExact, clearCartDate, setCartI
     <div className="app-shell">
       <header className="app-topbar">
         <h1>雄泉鮮食</h1>
-        <button className="logout-btn" onClick={onLogout}>登出</button>
+        <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+          {selectedBranch && (
+            <button
+              onClick={onOpenBranchSwitcher}
+              style={{
+                background: "#f0f4ff", border: "1px solid #cdd9ff",
+                borderRadius: 16, padding: "4px 12px", fontSize: 13,
+                cursor: "pointer", color: "#3344aa",
+              }}
+              title="點擊切換分店"
+            >
+              分店：{selectedBranch.branch_name}
+            </button>
+          )}
+          <button className="logout-btn" onClick={onLogout}>登出</button>
+        </div>
       </header>
       <main className="app-page">{pages[currentPath] || pages["/products"]}</main>
       <BottomNav currentPath={currentPath} onNavigate={navigate} cartCount={cartCount} />

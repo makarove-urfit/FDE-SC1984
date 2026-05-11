@@ -1,14 +1,115 @@
-import { useState, useEffect, useMemo } from 'react';
+// 主供應商 SSOT：product_templates.custom_data.default_supplier_id（與 ProcurementPage / ProductsPage / reportData 同源）
+// 不寫 product_supplierinfo — 該表 partner_id NOT NULL 但平台 ctx.db.insert 不接受 partner_id 欄位，無法直接 INSERT。
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import * as db from '../../db';
-type Mapping = { id:string; productTmplId:string; supplierId:string };
+type Mapping = { productTmplId:string; supplierId:string };
 type Opt = { id:string; name:string };
+type Sup = { id:string; name:string; active:boolean };
+type Tmpl = { id:string; name:string; customData:any };
 const resolveId = (raw:any) => Array.isArray(raw) ? String(raw[0]||'') : String(raw||'');
+
+function SearchSelect({ options, value, onChange, placeholder }: {
+  options: Opt[];
+  value: string;
+  onChange: (id: string) => void;
+  placeholder: string;
+}) {
+  const [q, setQ] = useState('');
+  const [open, setOpen] = useState(false);
+  const [hi, setHi] = useState(0);
+  const wrapRef = useRef<HTMLDivElement>(null);
+  const internalRef = useRef(false);
+
+  useEffect(() => {
+    if (internalRef.current) { internalRef.current = false; return; }
+    if (!value) { setQ(''); return; }
+    const opt = options.find(o => o.id === value);
+    if (opt) setQ(opt.name);
+  }, [value, options]);
+
+  useEffect(() => {
+    const onDoc = (e: MouseEvent) => {
+      if (wrapRef.current && !wrapRef.current.contains(e.target as Node)) {
+        setOpen(false);
+        const opt = options.find(o => o.id === value);
+        setQ(opt?.name || '');
+      }
+    };
+    document.addEventListener('mousedown', onDoc);
+    return () => document.removeEventListener('mousedown', onDoc);
+  }, [options, value]);
+
+  const filtered = useMemo(() => {
+    const qq = q.trim().toLowerCase();
+    if (!qq) return options;
+    return options.filter(o => o.name.toLowerCase().includes(qq));
+  }, [options, q]);
+
+  useEffect(() => { setHi(0); }, [q]);
+
+  const commit = (opt: Opt) => {
+    internalRef.current = true;
+    onChange(opt.id);
+    setQ(opt.name);
+    setOpen(false);
+  };
+
+  return (
+    <div ref={wrapRef} style={{ position: 'relative', flex: 1, minWidth: '12rem' }}>
+      <input
+        type="text"
+        value={q}
+        onChange={e => {
+          setQ(e.target.value);
+          setOpen(true);
+          if (value) { internalRef.current = true; onChange(''); }
+        }}
+        onFocus={() => setOpen(true)}
+        onKeyDown={e => {
+          if (!open) return;
+          if (e.key === 'ArrowDown') { e.preventDefault(); setHi(i => Math.min(i+1, filtered.length-1)); }
+          else if (e.key === 'ArrowUp') { e.preventDefault(); setHi(i => Math.max(i-1, 0)); }
+          else if (e.key === 'Enter' && filtered[hi]) { e.preventDefault(); commit(filtered[hi]); }
+          else if (e.key === 'Escape') setOpen(false);
+        }}
+        placeholder={placeholder}
+        className="w-full border border-gray-200 rounded px-3 py-1.5 text-sm bg-white"
+      />
+      {open && (
+        <ul style={{
+          position: 'absolute', left: 0, right: 0, top: 'calc(100% + 4px)',
+          maxHeight: '15rem', overflowY: 'auto',
+          background: '#fff', border: '1px solid #e5e7eb', borderRadius: '8px',
+          boxShadow: '0 10px 15px -3px rgba(0,0,0,0.1), 0 4px 6px -4px rgba(0,0,0,0.1)',
+          listStyle: 'none', margin: 0, padding: '4px 0', zIndex: 50,
+        }}>
+          {filtered.length === 0 ? (
+            <li style={{ padding: '6px 12px', fontSize: 13, color: '#9ca3af' }}>無符合項目</li>
+          ) : filtered.map((o, i) => (
+            <li
+              key={o.id}
+              onMouseDown={e => { e.preventDefault(); commit(o); }}
+              onMouseEnter={() => setHi(i)}
+              style={{
+                padding: '6px 12px', fontSize: 13, cursor: 'pointer',
+                background: i === hi ? '#eff6ff' : 'transparent',
+                color: o.id === value ? '#1d4ed8' : '#1f2937',
+                fontWeight: o.id === value ? 600 : 400,
+              }}
+            >
+              {o.name}
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
 export default function SupplierMappingPage() {
   const nav = useNavigate();
-  const [maps, setMaps] = useState<Mapping[]>([]);
-  const [tmpls, setTmpls] = useState<Opt[]>([]);
-  const [sups, setSups] = useState<Opt[]>([]);
+  const [tmpls, setTmpls] = useState<Tmpl[]>([]);
+  const [sups, setSups] = useState<Sup[]>([]);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState('');
   const [showForm, setShowForm] = useState(false);
@@ -18,29 +119,53 @@ export default function SupplierMappingPage() {
   const load = async () => {
     setLoading(true); setErr('');
     try {
-      const [rawMaps, rawTmpls, rawSups] = await Promise.all([
-        db.query('product_supplierinfo'),
-        db.queryFiltered('product_templates', [{column:'active',op:'eq',value:true}]),
-        db.queryFiltered('suppliers', [{column:'active',op:'eq',value:true}]),
+      const [rawTmpls, rawSups] = await Promise.all([
+        db.query('product_templates'),   // 全查；用 convention r.active !== false 篩，避免 active=null 被 SQL 過濾漏掉
+        db.query('suppliers'),
       ]);
-      setMaps((rawMaps||[]).map((r:any)=>({id:String(r.id), productTmplId:resolveId(r.product_tmpl_id), supplierId:resolveId(r.supplier_id)})));
-      setTmpls((rawTmpls||[]).map((r:any)=>({id:String(r.id), name:String(r.name||'')})).sort((a,b)=>a.name.localeCompare(b.name,'zh-Hant')));
-      setSups((rawSups||[]).map((r:any)=>({id:String(r.id), name:String(r.name||'')})).sort((a,b)=>a.name.localeCompare(b.name,'zh-Hant')));
+      setTmpls((rawTmpls||[])
+        .filter((r:any) => r.active !== false)
+        .map((r:any)=>({id:String(r.id), name:String(r.name||''), customData:r.custom_data||{}}))
+        .sort((a,b)=>a.name.localeCompare(b.name,'zh-Hant')));
+      setSups((rawSups||[])
+        .map((r:any)=>({id:String(r.id), name:String(r.name||''), active: r.active !== false}))
+        .sort((a,b)=>a.name.localeCompare(b.name,'zh-Hant')));
     } catch(e:any) { setErr(e?.message||'載入失敗'); } finally { setLoading(false); }
   };
   useEffect(()=>{ load(); }, []);
+  const tmplOpts: Opt[] = useMemo(() => tmpls.map(t => ({id:t.id, name:t.name})), [tmpls]);
+  const supOpts: Opt[] = useMemo(() => sups.filter(s => s.active).map(s => ({id:s.id, name:s.name})), [sups]);
   const tmplName = (id:string) => tmpls.find(t=>t.id===id)?.name || id;
-  const supName = (id:string) => sups.find(s=>s.id===id)?.name || id;
+  const supName = (id:string) => {
+    const s = sups.find(x => x.id === id);
+    if (!s) return `（找不到供應商 ${id}）`;
+    return s.active ? s.name : `[已停用] ${s.name}`;
+  };
+  const maps: Mapping[] = useMemo(() => tmpls
+    .map(t => ({ productTmplId: t.id, supplierId: resolveId(t.customData?.default_supplier_id) }))
+    .filter(m => m.supplierId), [tmpls]);
   const add = async () => {
     if (!tmplId || !supId) { alert('請選擇產品與供應商'); return; }
+    const cur = tmpls.find(t => t.id === tmplId)?.customData || {};
+    const existing = resolveId(cur.default_supplier_id);
+    if (existing && existing !== supId) {
+      if (!confirm(`「${tmplName(tmplId)}」目前已對應「${supName(existing)}」，要改成「${supName(supId)}」嗎？`)) return;
+    }
     setBusy(true);
-    try { await db.insert('product_supplierinfo', {product_tmpl_id: tmplId, supplier_id: supId}); setTmplId(''); setSupId(''); setShowForm(false); await load(); }
-    catch(e:any) { alert(e?.message||'新增失敗'); } finally { setBusy(false); }
+    try {
+      await db.update('product_templates', tmplId, { custom_data: { ...cur, default_supplier_id: supId } });
+      setTmplId(''); setSupId(''); setShowForm(false); await load();
+    } catch(e:any) { alert(e?.message||'新增失敗'); } finally { setBusy(false); }
   };
-  const del = async (id:string) => {
+  const del = async (productTmplId:string) => {
     if (!confirm('刪除此對應？')) return;
-    try { await db.deleteRow('product_supplierinfo', id); await load(); }
-    catch(e:any) { alert(e?.message||'刪除失敗'); }
+    try {
+      const cur = tmpls.find(t => t.id === productTmplId)?.customData || {};
+      const { default_supplier_id, ...rest } = cur;
+      void default_supplier_id;
+      await db.update('product_templates', productTmplId, { custom_data: rest });
+      await load();
+    } catch(e:any) { alert(e?.message||'刪除失敗'); }
   };
   const grouped = useMemo(() => {
     const m = new Map<string, Mapping[]>();
@@ -64,14 +189,8 @@ export default function SupplierMappingPage() {
           <div className="bg-white rounded-xl border border-gray-100 p-4 space-y-3">
             <p className="font-medium text-gray-700">新增對應</p>
             <div className="flex gap-3 flex-wrap">
-              <select value={tmplId} onChange={e=>setTmplId(e.target.value)} className="border border-gray-200 rounded px-3 py-1.5 text-sm bg-white flex-1 min-w-48">
-                <option value="">選擇產品...</option>
-                {tmpls.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
-              </select>
-              <select value={supId} onChange={e=>setSupId(e.target.value)} className="border border-gray-200 rounded px-3 py-1.5 text-sm bg-white flex-1 min-w-48">
-                <option value="">選擇供應商...</option>
-                {sups.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
-              </select>
+              <SearchSelect options={tmplOpts} value={tmplId} onChange={setTmplId} placeholder="搜尋產品..." />
+              <SearchSelect options={supOpts} value={supId} onChange={setSupId} placeholder="搜尋供應商..." />
               <button onClick={add} disabled={busy} className="px-4 py-1.5 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 disabled:opacity-50">確認新增</button>
               <button onClick={()=>setShowForm(false)} className="px-4 py-1.5 bg-gray-100 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-200">取消</button>
             </div>
@@ -90,9 +209,9 @@ export default function SupplierMappingPage() {
                   </header>
                   <ul className="divide-y divide-gray-50">
                     {items.map(m => (
-                      <li key={m.id} className="flex items-center justify-between px-4 py-2.5">
+                      <li key={m.productTmplId} className="flex items-center justify-between px-4 py-2.5">
                         <span className="text-sm text-gray-800">{tmplName(m.productTmplId)}</span>
-                        <button onClick={()=>del(m.id)} className="px-2 py-1 text-xs text-red-600 hover:bg-red-50 rounded">刪除</button>
+                        <button onClick={()=>del(m.productTmplId)} className="px-2 py-1 text-xs text-red-600 hover:bg-red-50 rounded">刪除</button>
                       </li>
                     ))}
                   </ul>
