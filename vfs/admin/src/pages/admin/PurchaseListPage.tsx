@@ -39,12 +39,23 @@ const resolveId = (raw: any) => Array.isArray(raw) ? String(raw[0] || '') : Stri
 export default function PurchaseListPage() {
   const nav = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
-  const { orders, customers, orderLines: lines, products, uomMap, suppliers, loading, refresh, selectedDate, setSelectedDate } = useData();
+  const { orders, customers, orderLines: lines, products, productProducts, uomMap, suppliers, loading, refresh, selectedDate, setSelectedDate } = useData();
   const tmplUom = useMemo(() => {
     const m: Record<string, string> = {};
     for (const p of products) if (p.uom_id) m[p.id] = uomMap[p.uom_id] || '';
     return m;
   }, [products, uomMap]);
+
+  // template UUID → product_products UUID（price_log 以 product_products.id 為 key，與 ProcurementPage 同源）
+  const tmplToPp = useMemo(() => {
+    const m: Record<string, string> = {};
+    const _qn = (v: any) => Array.isArray(v) ? String(v[0]) : String(v || '');
+    for (const pp of productProducts) {
+      const tmplId = _qn(pp.product_tmpl_id);
+      if (tmplId && pp.id) m[tmplId] = String(pp.id);
+    }
+    return m;
+  }, [productProducts]);
 
   const view = (searchParams.get('view') as 'raw' | 'customer' | 'product') || 'raw';
   const setView = (v: 'raw' | 'customer' | 'product') => {
@@ -66,9 +77,13 @@ export default function PurchaseListPage() {
 
   const priceMap = useMemo(() => {
     const map: Record<string, number> = {};
-    const sorted = [...priceLogs].sort((a: any, b: any) =>
-      String(b.effective_date || '').localeCompare(String(a.effective_date || ''))
-    );
+    // 排序：effective_date 降序為主、updated_at 降序為輔
+    // 同一天可能有多筆 price_log（每次按「更新」都 insert 新一筆），用 updated_at tie-break 取最近寫入
+    const sorted = [...priceLogs].sort((a: any, b: any) => {
+      const dc = String(b.effective_date || '').localeCompare(String(a.effective_date || ''));
+      if (dc !== 0) return dc;
+      return String(b.updated_at || '').localeCompare(String(a.updated_at || ''));
+    });
     for (const entry of sorted) {
       const pid = String(entry.product_product_id || ''); const price = Number(entry.lst_price || 0);
       const effDate = String(entry.effective_date || '');
@@ -95,7 +110,8 @@ export default function PurchaseListPage() {
     lines
       .filter(l => orderList.some(o => o.id === l.order_id))
       .map(l => {
-        const pid = l.product_template_id||l.product_id;
+        const rawId = l.product_template_id||l.product_id;
+        const pid = tmplToPp[rawId] || rawId;
         const price = priceMap[pid] ?? Number(l.price_unit||0);
         const qty = Number(l.product_uom_qty||0);
         return { id: l.id, name: l.name||'—', qty, price, subtotal: Math.round(qty*price), fromLog: pid != null && priceMap[pid] != null && priceMap[pid] !== Number(l.price_unit||0) };
@@ -115,7 +131,8 @@ export default function PurchaseListPage() {
       const g = map.get(cid)!;
       g.orders.push(o);
       for (const l of lines.filter(l => l.order_id === o.id)) {
-        const pid = l.product_template_id||l.product_id||l.id;
+        const rawId = l.product_template_id||l.product_id||l.id;
+        const pid = tmplToPp[rawId] || rawId;
         const price = priceMap[pid] ?? Number(l.price_unit||0);
         const qty = Number(l.product_uom_qty||0);
         const ex = g.prodMap.get(pid) || { name: l.name||'—', qty: 0, price, fromLog: pid != null && priceMap[pid] != null && priceMap[pid] !== Number(l.price_unit||0) };
@@ -124,7 +141,7 @@ export default function PurchaseListPage() {
       }
     }
     return map;
-  }, [draftOrders, lines, priceMap]);
+  }, [draftOrders, lines, priceMap, tmplToPp]);
 
   // tmpl_id → supplier_id（與 ProcurementPage 同源：product_templates.custom_data.default_supplier_id）
   const tmplSupplierMap = useMemo(() => {
