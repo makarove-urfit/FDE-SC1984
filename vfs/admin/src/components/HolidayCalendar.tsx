@@ -7,6 +7,7 @@ interface Props {
   busy: boolean;
   onAdd: (date: string) => Promise<void>;
   onRemove: (id: string) => Promise<void>;
+  onUpdateReason: (id: string, reason: string) => Promise<void>;
   onImportMondays: () => Promise<void>;
 }
 
@@ -52,10 +53,12 @@ function buildCells(year: number, month: number, holidayMap: Map<string, Holiday
   return cells;
 }
 
-export default function HolidayCalendar({ holidays, busy, onAdd, onRemove, onImportMondays }: Props) {
+export default function HolidayCalendar({ holidays, busy, onAdd, onRemove, onUpdateReason, onImportMondays }: Props) {
   const now = new Date();
   const [viewYear, setViewYear] = useState(now.getFullYear());
   const [viewMonth, setViewMonth] = useState(now.getMonth());
+  const [editing, setEditing] = useState<Holiday | null>(null);
+  const [editReason, setEditReason] = useState('');
 
   const holidayMap = useMemo(() => {
     const m = new Map<string, Holiday>();
@@ -90,8 +93,25 @@ export default function HolidayCalendar({ holidays, busy, onAdd, onRemove, onImp
       setViewMonth(m - 1);
       return;
     }
-    if (cell.holiday) await onRemove(cell.holiday.id);
-    else await onAdd(cell.iso);
+    if (cell.holiday) {
+      setEditing(cell.holiday);
+      setEditReason(cell.holiday.reason);
+    } else {
+      await onAdd(cell.iso);
+    }
+  };
+
+  const closeEdit = () => { setEditing(null); setEditReason(''); };
+  const saveEdit = async () => {
+    if (!editing) return;
+    const trimmed = editReason.trim() || '公休';
+    if (trimmed !== editing.reason) await onUpdateReason(editing.id, trimmed);
+    closeEdit();
+  };
+  const removeFromEdit = async () => {
+    if (!editing) return;
+    await onRemove(editing.id);
+    closeEdit();
   };
 
   const gridStyle: React.CSSProperties = {
@@ -154,11 +174,12 @@ export default function HolidayCalendar({ holidays, busy, onAdd, onRemove, onImp
             fontWeight: 500,
             transition: 'background-color 0.15s',
           };
+          const showHolidayStyle = isHoliday && cell.isCurrentMonth;
           let bg = 'transparent';
           let color = '#374151';
           let border = '1px solid transparent';
           if (!cell.isCurrentMonth) color = '#d1d5db';
-          else if (isHoliday) { bg = '#fef2f2'; color = '#b91c1c'; border = '1px solid #fecaca'; }
+          else if (showHolidayStyle) { bg = '#fef2f2'; color = '#b91c1c'; border = '1px solid #fecaca'; }
           else if (cell.isWeekend) color = '#dc2626';
           if (cell.isToday) border = '2px solid #3b82f6';
 
@@ -169,14 +190,14 @@ export default function HolidayCalendar({ holidays, busy, onAdd, onRemove, onImp
               style={{ ...baseStyle, background: bg, color, border }}
               title={cell.holiday?.reason || ''}
               onMouseEnter={(e) => {
-                if (!isHoliday && cell.isCurrentMonth) (e.currentTarget as HTMLDivElement).style.background = '#f9fafb';
+                if (!showHolidayStyle && cell.isCurrentMonth) (e.currentTarget as HTMLDivElement).style.background = '#f9fafb';
               }}
               onMouseLeave={(e) => {
-                (e.currentTarget as HTMLDivElement).style.background = isHoliday ? '#fef2f2' : 'transparent';
+                (e.currentTarget as HTMLDivElement).style.background = showHolidayStyle ? '#fef2f2' : 'transparent';
               }}
             >
               {cell.day}
-              {isHoliday && (
+              {showHolidayStyle && (
                 <span
                   style={{
                     position: 'absolute',
@@ -198,8 +219,108 @@ export default function HolidayCalendar({ holidays, busy, onAdd, onRemove, onImp
       </div>
 
       <p className="text-xs text-gray-400 mt-3">
-        點空白日新增為公休；點紅色日取消。週末顯示紅色只是樣式，未列為假日。
+        點空白日 → 直接新增為「公休」；點紅色日 → 開啟編輯視窗，可改原因或取消假日。
       </p>
+
+      {editing && (
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            background: 'rgba(0,0,0,0.4)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 1000,
+          }}
+          onClick={closeEdit}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              background: '#fff',
+              padding: '20px',
+              borderRadius: '12px',
+              width: '320px',
+              maxWidth: '90%',
+              boxShadow: '0 10px 30px rgba(0,0,0,0.15)',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '12px',
+            }}
+          >
+            <div style={{ fontWeight: 600, fontSize: '15px', color: '#111827' }}>
+              編輯假日 — {editing.date}
+            </div>
+            <div>
+              <div style={{ fontSize: '12px', color: '#6b7280', marginBottom: '4px' }}>休假原因</div>
+              <input
+                type="text"
+                value={editReason}
+                onChange={(e) => setEditReason(e.target.value)}
+                placeholder="公休"
+                autoFocus
+                onKeyDown={(e) => { if (e.key === 'Enter') saveEdit(); }}
+                style={{
+                  width: '100%',
+                  padding: '8px 10px',
+                  border: '1px solid #e5e7eb',
+                  borderRadius: '8px',
+                  fontSize: '14px',
+                  background: '#f9fafb',
+                  color: '#111827',
+                  boxSizing: 'border-box',
+                }}
+              />
+            </div>
+            <div style={{ display: 'flex', gap: '8px', justifyContent: 'space-between', marginTop: '4px' }}>
+              <button
+                onClick={removeFromEdit}
+                disabled={busy}
+                style={{
+                  padding: '8px 12px',
+                  background: '#fef2f2',
+                  color: '#b91c1c',
+                  border: '1px solid #fecaca',
+                  borderRadius: '8px',
+                  fontSize: '13px',
+                  fontWeight: 500,
+                  cursor: 'pointer',
+                }}
+              >取消假日</button>
+              <div style={{ display: 'flex', gap: '8px' }}>
+                <button
+                  onClick={closeEdit}
+                  style={{
+                    padding: '8px 12px',
+                    background: 'transparent',
+                    color: '#6b7280',
+                    border: '1px solid #e5e7eb',
+                    borderRadius: '8px',
+                    fontSize: '13px',
+                    fontWeight: 500,
+                    cursor: 'pointer',
+                  }}
+                >關閉</button>
+                <button
+                  onClick={saveEdit}
+                  disabled={busy}
+                  style={{
+                    padding: '8px 14px',
+                    background: '#2563eb',
+                    color: '#fff',
+                    border: 'none',
+                    borderRadius: '8px',
+                    fontSize: '13px',
+                    fontWeight: 500,
+                    cursor: 'pointer',
+                  }}
+                >儲存</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

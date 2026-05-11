@@ -87,6 +87,11 @@ export default function SettingsPage() {
     try { await db.deleteCustom(id); await load(); }
     catch(e:any) { alert(e?.message||'刪除失敗'); } finally { setBusy(false); }
   };
+  const updHolidayReason = async (id: string, reason: string) => {
+    setBusy(true);
+    try { await db.updateCustom(id, {reason}); await load(); }
+    catch(e:any) { alert(e?.message||'更新失敗'); } finally { setBusy(false); }
+  };
   const importMondays = async () => {
     const now = new Date();
     const y = now.getFullYear(); const m = now.getMonth();
@@ -162,6 +167,7 @@ export default function SettingsPage() {
               busy={busy}
               onAdd={addHoliday}
               onRemove={delHoliday}
+              onUpdateReason={updHolidayReason}
               onImportMondays={importMondays}
             />
           }
