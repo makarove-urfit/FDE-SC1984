@@ -95,6 +95,17 @@ const _initInvite = (() => {
 const INVITE_TOKEN: string = _initInvite.token || "";
 const INVITE_EMAIL: string = _initInvite.email || "";
 
+// LIFF 流程：liff.state 內層的 ?invite=<token>
+// 與舊的 ct=base64 邀請流程並行存在，兩者互不影響
+const LIFF_INVITE_TOKEN: string = (() => {
+  try {
+    const liffState = new URL(window.location.href).searchParams.get("liff.state");
+    if (!liffState) return "";
+    const inner = liffState.startsWith("?") ? liffState.slice(1) : liffState;
+    return new URLSearchParams(inner).get("invite") || "";
+  } catch { return ""; }
+})();
+
 export default function App() {
   if (LIFF_TEST_MODE) return <LiffTestPage />;
 
@@ -115,6 +126,8 @@ export default function App() {
   const [branchesLoading, setBranchesLoading] = useState(false);
   const [pickerOpen, setPickerOpen] = useState(false);
   const [pickerCanDismiss, setPickerCanDismiss] = useState(false);
+  // LIFF 流程綁定完成後遞增，觸發 list_my_branches 重撈避免 race condition
+  const [branchesNonce, setBranchesNonce] = useState(0);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -187,6 +200,19 @@ export default function App() {
       })
       .catch(() => {})
       .finally(() => setBranchesLoading(false));
+  }, [user, branchesNonce]);
+
+  // LIFF 流程：使用者首次 LIFF 進站帶 invite_token，自動走既有 redeem_invite_token 綁定
+  // 與舊 ct=base64 邀請流程並行；舊流程走 InvitePage、新流程直接綁
+  useEffect(() => {
+    if (!user || !LIFF_INVITE_TOKEN) return;
+    db.runAction("redeem_invite_token", { token: LIFF_INVITE_TOKEN })
+      .then(() => {
+        // 清 URL 防重複呼叫 + 遞增 nonce 觸發 list_my_branches 重撈
+        window.history.replaceState({}, "", window.location.pathname + window.location.hash);
+        setBranchesNonce(n => n + 1);
+      })
+      .catch((e) => console.error("[LIFF] redeem_invite_token 失敗:", e));
   }, [user]);
 
   const navigate = (path: string) => { window.location.hash = path; setCurrentPath(path); };
