@@ -15,6 +15,8 @@
 import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import type { PurchaseSheet as Sheet } from '../../utils/reportData';
+import { REPORT_PRINT_CSS } from './reportPrintCss';
+import { PAGE_CONTENT_PX, COLUMN_WIDTH_MM, packIntoPages, type PageContent as BasePageContent } from './reportPaging';
 
 interface CompanyInfo { name: string; phone: string; fax: string; }
 
@@ -33,11 +35,8 @@ interface FlatRow {
   note: string;
 }
 
-interface PageContent {
-  sheetIdx: number;
-  left: number[];   // 指向 flatRows 的全域索引
-  right: number[];
-}
+// 採購單一頁帶 sheetIdx（多供應商分頁時用來把 page 對應回 sheet）；BasePageContent 來自 reportPaging。
+type PageContent = BasePageContent & { sheetIdx: number };
 
 interface Measured {
   supOH: number[];   // 每個 sheet 的 supplier overhead px
@@ -45,23 +44,8 @@ interface Measured {
   rowH: number[];    // 每個 flatRow 的高度 px
 }
 
-// A4 297 - @page margin 上下 24 - body padding 上下 ~10 - page-header(公司名+border) ~9 ≈ 254；
-// 取 240 給字型 metrics 偏差 / sub-pixel rounding 留 buffer，搭配 break-inside: avoid 確保不跨頁
-const PAGE_CONTENT_MM = 240;
-const MM_TO_PX = 96 / 25.4;
-const PAGE_CONTENT_PX = PAGE_CONTENT_MM * MM_TO_PX;
-// A4 210 - @page margin 左右 30 - body padding 左右 ~10 = 170；雙欄 + gap 8mm → 一欄 ≈ 81；取 80
-const COLUMN_WIDTH_MM = 80;
-
-// 模擬列印環境的 className-only CSS（注入 portal 內 <style>，不污染 main window）
-const MEASURE_CSS = `
-.supplier-meta { display: flex; justify-content: space-between; gap: 8pt; font-size: 10pt; padding-bottom: 2pt; }
-.supplier-header { font-weight: bold; font-size: 11pt; padding: 0 0 4pt; border-bottom: 1pt solid #000; margin-bottom: 4pt; }
-.supplier-header .meta { font-weight: normal; font-size: 9pt; }
-.report-table-header { display: grid; grid-template-columns: 4em 1fr 4em 4em 1fr; gap: 4pt; padding: 3pt 0; margin-bottom: 4pt; border-bottom: 1pt solid #000; font-weight: bold; font-size: 10pt; }
-.report-row { display: grid; grid-template-columns: 4em 1fr 4em 4em 1fr; gap: 4pt; padding: 1pt 0; }
-.report-row .note { font-size: 9pt; }
-`;
+// 頁面尺寸常數與 packing 演算法集中在 reportPaging.ts，採購單／點貨單共用。
+// 測量階段共用 reportPrintCss（單一 source of truth），避免測量寬度跟實際渲染寬度不一致導致分頁誤差。
 
 function flatten(sheets: Sheet[]): FlatRow[] {
   const out: FlatRow[] = [];
@@ -83,29 +67,7 @@ function flatten(sheets: Sheet[]): FlatRow[] {
 }
 
 function packSheetRows(globalIndices: number[], rowH: number[], colLimitPx: number, sheetIdx: number): PageContent[] {
-  const pages: PageContent[] = [];
-  let cur: PageContent = { sheetIdx, left: [], right: [] };
-  let curCol: 'left' | 'right' = 'left';
-  let used = 0;
-  for (const gi of globalIndices) {
-    const h = rowH[gi];
-    const arr = curCol === 'left' ? cur.left : cur.right;
-    if (used + h > colLimitPx && arr.length > 0) {
-      if (curCol === 'left') {
-        curCol = 'right';
-      } else {
-        pages.push(cur);
-        cur = { sheetIdx, left: [], right: [] };
-        curCol = 'left';
-      }
-      used = 0;
-    }
-    if (curCol === 'left') cur.left.push(gi);
-    else cur.right.push(gi);
-    used += h;
-  }
-  if (cur.left.length > 0 || cur.right.length > 0) pages.push(cur);
-  return pages;
+  return packIntoPages(rowH, colLimitPx, globalIndices).map(p => ({ ...p, sheetIdx }));
 }
 
 export default function PurchaseSheetPaged({ sheets, date, company }: Props) {
@@ -157,7 +119,7 @@ export default function PurchaseSheetPaged({ sheets, date, company }: Props) {
           pointerEvents: 'none',
         }}
       >
-        <style>{MEASURE_CSS}</style>
+        <style>{REPORT_PRINT_CSS}</style>
         {sheets.map((sheet, i) => (
           <div key={`s${i}`} data-measure="sup" data-sheet-idx={i}>
             <div className="supplier-meta">

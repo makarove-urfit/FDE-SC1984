@@ -26,14 +26,19 @@ def execute(ctx):
             ctx.response.json({"pickings": [], "diag": diag, "error": "未登入", "code": "UNAUTHORIZED"})
             return
 
+        branch_id = str(((ctx.params or {}).get("branch_id") or "")).strip()
+        if not branch_id:
+            ctx.response.json({"pickings": [], "diag": diag, "error": "未指定分店", "code": "BRANCH_REQUIRED"})
+            return
+
         diag["step"] = "query_rels"
         rels = ctx.db.query("customer_custom_app_user_rel", limit=2000) or []
-        my_customer_ids = {str(r.get("customer_id") or "") for r in rels
-                           if str(r.get("custom_app_user_id") or "") == uid}
-        diag["my_customer_count"] = len(my_customer_ids)
-
-        if not my_customer_ids:
-            ctx.response.json({"pickings": [], "diag": diag})
+        authorized = any(
+            str(r.get("custom_app_user_id") or "") == uid and str(r.get("customer_id") or "") == branch_id
+            for r in rels
+        )
+        if not authorized:
+            ctx.response.json({"pickings": [], "diag": diag, "error": "無權限存取此分店", "code": "BRANCH_FORBIDDEN"})
             return
 
         diag["step"] = "query_stock_pickings"
@@ -43,7 +48,7 @@ def execute(ctx):
         ) or []
         diag["pickings_count"] = len(all_pickings)
 
-        mine = [p for p in all_pickings if str(p.get("customer_id") or "") in my_customer_ids]
+        mine = [p for p in all_pickings if str(p.get("customer_id") or "") == branch_id]
         diag["mine_count"] = len(mine)
 
         diag["step"] = "query_stock_moves"

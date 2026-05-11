@@ -9,15 +9,16 @@ const STATE_COLORS: Record<string, string> = { draft: "#9ca3af", waiting: "#9ca3
 
 interface PickingWithMoves { picking: any; moves: any[]; }
 
-export default function PickingsPage({ user }: { user: AppUser }) {
+export default function PickingsPage({ user, branchId }: { user: AppUser; branchId: string }) {
   const [items, setItems] = useState<PickingWithMoves[]>([]);
   const [loading, setLoading] = useState(true);
   const [errorInfo, setErrorInfo] = useState("");
 
   const load = async () => {
+    if (!branchId) { setItems([]); setLoading(false); return; }
     setLoading(true); setErrorInfo("");
     try {
-      const result = await db.runAction("get_pickings", {});
+      const result = await db.runAction("get_pickings", { branch_id: branchId });
       const pickings: PickingWithMoves[] = (result?.pickings ?? []).sort((a: any, b: any) => {
         const da = a.picking.scheduled_date || a.picking.created_at || "";
         const dbv = b.picking.scheduled_date || b.picking.created_at || "";
@@ -31,7 +32,7 @@ export default function PickingsPage({ user }: { user: AppUser }) {
     }
   };
 
-  useEffect(() => { load(); }, []);
+  useEffect(() => { load(); }, [branchId]);
 
   const renderPicking = (p: any, moves: any[]) => {
     const s = typeof p.state === "string" ? p.state : "";

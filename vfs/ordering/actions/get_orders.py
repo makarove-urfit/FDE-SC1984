@@ -23,16 +23,23 @@ def execute(ctx):
         ctx.response.json({"orders": [], "error": "未登入", "code": "UNAUTHORIZED"})
         return
 
+    branch_id = str(((ctx.params or {}).get("branch_id") or "")).strip()
+    if not branch_id:
+        ctx.response.json({"orders": [], "error": "未指定分店", "code": "BRANCH_REQUIRED"})
+        return
+
     try:
         rels = ctx.db.query("customer_custom_app_user_rel", limit=2000) or []
     except Exception:
         ctx.response.json({"orders": []})
         return
 
-    my_customer_ids = {str(r.get("customer_id") or "") for r in rels
-                       if str(r.get("custom_app_user_id") or "") == uid}
-    if not my_customer_ids:
-        ctx.response.json({"orders": []})
+    authorized = any(
+        str(r.get("custom_app_user_id") or "") == uid and str(r.get("customer_id") or "") == branch_id
+        for r in rels
+    )
+    if not authorized:
+        ctx.response.json({"orders": [], "error": "無權限存取此分店", "code": "BRANCH_FORBIDDEN"})
         return
 
     try:
@@ -44,7 +51,7 @@ def execute(ctx):
         ctx.response.json({"orders": []})
         return
 
-    my_orders = [o for o in all_orders if str(o.get("customer_id") or "") in my_customer_ids]
+    my_orders = [o for o in all_orders if str(o.get("customer_id") or "") == branch_id]
 
     try:
         all_lines = ctx.db.query("sale_order_lines", limit=5000) or []

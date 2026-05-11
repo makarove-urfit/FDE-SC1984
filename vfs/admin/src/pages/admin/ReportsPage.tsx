@@ -95,13 +95,13 @@ export default function ReportsPage() {
       return next;
     });
   };
-  const previewingSheet = previewingId ? pickingSheets.find(s => s.customerId === previewingId) : null;
+  const previewingSheet = previewingId ? pickingSheets.find(s => s.routeId === previewingId) : null;
 
   // 哪些 PickingSheet 進 PrintArea：依「全部/選取/單張」三種模式
   const [printMode, setPrintMode] = useState<'all' | 'selected' | 'single'>('all');
   const sheetsToPrint = useMemo(() => {
-    if (printMode === 'single' && previewingId) return pickingSheets.filter(s => s.customerId === previewingId);
-    if (printMode === 'selected') return pickingSheets.filter(s => selectedPicks.has(s.customerId));
+    if (printMode === 'single' && previewingId) return pickingSheets.filter(s => s.routeId === previewingId);
+    if (printMode === 'selected') return pickingSheets.filter(s => selectedPicks.has(s.routeId));
     return pickingSheets;
   }, [printMode, previewingId, selectedPicks, pickingSheets]);
 
@@ -175,7 +175,7 @@ export default function ReportsPage() {
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div className="bg-white rounded-xl border border-gray-100">
                 <div className="px-4 py-3 border-b border-gray-100 flex items-center justify-between">
-                  <span className="font-bold text-gray-800 text-sm">當日客戶（{pickingSheets.length}）</span>
+                  <span className="font-bold text-gray-800 text-sm">當日路線（{pickingSheets.length}）</span>
                 </div>
                 <PickingList
                   sheets={pickingSheets}
@@ -219,14 +219,14 @@ export default function ReportsPage() {
                 ) : (
                   <div className="flex flex-col gap-4">
                     {pickingSheets.map(s => (
-                      <PickingSheet key={s.customerId} sheet={s} date={selectedDate} company={company} />
+                      <PickingSheet key={s.routeId} sheet={s} date={selectedDate} company={company} />
                     ))}
                   </div>
                 )}
               </div>
               {/* 全部 / 選取列印區（依 printMode 決定渲染哪些 sheet） */}
               <PrintArea printRef={pickingAllPrint.contentRef}>
-                {sheetsToPrint.map(s => <PickingSheet key={s.customerId} sheet={s} date={selectedDate} company={company} />)}
+                {sheetsToPrint.map(s => <PickingSheet key={s.routeId} sheet={s} date={selectedDate} company={company} />)}
               </PrintArea>
             </div>
           )}

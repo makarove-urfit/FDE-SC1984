@@ -2,15 +2,19 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import * as db from '../../db';
 
-const ORDERING_APP = 'https://ordering.apps.ai-go.app/ext-runtime';
+// LIFF URL — 點擊後 LINE SDK 處理 OAuth、平台 /liff-swap 換 token、ordering 走 redeem_invite_token 綁定
+// invite=<branch.custom_data.invite_token>；不再走舊 #ct=base64({token,email}) 格式
+const LIFF_INVITE_URL = 'https://liff.line.me/2009976374-VYUpM905';
 
 type Customer = {
-  id: string; name: string; vat: string; email: string;
+  id: string; name: string; short_name?: string; vat: string; email: string;
   phone: string; payment_term: string; salesperson_id: string;
   contact_address: string; custom_data: any; is_company: boolean;
 };
 type Employee = { id: string; name: string; user_id: string; job_title: string };
 type Tag = { id: string; name: string; custom_data: any };
+type AppUser = { id: string; email: string; display_name: string };
+type RelEntry = { rel_id: string; user_id: string; user_email: string; user_name: string };
 type EditType = 'hq' | 'branch';
 
 const INVOICE_FORMATS = ['紙本', '電子'];
@@ -35,7 +39,7 @@ const EMPTY_EDIT_HQ = {
   name: '', vat: '', email: '', payment_term: '', salesperson_id: '', invoice_format: '',
 };
 const EMPTY_EDIT_BRANCH = {
-  name: '', phone: '', contact_address: '', region_tag_id: '', contact_email: '',
+  name: '', short_name: '', phone: '', contact_address: '', region_tag_id: '', contact_email: '',
 };
 
 export default function CustomersPage() {
@@ -43,6 +47,8 @@ export default function CustomersPage() {
   const [allCustomers, setAllCustomers] = useState<Customer[]>([]);
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [regionTags, setRegionTags] = useState<Tag[]>([]);
+  const [appUsers, setAppUsers] = useState<AppUser[]>([]);
+  const [allRels, setAllRels] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
@@ -65,6 +71,10 @@ export default function CustomersPage() {
   const [editBranch, setEditBranch] = useState({ ...EMPTY_EDIT_BRANCH });
   const [editSaving, setEditSaving] = useState(false);
   const [editError, setEditError] = useState('');
+  // 編輯 branch 時的「下單人員」管理
+  const [branchRels, setBranchRels] = useState<RelEntry[]>([]);
+  const [pickUserId, setPickUserId] = useState('');
+  const [relBusy, setRelBusy] = useState(false);
 
   const [expandedHq, setExpandedHq] = useState<Set<string>>(new Set());
   const [copied, setCopied] = useState<string | null>(null);
@@ -72,10 +82,12 @@ export default function CustomersPage() {
   const load = async () => {
     setLoading(true); setError('');
     try {
-      const [custs, depts, tags] = await Promise.all([
+      const [custs, depts, tags, users, rels] = await Promise.all([
         db.query('customers'),
         db.query('hr_departments'),
         db.query('customer_tags'),
+        db.query('custom_app_users'),
+        db.query('customer_custom_app_user_rel'),
       ]);
 
       const salesDept = (depts || []).find((d: any) => String(d.name || '').trim() === '業務');
@@ -95,6 +107,10 @@ export default function CustomersPage() {
         user_id: String(e.user_id || ''), job_title: String(e.job_title || ''),
       })));
       setRegionTags((tags || []).filter((t: any) => (t.custom_data || {}).category === 'region'));
+      setAppUsers((users || []).map((u: any) => ({
+        id: String(u.id), email: String(u.email || ''), display_name: String(u.display_name || ''),
+      })));
+      setAllRels(rels || []);
     } catch (e: any) {
       setError(e?.message || '載入失敗');
     } finally {
@@ -116,11 +132,10 @@ export default function CustomersPage() {
     return emp?.name || '—';
   };
 
-  const inviteLink = (token: string, email: string) => {
+  const inviteLink = (token: string, _email: string) => {
     if (!token) return '';
-    const payload = btoa(JSON.stringify({ token, email: email || '' }))
-      .replace(/\+/g, '-').replace(/\//g, '_').replace(/=/g, '');
-    return `${ORDERING_APP}#ct=${payload}`;
+    // email 參數已過時（LIFF 流程不需要、由 LINE OAuth 自動取得身分），保留簽名只是不破壞既有 callers
+    return `${LIFF_INVITE_URL}?invite=${token}`;
   };
 
   const copyLink = async (token: string, email: string, branchId: string) => {
@@ -161,12 +176,66 @@ export default function CustomersPage() {
     setEditTarget({ type: 'branch', record: b });
     setEditBranch({
       name: b.name || '',
+      short_name: b.short_name || '',
       phone: b.phone || '',
       contact_address: b.contact_address || '',
       region_tag_id: String(cd.region_tag_id || ''),
       contact_email: String(cd.contact_email || ''),
     });
     setEditError('');
+    // 算該 branch 已綁的 user
+    const userById = new Map(appUsers.map(u => [u.id, u]));
+    const rels = allRels
+      .filter(r => String(r.customer_id) === String(b.id))
+      .map(r => {
+        const u = userById.get(String(r.custom_app_user_id));
+        return {
+          rel_id: String(r.id),
+          user_id: String(r.custom_app_user_id),
+          user_email: u?.email || '(未知)',
+          user_name: u?.display_name || '(未知)',
+        };
+      });
+    setBranchRels(rels);
+    setPickUserId('');
+  };
+
+  const handleAssignUser = async () => {
+    if (!pickUserId || !editTarget || editTarget.type !== 'branch') return;
+    setRelBusy(true);
+    try {
+      const created = await db.insert('customer_custom_app_user_rel', {
+        customer_id: editTarget.record.id,
+        custom_app_user_id: pickUserId,
+      });
+      const u = appUsers.find(x => x.id === pickUserId);
+      const newEntry: RelEntry = {
+        rel_id: String(created.id),
+        user_id: pickUserId,
+        user_email: u?.email || '',
+        user_name: u?.display_name || '',
+      };
+      setBranchRels(prev => [...prev, newEntry]);
+      setAllRels(prev => [...prev, { id: created.id, customer_id: editTarget.record.id, custom_app_user_id: pickUserId }]);
+      setPickUserId('');
+    } catch (e: any) {
+      setEditError(e?.message || '指派失敗');
+    } finally {
+      setRelBusy(false);
+    }
+  };
+
+  const handleUnassignUser = async (relId: string) => {
+    setRelBusy(true);
+    try {
+      await db.deleteRow('customer_custom_app_user_rel', relId);
+      setBranchRels(prev => prev.filter(r => r.rel_id !== relId));
+      setAllRels(prev => prev.filter(r => String(r.id) !== relId));
+    } catch (e: any) {
+      setEditError(e?.message || '移除失敗');
+    } finally {
+      setRelBusy(false);
+    }
   };
 
   // ── 儲存編輯 ──
@@ -192,6 +261,7 @@ export default function CustomersPage() {
         const cd = record.custom_data || {};
         await db.update('customers', record.id, {
           name: editBranch.name.trim(),
+          short_name: editBranch.short_name.trim() || null,
           phone: editBranch.phone.trim(),
           contact_address: editBranch.contact_address.trim(),
           custom_data: {
@@ -507,6 +577,11 @@ export default function CustomersPage() {
                     <label className="block text-sm font-medium text-gray-700 mb-1">店名 <span className="text-red-500">*</span></label>
                     <input type="text" value={editBranch.name} onChange={e => setEditBranch(p => ({ ...p, name: e.target.value }))} className={inputCls} />
                   </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">採購單顯示簡稱</label>
+                    <input type="text" value={editBranch.short_name} onChange={e => setEditBranch(p => ({ ...p, short_name: e.target.value }))} placeholder="例：王品台南" className={inputCls} />
+                    <p className="text-xs text-gray-400 mt-1">採購單上以「路線碼+簡稱」顯示（如 C60王品台南）；未填則取店名前 3 字。</p>
+                  </div>
                   <div className="grid grid-cols-2 gap-3">
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1">電話</label>
@@ -527,7 +602,61 @@ export default function CustomersPage() {
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">下單帳號信箱</label>
                     <input type="email" value={editBranch.contact_email} onChange={e => setEditBranch(p => ({ ...p, contact_email: e.target.value }))} className={inputCls} />
-                    <p className="text-xs text-gray-400 mt-1">更新後邀請連結會帶入此 Email</p>
+                    <p className="text-xs text-gray-400 mt-1">用於產生邀請連結時帶入 Email；LIFF 上線後將廢棄。</p>
+                  </div>
+
+                  <div className="border-t border-gray-200 pt-4 mt-2">
+                    <div className="flex items-center justify-between mb-2">
+                      <label className="block text-sm font-medium text-gray-700">下單人員</label>
+                      <span className="text-xs text-gray-400">已指派 {branchRels.length} 人</span>
+                    </div>
+                    <p className="text-xs text-gray-400 mb-3">綁定哪些下單帳號可代表這間分店下單。新人員必須先註冊（透過邀請連結或 LIFF）才能被選擇。</p>
+                    <div className="space-y-2">
+                      {branchRels.length === 0 ? (
+                        <p className="text-xs text-gray-400 italic px-2 py-3 bg-gray-50 rounded-lg text-center">尚未指派任何下單人員</p>
+                      ) : (
+                        branchRels.map(r => (
+                          <div key={r.rel_id} className="flex items-center justify-between bg-gray-50 rounded-lg px-3 py-2">
+                            <div className="text-sm">
+                              <span className="font-medium text-gray-800">{r.user_name || '(未填名)'}</span>
+                              <span className="text-gray-400 ml-2 text-xs">{r.user_email}</span>
+                            </div>
+                            <button
+                              type="button" disabled={relBusy}
+                              onClick={() => handleUnassignUser(r.rel_id)}
+                              className="text-xs text-red-500 hover:text-red-700 px-2 py-1 rounded hover:bg-red-50 disabled:opacity-50"
+                            >
+                              移除
+                            </button>
+                          </div>
+                        ))
+                      )}
+                    </div>
+                    <div className="flex gap-2 mt-3">
+                      <select
+                        value={pickUserId}
+                        onChange={e => setPickUserId(e.target.value)}
+                        className={selectCls + ' flex-1'}
+                        disabled={relBusy}
+                      >
+                        <option value="">（選擇下單帳號…）</option>
+                        {appUsers
+                          .filter(u => !branchRels.some(r => r.user_id === u.id))
+                          .map(u => (
+                            <option key={u.id} value={u.id}>
+                              {u.display_name || '(未填名)'}（{u.email}）
+                            </option>
+                          ))}
+                      </select>
+                      <button
+                        type="button"
+                        onClick={handleAssignUser}
+                        disabled={!pickUserId || relBusy}
+                        className="px-3 py-2 text-sm text-white bg-green-600 hover:bg-green-700 rounded-lg font-medium disabled:opacity-50"
+                      >
+                        {relBusy ? '...' : '+ 加入'}
+                      </button>
+                    </div>
                   </div>
                 </>
               )}
