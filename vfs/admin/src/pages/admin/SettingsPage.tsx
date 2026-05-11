@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import * as db from '../../db';
-type Holiday = { id:string; date:string; label:string };
+import HolidayCalendar, { Holiday } from '../../components/HolidayCalendar';
 type CutoffSetting = { id:string; value:string } | null;
 type CompanyInfoSetting = { id: string; value: string } | null;
 const KEY_CUTOFF = 'order_cutoff_time';
@@ -17,8 +17,6 @@ export default function SettingsPage() {
   const [companyFax, setCompanyFax] = useState('');
   const [companyBusy, setCompanyBusy] = useState(false);
   const [holidays, setHolidays] = useState<Holiday[]>([]);
-  const [newDate, setNewDate] = useState('');
-  const [newLabel, setNewLabel] = useState('');
   const [busy, setBusy] = useState(false);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState('');
@@ -42,9 +40,8 @@ export default function SettingsPage() {
           setCompanyFax(parsed.fax || '');
         } catch { /* ignore */ }
       }
-      const today = new Date().toISOString().slice(0,10);
-      const hs: Holiday[] = (rawHols||[]).map((r:any) => { const d = r.data||r; return {id:String(r.id||d.id), date:String(d.date||''), label:String(d.label||d.reason||'假日')}; })
-        .filter(h => h.date && h.date >= today)
+      const hs: Holiday[] = (rawHols||[]).map((r:any) => { const d = r.data||r; return {id:String(r.id||d.id), date:String(d.date||''), reason:String(d.reason||d.label||'公休')}; })
+        .filter(h => h.date)
         .sort((a,b) => a.date.localeCompare(b.date));
       setHolidays(hs);
     } catch(e:any) { setErr(e?.message||'載入失敗'); } finally { setLoading(false); }
@@ -78,20 +75,22 @@ export default function SettingsPage() {
     } catch (e: any) { alert(e?.message || '儲存失敗'); }
     finally { setCompanyBusy(false); }
   };
-  const addHoliday = async () => {
-    if (!newDate) { alert('請選擇日期'); return; }
+  const addHoliday = async (date: string) => {
     setBusy(true);
     try {
-      // x_holiday_settings 的欄位是 date / reason
-      await db.insertCustom('x_holiday_settings', {date: newDate, reason: newLabel.trim()||'假日'});
-      setNewDate(''); setNewLabel('');
+      await db.insertCustom('x_holiday_settings', {date, reason: '公休'});
       await load();
     } catch(e:any) { alert(e?.message||'新增失敗'); } finally { setBusy(false); }
   };
-  const delHoliday = async (id:string) => {
-    if (!confirm('刪除此假日？')) return;
+  const delHoliday = async (id: string) => {
+    setBusy(true);
     try { await db.deleteCustom(id); await load(); }
-    catch(e:any) { alert(e?.message||'刪除失敗'); }
+    catch(e:any) { alert(e?.message||'刪除失敗'); } finally { setBusy(false); }
+  };
+  const updHolidayReason = async (id: string, reason: string) => {
+    setBusy(true);
+    try { await db.updateCustom(id, {reason}); await load(); }
+    catch(e:any) { alert(e?.message||'更新失敗'); } finally { setBusy(false); }
   };
   const importMondays = async () => {
     const now = new Date();
@@ -160,29 +159,17 @@ export default function SettingsPage() {
           )}
         </section>
         <section className="bg-white rounded-xl border border-gray-100 p-6 space-y-4">
-          <div className="flex items-center justify-between">
-            <h2 className="text-lg font-bold text-gray-900">假日管理</h2>
-            <button onClick={importMondays} disabled={busy} className="px-3 py-1.5 bg-orange-100 text-orange-700 text-xs font-medium rounded-lg hover:bg-orange-200 disabled:opacity-50">匯入本月週一</button>
-          </div>
+          <h2 className="text-lg font-bold text-gray-900">假日管理</h2>
           <p className="text-sm text-gray-500">設定後，訂購頁面的配送日期選擇器會排除這些日期。</p>
-          <div className="flex items-center gap-2 pt-1">
-            <input type="date" value={newDate} onChange={e=>setNewDate(e.target.value)} className="px-3 py-2 border border-gray-200 rounded-lg bg-gray-50 text-sm text-gray-700" />
-            <input type="text" placeholder="說明（如：元旦）" value={newLabel} onChange={e=>setNewLabel(e.target.value)} className="flex-1 px-3 py-2 border border-gray-200 rounded-lg bg-gray-50 text-sm text-gray-700" />
-            <button onClick={addHoliday} disabled={busy||!newDate} className="px-4 py-2 bg-green-600 text-white text-sm font-medium rounded-lg hover:bg-green-700 disabled:opacity-50">新增</button>
-          </div>
           {loading ? <p className="text-sm text-gray-400">載入中...</p> :
-            holidays.length===0 ? <p className="text-sm text-gray-400">目前無假日</p> :
-            <ul className="divide-y divide-gray-100">
-              {holidays.map(h => (
-                <li key={h.id} className="flex items-center justify-between py-2.5">
-                  <div>
-                    <span className="font-medium text-gray-800 text-sm">{h.date}</span>
-                    <span className="text-gray-400 text-xs ml-2">{h.label}</span>
-                  </div>
-                  <button onClick={()=>delHoliday(h.id)} className="text-xs text-red-400 hover:text-red-600 px-2 py-1 rounded hover:bg-red-50">刪除</button>
-                </li>
-              ))}
-            </ul>
+            <HolidayCalendar
+              holidays={holidays}
+              busy={busy}
+              onAdd={addHoliday}
+              onRemove={delHoliday}
+              onUpdateReason={updHolidayReason}
+              onImportMondays={importMondays}
+            />
           }
         </section>
       </div>
