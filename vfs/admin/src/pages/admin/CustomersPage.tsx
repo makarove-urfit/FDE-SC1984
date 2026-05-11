@@ -329,7 +329,7 @@ export default function CustomersPage() {
     if (validBranches.length === 0) { setFormError('至少需要一間分店（請至少填一個店名）'); return; }
     for (const b of validBranches) {
       if (b.contact_email.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(b.contact_email.trim())) {
-        setFormError(`分店「${b.branch_name}」的下單帳號信箱格式不正確`); return;
+        setFormError(`分店「${b.branch_name}」的聯絡 Email格式不正確`); return;
       }
     }
     setSaving(true); setFormError('');
@@ -373,7 +373,7 @@ export default function CustomersPage() {
     if (!addBranchTarget) return;
     if (!addBranchForm.branch_name.trim()) { setAddBranchError('店名為必填'); return; }
     if (addBranchForm.contact_email.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(addBranchForm.contact_email.trim())) {
-      setAddBranchError('下單帳號信箱格式不正確'); return;
+      setAddBranchError('聯絡 Email格式不正確'); return;
     }
     setAddBranchSaving(true); setAddBranchError('');
     try {
@@ -600,9 +600,9 @@ export default function CustomersPage() {
                     <input type="text" value={editBranch.contact_address} onChange={e => setEditBranch(p => ({ ...p, contact_address: e.target.value }))} className={inputCls} />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">下單帳號信箱</label>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">聯絡 Email</label>
                     <input type="email" value={editBranch.contact_email} onChange={e => setEditBranch(p => ({ ...p, contact_email: e.target.value }))} className={inputCls} />
-                    <p className="text-xs text-gray-400 mt-1">用於產生邀請連結時帶入 Email；LIFF 上線後將廢棄。</p>
+                    <p className="text-xs text-gray-400 mt-1">客戶聯絡用 Email；保留以供日後功能使用</p>
                   </div>
 
                   <div className="border-t border-gray-200 pt-4 mt-2">
@@ -799,10 +799,10 @@ export default function CustomersPage() {
                           </div>
                         </div>
                         <div className="mt-3">
-                          <label className="block text-sm font-medium text-gray-700 mb-1">下單帳號信箱</label>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">聯絡 Email</label>
                           <input type="email" value={b.contact_email} onChange={fb(i, 'contact_email')}
                             placeholder="contact@store.com" className={inputCls} />
-                          <p className="text-xs text-gray-400 mt-1">填入後邀請連結會帶入此 Email 供客戶設定密碼</p>
+                          <p className="text-xs text-gray-400 mt-1">客戶聯絡用 Email；保留以供日後功能使用</p>
                         </div>
                       </div>
                     </div>
@@ -883,11 +883,11 @@ export default function CustomersPage() {
                   </div>
                 </div>
                 <div className="mt-3">
-                  <label className="block text-sm font-medium text-gray-700 mb-1">下單帳號信箱</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">聯絡 Email</label>
                   <input type="email" value={addBranchForm.contact_email}
                     onChange={e => setAddBranchForm(p => ({ ...p, contact_email: e.target.value }))}
                     placeholder="contact@store.com" className={inputCls} />
-                  <p className="text-xs text-gray-400 mt-1">填入後邀請連結會帶入此 Email 供客戶設定密碼</p>
+                  <p className="text-xs text-gray-400 mt-1">客戶聯絡用 Email；保留以供日後功能使用</p>
                 </div>
               </div>
 
