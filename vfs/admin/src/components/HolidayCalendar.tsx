@@ -1,13 +1,17 @@
 import { useState, useMemo } from 'react';
 
-export type Holiday = { id: string; date: string; reason: string };
+export type Holiday = { id: string; date: string; reason: string; vip_branch_ids?: string[] };
+
+export type BranchOption = { id: string; label: string };
 
 interface Props {
   holidays: Holiday[];
   busy: boolean;
+  branchOptions: BranchOption[];
   onAdd: (date: string) => Promise<void>;
   onRemove: (id: string) => Promise<void>;
   onUpdateReason: (id: string, reason: string) => Promise<void>;
+  onUpdateVip: (id: string, branchIds: string[]) => Promise<void>;
   onImportMondays: () => Promise<void>;
 }
 
@@ -53,12 +57,13 @@ function buildCells(year: number, month: number, holidayMap: Map<string, Holiday
   return cells;
 }
 
-export default function HolidayCalendar({ holidays, busy, onAdd, onRemove, onUpdateReason, onImportMondays }: Props) {
+export default function HolidayCalendar({ holidays, busy, branchOptions, onAdd, onRemove, onUpdateReason, onUpdateVip, onImportMondays }: Props) {
   const now = new Date();
   const [viewYear, setViewYear] = useState(now.getFullYear());
   const [viewMonth, setViewMonth] = useState(now.getMonth());
   const [editing, setEditing] = useState<Holiday | null>(null);
   const [editReason, setEditReason] = useState('');
+  const [editVip, setEditVip] = useState<string[]>([]);
 
   const holidayMap = useMemo(() => {
     const m = new Map<string, Holiday>();
@@ -96,16 +101,22 @@ export default function HolidayCalendar({ holidays, busy, onAdd, onRemove, onUpd
     if (cell.holiday) {
       setEditing(cell.holiday);
       setEditReason(cell.holiday.reason);
+      setEditVip([...(cell.holiday.vip_branch_ids || [])]);
     } else {
       await onAdd(cell.iso);
     }
   };
 
-  const closeEdit = () => { setEditing(null); setEditReason(''); };
+  const closeEdit = () => { setEditing(null); setEditReason(''); setEditVip([]); };
   const saveEdit = async () => {
     if (!editing) return;
     const trimmed = editReason.trim() || '公休';
     if (trimmed !== editing.reason) await onUpdateReason(editing.id, trimmed);
+    const prev = (editing.vip_branch_ids || []).slice().sort();
+    const curr = editVip.slice().sort();
+    if (JSON.stringify(prev) !== JSON.stringify(curr)) {
+      await onUpdateVip(editing.id, editVip);
+    }
     closeEdit();
   };
   const removeFromEdit = async () => {
@@ -219,7 +230,7 @@ export default function HolidayCalendar({ holidays, busy, onAdd, onRemove, onUpd
       </div>
 
       <p className="text-xs text-gray-400 mt-3">
-        點空白日 → 直接新增為「公休」；點紅色日 → 開啟編輯視窗，可改原因或取消假日。
+        點空白日 → 直接新增為「公休」；點紅色日 → 開啟編輯視窗，可改原因、設定 VIP 例外名單或取消假日。
       </p>
 
       {editing && (
@@ -272,6 +283,37 @@ export default function HolidayCalendar({ holidays, busy, onAdd, onRemove, onUpd
                   boxSizing: 'border-box',
                 }}
               />
+            </div>
+            <div>
+              <div style={{ fontSize: '12px', color: '#6b7280', marginBottom: '4px' }}>
+                VIP 例外配送名單（這天仍要送這些分店）
+              </div>
+              <select
+                multiple
+                value={editVip}
+                onChange={(e) => {
+                  const opts = Array.from(e.target.selectedOptions).map(o => o.value);
+                  setEditVip(opts);
+                }}
+                style={{
+                  width: '100%',
+                  minHeight: '120px',
+                  padding: '6px 8px',
+                  border: '1px solid #e5e7eb',
+                  borderRadius: '8px',
+                  fontSize: '13px',
+                  background: '#f9fafb',
+                  color: '#111827',
+                  boxSizing: 'border-box',
+                }}
+              >
+                {branchOptions.map(b => (
+                  <option key={b.id} value={b.id}>{b.label}</option>
+                ))}
+              </select>
+              <div style={{ fontSize: '11px', color: '#9ca3af', marginTop: '4px' }}>
+                按住 Ctrl/⌘ 點選可多選；已選 {editVip.length} 家
+              </div>
             </div>
             <div style={{ display: 'flex', gap: '8px', justifyContent: 'space-between', marginTop: '4px' }}>
               <button
