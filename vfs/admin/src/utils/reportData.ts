@@ -57,6 +57,8 @@ const _id = (v: any): string => Array.isArray(v) ? String(v[0] || '') : String(v
 
 export function customerCode(cust: any | undefined, tagsById: Record<string, any>): string {
   if (!cust) return '';
+  const ref = String(cust?.ref || '').trim();
+  if (ref) return ref;
   const tagId = _id(cust?.custom_data?.region_tag_id);
   const route = tagId ? String(tagsById[tagId]?.name || '') : '';
   const short = String(cust?.short_name || '').trim() || String(cust?.name || '').slice(0, 3);

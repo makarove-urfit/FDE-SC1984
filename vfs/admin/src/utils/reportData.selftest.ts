@@ -11,6 +11,8 @@ function assert(cond: any, msg: string) {
 
 export function runReportDataSelfTest() {
   // ── customerCode ──
+  assert(customerCode({ ref: 'C51', short_name: '皇家', custom_data: { region_tag_id: 't1' } }, { t1: { name: '北區' } }) === 'C51', 'customerCode 有 ref → 直接用 ref');
+  assert(customerCode({ ref: '', short_name: '炸料', custom_data: { region_tag_id: 't1' } }, { t1: { name: 'F33' } }) === 'F33炸料', 'customerCode 無 ref → 路線+簡稱（舊邏輯 fallback）');
   assert(customerCode({ short_name: '炸料', custom_data: { region_tag_id: 't1' } }, { t1: { name: 'F33' } }) === 'F33炸料', 'customerCode 路線+簡稱');
   assert(customerCode({ name: '梵某餐廳', custom_data: { region_tag_id: 't2' } }, { t2: { name: 'F60' } }) === 'F60梵某餐', 'customerCode 無 short_name 取 name 前 3 字');
   assert(customerCode({ short_name: '五股' }, {}) === '五股', 'customerCode 無 region_tag_id 只回簡稱');
