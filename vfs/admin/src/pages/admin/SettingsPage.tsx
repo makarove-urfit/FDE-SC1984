@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import * as db from '../../db';
-import HolidayCalendar, { Holiday } from '../../components/HolidayCalendar';
+import HolidayCalendar, { Holiday, BranchOption } from '../../components/HolidayCalendar';
 type CutoffSetting = { id:string; value:string } | null;
 type CompanyInfoSetting = { id: string; value: string } | null;
 const KEY_CUTOFF = 'order_cutoff_time';
@@ -17,16 +17,27 @@ export default function SettingsPage() {
   const [companyFax, setCompanyFax] = useState('');
   const [companyBusy, setCompanyBusy] = useState(false);
   const [holidays, setHolidays] = useState<Holiday[]>([]);
+  const [branches, setBranches] = useState<BranchOption[]>([]);
   const [busy, setBusy] = useState(false);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState('');
   const load = async () => {
     setLoading(true); setErr('');
     try {
-      const [rawSettings, rawHols] = await Promise.all([
+      const [rawSettings, rawHols, rawCustomers] = await Promise.all([
         db.queryCustom('x_app_settings'),
         db.queryCustom('x_holiday_settings'),
+        db.query('customers'),
       ]);
+      const branchOpts: BranchOption[] = (rawCustomers || [])
+        .filter((c: any) => (c?.custom_data?.kind === 'branch'))
+        .map((c: any) => {
+          const code = String(c?.ref || '').trim();
+          const name = String(c?.short_name || c?.name || '');
+          return { id: String(c.id), label: code ? `${code} ${name}` : `（未發碼）${name}` };
+        })
+        .sort((a: BranchOption, b: BranchOption) => a.label.localeCompare(b.label, 'zh-Hant'));
+      setBranches(branchOpts);
       const cu = (rawSettings||[]).find((r:any) => (r.data?.key || r.key) === KEY_CUTOFF);
       if (cu) { const d = cu.data || cu; setCutoff({id:String(cu.id||d.id), value:String(d.value||'14:00')}); setCutoffTime(String(d.value||'14:00')); }
       const co = (rawSettings || []).find((r: any) => (r.data?.key || r.key) === KEY_COMPANY);
@@ -40,7 +51,16 @@ export default function SettingsPage() {
           setCompanyFax(parsed.fax || '');
         } catch { /* ignore */ }
       }
-      const hs: Holiday[] = (rawHols||[]).map((r:any) => { const d = r.data||r; return {id:String(r.id||d.id), date:String(d.date||''), reason:String(d.reason||d.label||'公休')}; })
+      const hs: Holiday[] = (rawHols||[]).map((r:any) => {
+        const d = r.data||r;
+        const cd = (d.custom_data && typeof d.custom_data === 'object') ? d.custom_data : {};
+        return {
+          id: String(r.id||d.id),
+          date: String(d.date||''),
+          reason: String(d.reason||d.label||'公休'),
+          vip_branch_ids: Array.isArray(cd.vip_branch_ids) ? cd.vip_branch_ids.map(String) : [],
+        };
+      })
         .filter(h => h.date)
         .sort((a,b) => a.date.localeCompare(b.date));
       setHolidays(hs);
@@ -91,6 +111,11 @@ export default function SettingsPage() {
     setBusy(true);
     try { await db.updateCustom(id, {reason}); await load(); }
     catch(e:any) { alert(e?.message||'更新失敗'); } finally { setBusy(false); }
+  };
+  const updHolidayVip = async (id: string, branchIds: string[]) => {
+    setBusy(true);
+    try { await db.runAction('set_holiday_vip', { holiday_id: id, vip_branch_ids: branchIds }); await load(); }
+    catch(e:any) { alert(e?.message||'VIP 名單更新失敗'); } finally { setBusy(false); }
   };
   const importMondays = async () => {
     const now = new Date();
@@ -165,9 +190,11 @@ export default function SettingsPage() {
             <HolidayCalendar
               holidays={holidays}
               busy={busy}
+              branchOptions={branches}
               onAdd={addHoliday}
               onRemove={delHoliday}
               onUpdateReason={updHolidayReason}
+              onUpdateVip={updHolidayVip}
               onImportMondays={importMondays}
             />
           }
