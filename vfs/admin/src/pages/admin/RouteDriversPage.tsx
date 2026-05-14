@@ -170,7 +170,9 @@ export default function RouteDriversPage() {
                       <td className="px-4 py-2.5 font-medium text-gray-800">{tag.name}</td>
                       <td className="px-4 py-2.5 font-mono text-blue-700">{tag.routeLetter || '—'}</td>
                       <td className="px-4 py-2.5 text-gray-500 text-xs">
-                        已發 {Math.max(tag.nextSeq - 1, 0)} / 下一號 {tag.routeLetter}{String(tag.nextSeq).padStart(2, '0')}
+                        {tag.routeLetter
+                          ? `已發 ${Math.max(tag.nextSeq - 1, 0)} / 下一號 ${tag.routeLetter}${String(tag.nextSeq).padStart(2, '0')}`
+                          : '—'}
                       </td>
                       <td className="px-4 py-2.5 text-gray-600">
                         {tag.defaultDriverId && empName(tag.defaultDriverId) ? (
