@@ -2,6 +2,9 @@
   "assign_customer_code": {
     "description": "為 branch 客戶從指定路線取下一個流水號發放編碼（寫入 customers.ref + custom_data.code_history，並把 tag.next_seq +1）"
   },
+  "reassign_customer_route": {
+    "description": "客戶搬路線：封存舊編碼（code_history.until）、從新路線取號發放、新路線 next_seq +1（舊路線不回退）"
+  },
   "get_config": {
     "description": "回傳 runtime 設定：假日、截止時間、product_product 對應、參考價格（供 ordering app 呼叫）"
   },
