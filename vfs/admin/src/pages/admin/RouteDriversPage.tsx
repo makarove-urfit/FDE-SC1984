@@ -5,11 +5,13 @@ import * as db from '../../db';
 type Tag = {
   id: string; name: string;
   defaultDriverId: string;
+  routeLetter: string;
+  nextSeq: number;
   _cd: Record<string, any>;
 };
 type Employee = { id: string; name: string; userId: string };
 
-const EMPTY = { name: '', defaultDriverId: '' };
+const EMPTY = { name: '', defaultDriverId: '', routeLetter: '' };
 
 export default function RouteDriversPage() {
   const nav = useNavigate();
@@ -45,6 +47,8 @@ export default function RouteDriversPage() {
             id: String(r.id),
             name: String(r.name || ''),
             defaultDriverId: String(cd.default_driver_id || ''),
+            routeLetter: String(cd.route_letter || '').toUpperCase(),
+            nextSeq: Number(cd.next_seq || 1),
             _cd: cd,
           };
         })
@@ -77,12 +81,18 @@ export default function RouteDriversPage() {
 
   const openEdit = (tag: Tag) => {
     setEditingId(tag.id);
-    setForm({ name: tag.name, defaultDriverId: tag.defaultDriverId });
+    setForm({ name: tag.name, defaultDriverId: tag.defaultDriverId, routeLetter: tag.routeLetter });
     setFormErr(''); setShowForm(true);
   };
 
   const submit = async () => {
     if (!form.name.trim()) { setFormErr('名稱為必填'); return; }
+    const letter = form.routeLetter.trim().toUpperCase();
+    if (!/^[A-Z]$/.test(letter)) { setFormErr('路線代號必須是 1 個英文字母（A-Z）'); return; }
+    // 唯一性檢查（編輯時排除自己）
+    if (tags.some(t => t.id !== editingId && t.routeLetter === letter)) {
+      setFormErr(`路線代號 ${letter} 已被其他路線使用`); return;
+    }
     setSaving(true); setFormErr('');
     try {
       const existingTag = tags.find(t => t.id === editingId);
@@ -90,6 +100,8 @@ export default function RouteDriversPage() {
         ...(existingTag?._cd || {}),
         category: 'region',
         single_select: true,
+        route_letter: letter,
+        next_seq: Number((existingTag?._cd || {}).next_seq) || 1,
       };
       if (form.defaultDriverId) {
         cd.default_driver_id = form.defaultDriverId;
@@ -146,6 +158,8 @@ export default function RouteDriversPage() {
                 <thead className="bg-gray-50 text-gray-500 text-xs">
                   <tr>
                     <th className="px-4 py-2.5 text-left">路線名稱</th>
+                    <th className="px-4 py-2.5 text-left">代號</th>
+                    <th className="px-4 py-2.5 text-left">已發 / 下一號</th>
                     <th className="px-4 py-2.5 text-left">預設司機</th>
                     <th className="px-4 py-2.5"></th>
                   </tr>
@@ -154,6 +168,10 @@ export default function RouteDriversPage() {
                   {tags.map(tag => (
                     <tr key={tag.id} className="border-t border-gray-50 hover:bg-gray-50">
                       <td className="px-4 py-2.5 font-medium text-gray-800">{tag.name}</td>
+                      <td className="px-4 py-2.5 font-mono text-blue-700">{tag.routeLetter || '—'}</td>
+                      <td className="px-4 py-2.5 text-gray-500 text-xs">
+                        已發 {Math.max(tag.nextSeq - 1, 0)} / 下一號 {tag.routeLetter}{String(tag.nextSeq).padStart(2, '0')}
+                      </td>
                       <td className="px-4 py-2.5 text-gray-600">
                         {tag.defaultDriverId && empName(tag.defaultDriverId) ? (
                           <span className="inline-block px-2 py-0.5 bg-green-50 text-green-700 rounded-full text-xs font-medium">
@@ -194,6 +212,16 @@ export default function RouteDriversPage() {
                   onChange={e => setForm(p => ({ ...p, name: e.target.value }))}
                   placeholder="如：北區、南區、市區路線"
                   className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  路線代號 <span className="text-red-500">*</span>
+                </label>
+                <input type="text" value={form.routeLetter} maxLength={1}
+                  onChange={e => setForm(p => ({ ...p, routeLetter: e.target.value.toUpperCase() }))}
+                  placeholder="如：A、C、G"
+                  className="w-24 px-3 py-2 text-sm border border-gray-200 rounded-lg uppercase font-mono focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                <p className="text-xs text-gray-400 mt-1">單一英文字母，作為客戶編碼前綴（如 G43 的 G）。建立後不建議修改</p>
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">預設司機</label>
