@@ -10,6 +10,7 @@ type Customer = {
   id: string; name: string; short_name?: string; vat: string; email: string;
   phone: string; payment_term: string; salesperson_id: string;
   contact_address: string; custom_data: any; is_company: boolean;
+  ref?: string;
 };
 type Employee = { id: string; name: string; user_id: string; job_title: string };
 type Tag = { id: string; name: string; custom_data: any };
@@ -259,16 +260,45 @@ export default function CustomersPage() {
         if (!editBranch.name.trim()) { setEditError('店名為必填'); setEditSaving(false); return; }
         if (editBranch.contact_email.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(editBranch.contact_email.trim())) { setEditError('Email 格式不正確'); setEditSaving(false); return; }
         const cd = record.custom_data || {};
+        const oldRegionTagId = String(cd.region_tag_id || '');
+        const newRegionTagId = String(editBranch.region_tag_id || '');
+        // 偵測路線變更：兩邊都有值且不同 → 走 reassign action（會封舊號、發新號）
+        const isRouteChange = !!oldRegionTagId && !!newRegionTagId && oldRegionTagId !== newRegionTagId;
+        if (isRouteChange) {
+          const ok = window.confirm(
+            `將為此分店重新發放客戶編碼（新路線下一個流水號），舊編碼 ${record.ref || '(無)'} 會被封存。\n確定要搬路線？`
+          );
+          if (!ok) { setEditSaving(false); return; }
+          try {
+            const r = await db.runAction('reassign_customer_route', {
+              customer_id: String(record.id),
+              new_route_tag_id: newRegionTagId,
+            });
+            if (r?.error) {
+              setEditError(`搬路線失敗：${r.error}`);
+              setEditSaving(false);
+              return;
+            }
+            if (r?.old_code && r?.new_code) {
+              alert(`已重新發碼：${r.old_code} → ${r.new_code}`);
+            }
+          } catch (e: any) {
+            setEditError(`搬路線失敗：${e?.message || e}`);
+            setEditSaving(false);
+            return;
+          }
+        }
+        // 後續一般欄位更新；region_tag_id 已由 reassign 寫入時不要重複覆寫
+        const newCustomData = { ...cd, contact_email: editBranch.contact_email.trim() || null };
+        if (!isRouteChange) {
+          newCustomData.region_tag_id = newRegionTagId || null;
+        }
         await db.update('customers', record.id, {
           name: editBranch.name.trim(),
           short_name: editBranch.short_name.trim() || null,
           phone: editBranch.phone.trim(),
           contact_address: editBranch.contact_address.trim(),
-          custom_data: {
-            ...cd,
-            region_tag_id: editBranch.region_tag_id || null,
-            contact_email: editBranch.contact_email.trim() || null,
-          },
+          custom_data: newCustomData,
         });
       }
       setEditTarget(null);
@@ -308,6 +338,22 @@ export default function CustomersPage() {
         ...(b.region_tag_id ? { region_tag_id: b.region_tag_id } : {}),
       },
     });
+    // 若有指定路線，自動發放客戶編碼（失敗不阻斷主流程，後續可手動補發）
+    if (b.region_tag_id && branch && branch.id) {
+      try {
+        const r = await db.runAction('assign_customer_code', {
+          customer_id: String(branch.id),
+          route_tag_id: String(b.region_tag_id),
+        });
+        if (r?.error) {
+          console.error('[assign_customer_code] returned error:', r.error);
+          alert(`分店「${b.branch_name}」已建立，但客戶編碼自動發放失敗：${r.error}\n請至客戶頁手動補發。`);
+        }
+      } catch (e: any) {
+        console.error('[assign_customer_code] threw:', e);
+        alert(`分店「${b.branch_name}」已建立，但客戶編碼自動發放失敗：${e?.message || e}\n請至客戶頁手動補發。`);
+      }
+    }
     if (b.contact_name.trim()) {
       await db.insert('customers', {
         name: b.contact_name.trim(),
@@ -475,7 +521,9 @@ export default function CustomersPage() {
                           return (
                             <tr key={b.id} className="bg-gray-50 border-t border-gray-100">
                               <td className="pl-10 pr-4 py-2 text-gray-600 text-xs" colSpan={2}>
-                                <span className="text-gray-400 mr-1">└</span>{b.name}
+                                <span className="text-gray-400 mr-1">└</span>
+                                <span className="font-mono text-blue-700 text-xs mr-2">{b.ref || '（未發碼）'}</span>
+                                {b.name}
                                 {b.contact_address && <span className="text-gray-400 ml-2">{b.contact_address}</span>}
                               </td>
                               <td className="px-4 py-2 text-xs text-gray-500">
