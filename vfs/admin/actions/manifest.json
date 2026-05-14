@@ -1,4 +1,7 @@
 {
+  "set_holiday_vip": {
+    "description": "覆寫公休日 VIP 例外配送名單（x_holiday_settings.custom_data.vip_branch_ids）"
+  },
   "assign_customer_code": {
     "description": "為 branch 客戶從指定路線取下一個流水號發放編碼（寫入 customers.ref + custom_data.code_history，並把 tag.next_seq +1）"
   },

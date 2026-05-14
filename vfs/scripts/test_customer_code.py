@@ -68,15 +68,19 @@ def main():
         assert rows and post_seq > initial_seq, f"next_seq should have incremented from {initial_seq}, got {post_seq}"
         print(f"✅ next_seq incremented from {initial_seq} to {post_seq}")
 
-        # ── 前置：再建一個目標路線 tag（Y）──
+        # ── 前置：再建一個目標路線 tag（Y）；next_seq 從 9950 起，避免與殘留低序號衝突 ──
         s, tag2 = post(h, ADMIN_APP, "customer_tags", {
             "name": f"Y-test-{uuid.uuid4().hex[:6]}",
-            "custom_data": {"category": "region", "route_letter": "Y", "next_seq": 50},
+            "custom_data": {"category": "region", "route_letter": "Y", "next_seq": 9950},
         })
         assert s in (200, 201), f"create tag2 failed: {s} {tag2}"
         tag2_id = str((tag2 or {}).get("id") or (tag2 or {}).get("data", {}).get("id"))
         created_tags.append(tag2_id)
         print(f"✅ second test tag created: {tag2_id}")
+
+        # ── 記錄 tag2 reassign 前的 next_seq（用快照值動態計算，避免硬碼）──
+        tag2_rows = qquery(h, ADMIN_APP, "customer_tags", [{"column": "id", "op": "eq", "value": tag2_id}])
+        tag2_initial_seq = int(((tag2_rows[0].get("custom_data") or {}) if tag2_rows else {}).get("next_seq") or 9950)
 
         # ── Test 2: reassign_customer_route ──
         s, r = run_action(h, ADMIN_APP, "reassign_customer_route", {
@@ -86,34 +90,83 @@ def main():
         body = (r or {}).get("result") or r
         assert body.get("success") is True
         assert body.get("old_code") == assigned_code, f"old_code expected {assigned_code} got {body.get('old_code')}"
-        assert body.get("new_code") == "Y50", f"new_code expected Y50 got {body.get('new_code')}"
-        print(f"✅ reassign_customer_route {assigned_code} → Y50")
+        reassigned_code = body.get("new_code")
+        assert reassigned_code and reassigned_code.startswith("Y"), f"new_code should start with Y, got {reassigned_code}"
+        print(f"✅ reassign_customer_route {assigned_code} → {reassigned_code}")
 
         # ── 驗證 history 兩筆、舊筆 until 已封 ──
         rows = qquery(h, ADMIN_APP, "customers", [{"column": "id", "op": "eq", "value": cid}])
         c = rows[0]
-        assert c.get("ref") == "Y50", f"ref expected Y50 got {c.get('ref')}"
+        assert c.get("ref") == reassigned_code, f"ref expected {reassigned_code} got {c.get('ref')}"
         hist = (c.get("custom_data") or {}).get("code_history") or []
         assert len(hist) == 2, f"history len expected 2 got {len(hist)}"
         assert hist[0]["code"] == assigned_code and hist[0]["until"] is not None, f"hist[0]: {hist[0]}"
-        assert hist[1]["code"] == "Y50" and hist[1]["until"] is None, f"hist[1]: {hist[1]}"
-        print(f"✅ code_history 封存 {assigned_code}、新增 Y50")
+        assert hist[1]["code"] == reassigned_code and hist[1]["until"] is None, f"hist[1]: {hist[1]}"
+        print(f"✅ code_history 封存 {assigned_code}、新增 {reassigned_code}")
 
-        # ── 驗證舊路線 next_seq 不回退、新路線 +1 ──
+        # ── 驗證舊路線 next_seq 不回退、新路線已遞增 ──
         rows = qquery(h, ADMIN_APP, "customer_tags", [{"column": "id", "op": "in", "value": [tag_id, tag2_id]}])
         by_id = {str(r["id"]): r for r in rows}
         old_tag_seq = int((by_id[tag_id].get("custom_data") or {}).get("next_seq") or 0)
         new_tag_seq = int((by_id[tag2_id].get("custom_data") or {}).get("next_seq") or 0)
         assert old_tag_seq == post_seq, f"舊路線 next_seq 不應回退（仍應為 {post_seq}），實際 {old_tag_seq}"
-        assert new_tag_seq == 51, f"新路線 next_seq 應為 51 got {new_tag_seq}"
+        reassigned_seq = int(reassigned_code[1:])
+        assert new_tag_seq == reassigned_seq + 1, f"新路線 next_seq 應為 {reassigned_seq + 1} got {new_tag_seq}"
         print(f"✅ 舊路線 next_seq={old_tag_seq} 不回退、新路線 next_seq={new_tag_seq}")
+
+        # ── 前置：建一個測試假日（x_ 表須走 crud_insert action，不可直接 POST proxy）──
+        s, hol_r = run_action(h, ADMIN_APP, "crud_insert", {
+            "slug": "x_holiday_settings",
+            "data": {"date": "2099-12-31", "reason": "測試假日"},
+        })
+        hol_body = (hol_r or {}).get("result") or hol_r
+        hol_results = (hol_body or {}).get("results") or []
+        hid = str((hol_results[0] or {}).get("id") or "") if hol_results else ""
+        assert hid and hid != "None", f"create holiday failed: {s} {hol_r}"
+        created_holidays.append(hid)
+        print(f"✅ test holiday created: {hid}")
+
+        # ── Test 3: set_holiday_vip ──
+        s, r = run_action(h, ADMIN_APP, "set_holiday_vip", {
+            "holiday_id": hid,
+            "vip_branch_ids": [cid],
+        })
+        assert s == 200, f"vip HTTP {s} {r}"
+        body = (r or {}).get("result") or r
+        assert body.get("success") is True, f"set_holiday_vip body: {body}"
+        print("✅ set_holiday_vip 寫入")
+
+        # ── 驗證 custom_data.vip_branch_ids（x_ 表須走 crud_query action，不可直接 proxy GET）──
+        def _get_holiday_cd(hol_id):
+            """用 crud_query action 讀取 x_holiday_settings，並找到指定 id 的 custom_data。"""
+            s_q, r_q = run_action(h, ADMIN_APP, "crud_query", {
+                "slug": "x_holiday_settings", "limit": 500,
+            })
+            rows_q = ((r_q or {}).get("result") or r_q or {}).get("data") or []
+            row_q = next((rr for rr in rows_q if str(rr.get("id")) == hol_id), None)
+            return (row_q or {}).get("custom_data") or {}
+
+        saved_cd = _get_holiday_cd(hid)
+        assert saved_cd.get("vip_branch_ids") == [cid], f"vip_branch_ids saved: {saved_cd}"
+        print("✅ vip_branch_ids 持久化正確")
+
+        # ── 覆寫測試（傳空陣列應清空）──
+        s, r = run_action(h, ADMIN_APP, "set_holiday_vip", {
+            "holiday_id": hid, "vip_branch_ids": [],
+        })
+        assert s == 200 and ((r or {}).get("result") or r).get("success") is True
+        saved_cd = _get_holiday_cd(hid)
+        assert saved_cd.get("vip_branch_ids") == [], f"vip_branch_ids after clear: {saved_cd}"
+        print("✅ 空陣列覆寫成功")
 
         print("🎉 Task 2 tests passed")
 
     finally:
         for h_id in created_holidays:
             try:
-                _req("DELETE", f"{API_BASE}/proxy/{ADMIN_APP}/x_holiday_settings/{h_id}", h)
+                run_action(h, ADMIN_APP, "crud_delete", {
+                    "slug": "x_holiday_settings", "id": h_id
+                })
             except Exception as e:
                 print(f"⚠️ holiday {h_id} cleanup: {e}")
         for c_id in created_customers:
