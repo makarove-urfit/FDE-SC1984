@@ -21,7 +21,7 @@ REFS = [
     {"table_name": "customer_custom_app_user_rel", "columns": ["id", "customer_id", "custom_app_user_id"], "permissions": ["read", "create", "update", "delete"]},
     {"table_name": "custom_app_users",             "columns": ["id", "email", "display_name"],             "permissions": ["read"]},
     {"table_name": "x_app_settings",      "columns": ["id", "key", "value", "updated_at"],                                                                                                               "permissions": ["read", "create", "update", "delete"]},
-    {"table_name": "x_holiday_settings",  "columns": ["id", "date", "reason"],                                                                                                                           "permissions": ["read", "create", "update", "delete"]},
+    {"table_name": "x_holiday_settings",  "columns": ["id", "date", "reason", "custom_data"],                                                                                                            "permissions": ["read", "create", "update", "delete"]},
     {"table_name": "x_driver_customer",   "columns": ["id", "driver_id", "customer_id", "created_at"],                                                                                                   "permissions": ["read", "create", "update", "delete"]},
     {"table_name": "x_category_buyer",    "columns": ["id", "category_id", "employee_id", "created_at"],                                                                                                 "permissions": ["read", "create", "update", "delete"]},
 ]
