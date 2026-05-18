@@ -2,7 +2,7 @@
 Run: set -a && source .env && set +a && python3 vfs/scripts/test_customer_code.py
 """
 import sys, json, uuid
-from test_lib import api_login, post, patch, query, qquery, run_action, ADMIN_APP, _req, API_BASE
+from test_lib import api_login, post, qquery, run_action, ADMIN_APP
 
 
 def main():
@@ -162,23 +162,23 @@ def main():
         print("🎉 Task 2 tests passed")
 
     finally:
+        # 全部走 crud_delete action：proxy DELETE 對 customers/customer_tags 回 403，
+        # 用 _req DELETE 會靜默失敗、累積垃圾路線（已踩過坑）。
+        def _cleanup(label, params):
+            try:
+                s, r = run_action(h, ADMIN_APP, "crud_delete", params)
+                body = (r or {}).get("result") or r or {}
+                if s != 200 or "error" in body or (body.get("errors") or 0):
+                    print(f"⚠️ {label} cleanup 未完全成功：HTTP {s} {str(body)[:200]}")
+            except Exception as e:
+                print(f"⚠️ {label} cleanup: {e}")
+
         for h_id in created_holidays:
-            try:
-                run_action(h, ADMIN_APP, "crud_delete", {
-                    "slug": "x_holiday_settings", "id": h_id
-                })
-            except Exception as e:
-                print(f"⚠️ holiday {h_id} cleanup: {e}")
-        for c_id in created_customers:
-            try:
-                _req("DELETE", f"{API_BASE}/proxy/{ADMIN_APP}/customers/{c_id}", h)
-            except Exception as e:
-                print(f"⚠️ customer {c_id} cleanup: {e}")
-        for t_id in created_tags:
-            try:
-                _req("DELETE", f"{API_BASE}/proxy/{ADMIN_APP}/customer_tags/{t_id}", h)
-            except Exception as e:
-                print(f"⚠️ tag {t_id} cleanup: {e}")
+            _cleanup(f"holiday {h_id}", {"slug": "x_holiday_settings", "id": h_id})
+        if created_customers:
+            _cleanup("customers", {"table": "customers", "ids": created_customers})
+        if created_tags:
+            _cleanup("customer_tags", {"table": "customer_tags", "ids": created_tags})
         print("🧹 cleanup attempted")
 
 

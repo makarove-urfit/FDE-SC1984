@@ -1,5 +1,8 @@
 ALLOWED_TABLES = {
     "product_categories", "product_supplierinfo",
+    # customers / customer_tags：proxy DELETE 對這兩表回 403，刪除唯一可靠路徑
+    # 是本 action 的 ctx.db.remove；test 清理與後台刪除都依賴此白名單。
+    "customers", "customer_tags",
 }
 
 ALLOWED_SLUGS = {
