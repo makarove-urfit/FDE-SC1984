@@ -252,17 +252,25 @@ export default function CustomersPage() {
       if (type === 'hq') {
         if (!editHq.name.trim()) { setEditError('公司名稱為必填'); setEditSaving(false); return; }
         if (editHq.email.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(editHq.email.trim())) { setEditError('Email 格式不正確'); setEditSaving(false); return; }
-        await db.update('customers', record.id, {
-          name: editHq.name.trim(),
-          vat: editHq.vat.trim(),
-          email: editHq.email.trim(),
-          payment_term: editHq.payment_term,
-          salesperson_id: editHq.salesperson_id,
-          custom_data: { ...(record.custom_data || {}), invoice_format: editHq.invoice_format },
+        if (vatFormatHint(editHq.vat)) { setEditError(`統編：${vatFormatHint(editHq.vat)}`); setEditSaving(false); return; }
+        if (!editHq.vat.trim()) { setEditError('統編為必填'); setEditSaving(false); return; }
+        const hqRes = await db.runAction('update_customer', {
+          customer_id: String(record.id),
+          fields: {
+            name: editHq.name.trim(),
+            vat: editHq.vat.trim(),
+            email: editHq.email.trim(),
+            payment_term: editHq.payment_term,
+            salesperson_id: editHq.salesperson_id,
+            custom_data: { ...(record.custom_data || {}), invoice_format: editHq.invoice_format },
+          },
         });
+        if (hqRes?.error) { setEditError(hqRes.error); setEditSaving(false); return; }
       } else {
         if (!editBranch.name.trim()) { setEditError('店名為必填'); setEditSaving(false); return; }
         if (editBranch.contact_email.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(editBranch.contact_email.trim())) { setEditError('Email 格式不正確'); setEditSaving(false); return; }
+        if (!editBranch.vat.trim()) { setEditError('統編為必填'); setEditSaving(false); return; }
+        if (vatFormatHint(editBranch.vat)) { setEditError(`統編：${vatFormatHint(editBranch.vat)}`); setEditSaving(false); return; }
         const cd = record.custom_data || {};
         const newRegionTagId = String(editBranch.region_tag_id || '');
         // 判定路線變更該走「首次發碼 / 搬路線 / 不動作」哪一條
@@ -283,13 +291,18 @@ export default function CustomersPage() {
         if (plan.action === 'none') {
           newCustomData.region_tag_id = newRegionTagId || null;
         }
-        await db.update('customers', record.id, {
-          name: editBranch.name.trim(),
-          short_name: editBranch.short_name.trim() || null,
-          phone: editBranch.phone.trim(),
-          contact_address: editBranch.contact_address.trim(),
-          custom_data: newCustomData,
+        const brRes = await db.runAction('update_customer', {
+          customer_id: String(record.id),
+          fields: {
+            name: editBranch.name.trim(),
+            vat: editBranch.vat.trim(),
+            short_name: editBranch.short_name.trim() || null,
+            phone: editBranch.phone.trim(),
+            contact_address: editBranch.contact_address.trim(),
+            custom_data: newCustomData,
+          },
         });
+        if (brRes?.error) { setEditError(brRes.error); setEditSaving(false); return; }
 
         // 再由 server-side action 發碼／搬路線（最後一筆寫入，不會被覆蓋）
         if (plan.action === 'assign') {
@@ -337,48 +350,24 @@ export default function CustomersPage() {
   const addBranchEntry = () => setBranchEntries(prev => [...prev, { ...EMPTY_BRANCH }]);
   const removeBranchEntry = (i: number) => setBranchEntries(prev => prev.filter((_, idx) => idx !== i));
 
-  const insertBranchAndContact = async (parentHqId: string, b: BranchEntry) => {
-    const inviteToken = crypto.randomUUID();
-    const branch = await db.insert('customers', {
-      name: b.branch_name.trim(),
-      is_company: false,
-      customer_type: 'individual',
-      ...(b.phone ? { phone: b.phone } : {}),
-      ...(b.contact_address ? { contact_address: b.contact_address } : {}),
-      custom_data: {
-        kind: 'branch',
-        parent_customer_id: String(parentHqId),
-        invite_token: inviteToken,
-        ...(b.contact_email.trim() ? { contact_email: b.contact_email.trim() } : {}),
-        ...(b.region_tag_id ? { region_tag_id: b.region_tag_id } : {}),
-      },
-    });
-    // 若有指定路線，自動發放客戶編碼（失敗不阻斷主流程，後續可手動補發）
-    if (b.region_tag_id && branch && branch.id) {
+  // bundle action 已建好分店；此處依各分店路線自動發放客戶編碼（失敗不阻斷）
+  const assignCodesForBranches = async (
+    branches: { branch_id: string; region_tag_id: string }[],
+  ) => {
+    for (const br of branches) {
+      if (!br.region_tag_id || !br.branch_id) continue;
       try {
         const r = await db.runAction('assign_customer_code', {
-          customer_id: String(branch.id),
-          route_tag_id: String(b.region_tag_id),
+          customer_id: String(br.branch_id),
+          route_tag_id: String(br.region_tag_id),
         });
         if (r?.error) {
-          console.error('[assign_customer_code] returned error:', r.error);
-          alert(`分店「${b.branch_name}」已建立，但客戶編碼自動發放失敗：${r.error}\n請至客戶頁手動補發。`);
+          alert(`分店已建立，但客戶編碼自動發放失敗：${r.error}\n請至客戶頁手動補發。`);
         }
       } catch (e: any) {
-        console.error('[assign_customer_code] threw:', e);
-        alert(`分店「${b.branch_name}」已建立，但客戶編碼自動發放失敗：${e?.message || e}\n請至客戶頁手動補發。`);
+        alert(`分店已建立，但客戶編碼自動發放失敗：${e?.message || e}\n請至客戶頁手動補發。`);
       }
     }
-    if (b.contact_name.trim()) {
-      await db.insert('customers', {
-        name: b.contact_name.trim(),
-        is_company: false,
-        customer_type: 'individual',
-        ...(b.contact_phone ? { phone: b.contact_phone } : {}),
-        custom_data: { kind: 'role', role: 'contact', parent_customer_id: String(branch.id) },
-      });
-    }
-    return branch;
   };
 
   const submit = async () => {
@@ -386,39 +375,40 @@ export default function CustomersPage() {
     if (companyForm.email.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(companyForm.email.trim())) {
       setFormError('公司 Email 格式不正確'); return;
     }
+    if (vatFormatHint(companyForm.vat)) { setFormError(`公司統編：${vatFormatHint(companyForm.vat)}`); return; }
+    if (!companyForm.vat.trim()) { setFormError('公司統編為必填'); return; }
     const validBranches = branchEntries.filter(b => b.branch_name.trim());
     if (validBranches.length === 0) { setFormError('至少需要一間分店（請至少填一個店名）'); return; }
     for (const b of validBranches) {
+      if (!b.vat.trim()) { setFormError(`分店「${b.branch_name}」統編為必填`); return; }
+      if (vatFormatHint(b.vat)) { setFormError(`分店「${b.branch_name}」統編：${vatFormatHint(b.vat)}`); return; }
       if (b.contact_email.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(b.contact_email.trim())) {
         setFormError(`分店「${b.branch_name}」的聯絡 Email格式不正確`); return;
       }
     }
     setSaving(true); setFormError('');
     try {
-      const hq = await db.insert('customers', {
-        name: companyForm.headquarters_name.trim(),
-        is_company: true,
-        customer_type: 'company',
-        ...(companyForm.vat ? { vat: companyForm.vat } : {}),
-        ...(companyForm.email ? { email: companyForm.email } : {}),
-        ...(companyForm.payment_term ? { payment_term: companyForm.payment_term } : {}),
-        ...(companyForm.salesperson_id ? { salesperson_id: companyForm.salesperson_id } : {}),
-        custom_data: { kind: 'headquarters', invoice_format: companyForm.invoice_format },
+      const res = await db.runAction('create_customer_bundle', {
+        headquarters_name: companyForm.headquarters_name.trim(),
+        vat: companyForm.vat.trim(),
+        email: companyForm.email.trim(),
+        payment_term: companyForm.payment_term,
+        salesperson_id: companyForm.salesperson_id,
+        invoice_format: companyForm.invoice_format,
+        owner_name: companyForm.owner_name.trim(),
+        branches: validBranches.map(b => ({
+          branch_name: b.branch_name.trim(),
+          vat: b.vat.trim(),
+          phone: b.phone.trim(),
+          contact_address: b.contact_address.trim(),
+          region_tag_id: b.region_tag_id,
+          contact_name: b.contact_name.trim(),
+          contact_phone: b.contact_phone.trim(),
+          contact_email: b.contact_email.trim(),
+        })),
       });
-
-      for (const b of validBranches) {
-        await insertBranchAndContact(String(hq.id), b);
-      }
-
-      if (companyForm.owner_name.trim()) {
-        await db.insert('customers', {
-          name: companyForm.owner_name.trim(),
-          is_company: false,
-          customer_type: 'individual',
-          custom_data: { kind: 'role', role: 'owner', parent_customer_id: String(hq.id) },
-        });
-      }
-
+      if (res?.error) { setFormError(res.error); setSaving(false); return; }
+      await assignCodesForBranches(res?.branches || []);
       setShowForm(false);
       setCompanyForm({ ...EMPTY_COMPANY });
       setBranchEntries([{ ...EMPTY_BRANCH }]);
@@ -433,12 +423,28 @@ export default function CustomersPage() {
   const submitAddBranch = async () => {
     if (!addBranchTarget) return;
     if (!addBranchForm.branch_name.trim()) { setAddBranchError('店名為必填'); return; }
+    if (!addBranchForm.vat.trim()) { setAddBranchError('統編為必填'); return; }
+    if (vatFormatHint(addBranchForm.vat)) { setAddBranchError(`統編：${vatFormatHint(addBranchForm.vat)}`); return; }
     if (addBranchForm.contact_email.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(addBranchForm.contact_email.trim())) {
       setAddBranchError('聯絡 Email格式不正確'); return;
     }
     setAddBranchSaving(true); setAddBranchError('');
     try {
-      await insertBranchAndContact(String(addBranchTarget.id), addBranchForm);
+      const res = await db.runAction('create_customer_bundle', {
+        headquarters_id: String(addBranchTarget.id),
+        branches: [{
+          branch_name: addBranchForm.branch_name.trim(),
+          vat: addBranchForm.vat.trim(),
+          phone: addBranchForm.phone.trim(),
+          contact_address: addBranchForm.contact_address.trim(),
+          region_tag_id: addBranchForm.region_tag_id,
+          contact_name: addBranchForm.contact_name.trim(),
+          contact_phone: addBranchForm.contact_phone.trim(),
+          contact_email: addBranchForm.contact_email.trim(),
+        }],
+      });
+      if (res?.error) { setAddBranchError(res.error); setAddBranchSaving(false); return; }
+      await assignCodesForBranches(res?.branches || []);
       setExpandedHq(prev => new Set([...prev, addBranchTarget.id]));
       setAddBranchTarget(null);
       setAddBranchForm({ ...EMPTY_BRANCH });
