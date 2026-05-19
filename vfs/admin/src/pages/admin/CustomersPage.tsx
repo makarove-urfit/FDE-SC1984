@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import * as db from '../../db';
 import { planRouteChange } from '../../utils/routeChange';
+import { sealedCodeHistory } from '../../utils/codeHistory';
 
 // LIFF URL — 點擊後 LINE SDK 處理 OAuth、平台 /liff-swap 換 token、ordering 走 redeem_invite_token 綁定
 // invite=<branch.custom_data.invite_token>；不再走舊 #ct=base64({token,email}) 格式
@@ -664,6 +665,18 @@ export default function CustomersPage() {
                     </div>
                     <p className="text-xs text-gray-400 mt-1">系統自動管理，改路線時自動發碼/封存，不可手動編輯</p>
                   </div>
+                  {sealedCodeHistory(editTarget.record).length > 0 && (
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">曾用編碼</label>
+                      <div className="px-3 py-2 border border-gray-200 rounded-lg bg-gray-50 space-y-1">
+                        {sealedCodeHistory(editTarget.record).map((h, i) => (
+                          <div key={i} className="text-xs text-gray-500">
+                            <span className="font-mono">{h.code}</span> · {h.since} ~ {h.until} 封存
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">地址</label>
                     <input type="text" value={editBranch.contact_address} onChange={e => setEditBranch(p => ({ ...p, contact_address: e.target.value }))} className={inputCls} />
