@@ -656,6 +656,15 @@ export default function CustomersPage() {
                     </div>
                   </div>
                   <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">客戶編碼</label>
+                    <div className="px-3 py-2 text-sm border border-gray-200 rounded-lg bg-gray-50">
+                      {String(editTarget.record.ref || '').trim()
+                        ? <span className="font-mono text-blue-700">{editTarget.record.ref}</span>
+                        : <span className="text-gray-400">（未發碼）</span>}
+                    </div>
+                    <p className="text-xs text-gray-400 mt-1">系統自動管理，改路線時自動發碼/封存，不可手動編輯</p>
+                  </div>
+                  <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">地址</label>
                     <input type="text" value={editBranch.contact_address} onChange={e => setEditBranch(p => ({ ...p, contact_address: e.target.value }))} className={inputCls} />
                   </div>
