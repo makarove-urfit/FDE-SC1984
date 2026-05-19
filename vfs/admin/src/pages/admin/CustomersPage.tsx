@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import * as db from '../../db';
+import { planRouteChange } from '../../utils/routeChange';
 
 // LIFF URL — 點擊後 LINE SDK 處理 OAuth、平台 /liff-swap 換 token、ordering 走 redeem_invite_token 綁定
 // invite=<branch.custom_data.invite_token>；不再走舊 #ct=base64({token,email}) 格式
@@ -260,37 +261,23 @@ export default function CustomersPage() {
         if (!editBranch.name.trim()) { setEditError('店名為必填'); setEditSaving(false); return; }
         if (editBranch.contact_email.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(editBranch.contact_email.trim())) { setEditError('Email 格式不正確'); setEditSaving(false); return; }
         const cd = record.custom_data || {};
-        const oldRegionTagId = String(cd.region_tag_id || '');
         const newRegionTagId = String(editBranch.region_tag_id || '');
-        // 偵測路線變更：兩邊都有值且不同 → 走 reassign action（會封舊號、發新號）
-        const isRouteChange = !!oldRegionTagId && !!newRegionTagId && oldRegionTagId !== newRegionTagId;
-        if (isRouteChange) {
-          const ok = window.confirm(
-            `將為此分店重新發放客戶編碼（新路線下一個流水號），舊編碼 ${record.ref || '(無)'} 會被封存。\n確定要搬路線？`
-          );
-          if (!ok) { setEditSaving(false); return; }
-          try {
-            const r = await db.runAction('reassign_customer_route', {
-              customer_id: String(record.id),
-              new_route_tag_id: newRegionTagId,
-            });
-            if (r?.error) {
-              setEditError(`搬路線失敗：${r.error}`);
-              setEditSaving(false);
-              return;
-            }
-            if (r?.old_code && r?.new_code) {
-              alert(`已重新發碼：${r.old_code} → ${r.new_code}`);
-            }
-          } catch (e: any) {
-            setEditError(`搬路線失敗：${e?.message || e}`);
-            setEditSaving(false);
-            return;
-          }
+        // 判定路線變更該走「首次發碼 / 搬路線 / 不動作」哪一條
+        const plan = planRouteChange({
+          ref: String(record.ref || ''),
+          oldRegionTagId: String(cd.region_tag_id || ''),
+          newRegionTagId,
+        });
+        if (plan.action !== 'none' && !window.confirm(plan.confirmMessage)) {
+          setEditSaving(false);
+          return;
         }
-        // 後續一般欄位更新；region_tag_id 已由 reassign 寫入時不要重複覆寫
+
+        // 先更新一般欄位（custom_data 含 contact_email）。
+        // region_tag_id 只在不發碼/不搬路線時於此寫入；否則交給 action，
+        // 且 action 內部會 re-read 此次寫入結果，contact_email 不會掉。
         const newCustomData = { ...cd, contact_email: editBranch.contact_email.trim() || null };
-        if (!isRouteChange) {
+        if (plan.action === 'none') {
           newCustomData.region_tag_id = newRegionTagId || null;
         }
         await db.update('customers', record.id, {
@@ -300,6 +287,31 @@ export default function CustomersPage() {
           contact_address: editBranch.contact_address.trim(),
           custom_data: newCustomData,
         });
+
+        // 再由 server-side action 發碼／搬路線（最後一筆寫入，不會被覆蓋）
+        if (plan.action === 'assign') {
+          try {
+            const r = await db.runAction('assign_customer_code', {
+              customer_id: String(record.id),
+              route_tag_id: newRegionTagId,
+            });
+            if (r?.error) { setEditError(`發碼失敗：${r.error}`); setEditSaving(false); return; }
+            if (r?.code) { alert(`已發放客戶編碼：${r.code}`); }
+          } catch (e: any) {
+            setEditError(`發碼失敗：${e?.message || e}`); setEditSaving(false); return;
+          }
+        } else if (plan.action === 'reassign') {
+          try {
+            const r = await db.runAction('reassign_customer_route', {
+              customer_id: String(record.id),
+              new_route_tag_id: newRegionTagId,
+            });
+            if (r?.error) { setEditError(`搬路線失敗：${r.error}`); setEditSaving(false); return; }
+            if (r?.old_code && r?.new_code) { alert(`已重新發碼：${r.old_code} → ${r.new_code}`); }
+          } catch (e: any) {
+            setEditError(`搬路線失敗：${e?.message || e}`); setEditSaving(false); return;
+          }
+        }
       }
       setEditTarget(null);
       await load();
