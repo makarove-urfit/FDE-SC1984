@@ -132,6 +132,13 @@ def execute(ctx):
     # ── 第二階段：全部通過，開始 insert ──
     created_ids = []
 
+    # 既有總公司模式：驗證該總公司確實存在（ARCHITECTURE §0.1 要求應用層自驗 parent）
+    if not create_hq:
+        hq_exists = any(str(c.get("id")) == headquarters_id for c in customers)
+        if not hq_exists:
+            ctx.response.json({"error": f"指定的總公司 {headquarters_id} 不存在"})
+            return
+
     if create_hq:
         hq_data = {
             "name": headquarters_name,
