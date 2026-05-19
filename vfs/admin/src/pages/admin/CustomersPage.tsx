@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import * as db from '../../db';
 import { planRouteChange } from '../../utils/routeChange';
 import { sealedCodeHistory } from '../../utils/codeHistory';
+import { vatFormatHint } from '../../utils/vat';
 
 // LIFF URL — 點擊後 LINE SDK 處理 OAuth、平台 /liff-swap 換 token、ordering 走 redeem_invite_token 綁定
 // invite=<branch.custom_data.invite_token>；不再走舊 #ct=base64({token,email}) 格式
@@ -24,12 +25,12 @@ const INVOICE_FORMATS = ['紙本', '電子'];
 const PAYMENT_TERMS = ['半月結', '整月結'];
 
 type BranchEntry = {
-  branch_name: string; phone: string; contact_address: string; region_tag_id: string;
+  branch_name: string; vat: string; phone: string; contact_address: string; region_tag_id: string;
   contact_name: string; contact_phone: string; contact_email: string;
 };
 
 const EMPTY_BRANCH: BranchEntry = {
-  branch_name: '', phone: '', contact_address: '', region_tag_id: '',
+  branch_name: '', vat: '', phone: '', contact_address: '', region_tag_id: '',
   contact_name: '', contact_phone: '', contact_email: '',
 };
 
@@ -42,7 +43,7 @@ const EMPTY_EDIT_HQ = {
   name: '', vat: '', email: '', payment_term: '', salesperson_id: '', invoice_format: '',
 };
 const EMPTY_EDIT_BRANCH = {
-  name: '', short_name: '', phone: '', contact_address: '', region_tag_id: '', contact_email: '',
+  name: '', vat: '', short_name: '', phone: '', contact_address: '', region_tag_id: '', contact_email: '',
 };
 
 export default function CustomersPage() {
@@ -179,6 +180,7 @@ export default function CustomersPage() {
     setEditTarget({ type: 'branch', record: b });
     setEditBranch({
       name: b.name || '',
+      vat: b.vat || '',
       short_name: b.short_name || '',
       phone: b.phone || '',
       contact_address: b.contact_address || '',
@@ -543,7 +545,9 @@ export default function CustomersPage() {
                                 {b.phone || '—'}
                                 {bEmail && <div className="text-gray-400">{bEmail}</div>}
                               </td>
-                              <td className="px-4 py-2" colSpan={2}></td>
+                              <td className="px-4 py-2 text-xs text-gray-500" colSpan={2}>
+                                {b.vat ? <span>統編 {b.vat}</span> : <span className="text-gray-300">無統編</span>}
+                              </td>
                               <td className="px-4 py-2 text-right">
                                 {token ? (
                                   <button onClick={() => copyLink(token, bEmail, b.id)}
@@ -598,7 +602,7 @@ export default function CustomersPage() {
                   </div>
                   <div className="grid grid-cols-2 gap-3">
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">統編</label>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">統編 <span className="text-red-500">*</span></label>
                       <input type="text" value={editHq.vat} onChange={e => setEditHq(p => ({ ...p, vat: e.target.value }))} className={inputCls} />
                     </div>
                     <div>
@@ -637,6 +641,13 @@ export default function CustomersPage() {
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">店名 <span className="text-red-500">*</span></label>
                     <input type="text" value={editBranch.name} onChange={e => setEditBranch(p => ({ ...p, name: e.target.value }))} className={inputCls} />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">統編 <span className="text-red-500">*</span></label>
+                    <input type="text" value={editBranch.vat} onChange={e => setEditBranch(p => ({ ...p, vat: e.target.value }))} className={inputCls} />
+                    {editBranch.vat.trim() && vatFormatHint(editBranch.vat) && (
+                      <p className="text-xs text-red-500 mt-1">{vatFormatHint(editBranch.vat)}</p>
+                    )}
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">採購單顯示簡稱</label>
@@ -780,7 +791,7 @@ export default function CustomersPage() {
                   </div>
                   <div className="grid grid-cols-2 gap-3">
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">統編</label>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">統編 <span className="text-red-500">*</span></label>
                       <input type="text" value={companyForm.vat} onChange={fc('vat')} placeholder="12345678" className={inputCls} />
                     </div>
                     <div>
@@ -853,6 +864,14 @@ export default function CustomersPage() {
                           <input type="tel" value={b.phone} onChange={fb(i, 'phone')}
                             placeholder="02-12345678" className={inputCls} />
                         </div>
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">統編 <span className="text-red-500">*</span></label>
+                        <input type="text" value={b.vat} onChange={fb(i, 'vat')}
+                          placeholder="8 位數字" className={inputCls} />
+                        {b.vat.trim() && vatFormatHint(b.vat) && (
+                          <p className="text-xs text-red-500 mt-1">{vatFormatHint(b.vat)}</p>
+                        )}
                       </div>
                       <div>
                         <label className="block text-sm font-medium text-gray-700 mb-1">地址</label>
@@ -932,6 +951,15 @@ export default function CustomersPage() {
                     onChange={e => setAddBranchForm(p => ({ ...p, phone: e.target.value }))}
                     placeholder="02-12345678" className={inputCls} />
                 </div>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">統編 <span className="text-red-500">*</span></label>
+                <input type="text" value={addBranchForm.vat}
+                  onChange={e => setAddBranchForm(p => ({ ...p, vat: e.target.value }))}
+                  placeholder="8 位數字" className={inputCls} />
+                {addBranchForm.vat.trim() && vatFormatHint(addBranchForm.vat) && (
+                  <p className="text-xs text-red-500 mt-1">{vatFormatHint(addBranchForm.vat)}</p>
+                )}
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">地址</label>
