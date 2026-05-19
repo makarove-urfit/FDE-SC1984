@@ -17,6 +17,9 @@
   "create_customer_bundle": {
     "description": "一次建公司(headquarters)+分店(branch)+聯絡人(role/contact)+負責人(role/owner) 4 筆 customer，並打區域 tag"
   },
+  "update_customer": {
+    "description": "編輯單筆客戶；若更動統編則做格式檢查碼驗證、跨表查重（排除自己）與並發退讓"
+  },
   "list_employees": {
     "description": "回傳有系統帳號（user_id 非空）的員工清單，供業務員 / 採購員 picker 使用"
   },
