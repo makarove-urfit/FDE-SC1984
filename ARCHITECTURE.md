@@ -111,17 +111,21 @@
   |---|---|---|---|---|
   | `headquarters` | 公司（法人本體） | **真實** | 「家樂福股份有限公司」 | company / true |
   | `independent` | 獨立客戶（既是下單單位也是法人，無階層） | **真實** | 個人散戶、小型獨立公司 | company 或 individual / 依實體 |
-  | `branch` | 分店（營運據點，共用公司統編） | **虛擬** | 「家樂福 - 內湖店」 | individual / false |
+  | `branch` | 分店（營運據點，各自獨立統編） | **虛擬** | 「家樂福 - 內湖店」 | individual / false |
   | `role` | 角色容器（聯絡人 / 負責人等身份載體） | **虛擬** | 店內聯絡人「王小明」 | individual / false |
 
   **真實 vs 虛擬**：`kind IN ('headquarters', 'independent')` 才是真實法人實體；`branch` / `role` 是我們為了表達組織結構建的虛擬容器。報表算真實客戶數量時用這個 filter 排除虛擬 customer。
+
+  > **註（2026-05）**：分店改為各自設定獨立統編後，branch 在稅務上已是獨立法人。
+  > 「真實/虛擬」的 `kind IN ('headquarters','independent')` filter 暫未調整；
+  > 若報表需把分店計入真實客戶數，另案處理。
 
   **為什麼 `customer_type` 本身不擴第三個值**：DB 有 `CheckConstraint("customer_type IN ('company','individual')")` 硬擋（`backend/app/models/client.py:79`），強加 `role` 會被 PostgreSQL 退件。所以真實/虛擬的區分改放在 `custom_data.kind`，`customer_type` 繼續反映 Odoo 原生意義（法人類型）。
 
   **為什麼不叫 `individual`**：避免跟 `customer_type='individual'` 混淆（值相同但語意不同）。改用 `role` 更清楚表達「這筆 customer 純粹為了角色存在」。
 
   **屬性的繼承規則**（跨層讀取時從自己往上追到 headquarters）：
-  - 統編 `vat`：存在 headquarters；branch/role 查詢時向上追
+  - 統編 `vat`：headquarters / branch / independent 各自存自己那列；role 不存統編（不再繼承）
   - 業務員 `salesperson_id`：存在 headquarters（業績遞迴，見 §0.10）
   - 結帳方式 `payment_term`：存在 headquarters，可由 branch 覆蓋
   - 貨單形式 `custom_data.invoice_format`：存在 headquarters
