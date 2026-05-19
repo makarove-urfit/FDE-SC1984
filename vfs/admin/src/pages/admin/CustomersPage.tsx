@@ -604,6 +604,9 @@ export default function CustomersPage() {
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1">統編 <span className="text-red-500">*</span></label>
                       <input type="text" value={editHq.vat} onChange={e => setEditHq(p => ({ ...p, vat: e.target.value }))} className={inputCls} />
+                      {editHq.vat.trim() && vatFormatHint(editHq.vat) && (
+                        <p className="text-xs text-red-500 mt-1">{vatFormatHint(editHq.vat)}</p>
+                      )}
                     </div>
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1">電子發票信箱</label>
@@ -644,7 +647,7 @@ export default function CustomersPage() {
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">統編 <span className="text-red-500">*</span></label>
-                    <input type="text" value={editBranch.vat} onChange={e => setEditBranch(p => ({ ...p, vat: e.target.value }))} className={inputCls} />
+                    <input type="text" placeholder="8 位數字" value={editBranch.vat} onChange={e => setEditBranch(p => ({ ...p, vat: e.target.value }))} className={inputCls} />
                     {editBranch.vat.trim() && vatFormatHint(editBranch.vat) && (
                       <p className="text-xs text-red-500 mt-1">{vatFormatHint(editBranch.vat)}</p>
                     )}
@@ -793,6 +796,9 @@ export default function CustomersPage() {
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1">統編 <span className="text-red-500">*</span></label>
                       <input type="text" value={companyForm.vat} onChange={fc('vat')} placeholder="12345678" className={inputCls} />
+                      {companyForm.vat.trim() && vatFormatHint(companyForm.vat) && (
+                        <p className="text-xs text-red-500 mt-1">{vatFormatHint(companyForm.vat)}</p>
+                      )}
                     </div>
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1">電子發票信箱</label>
