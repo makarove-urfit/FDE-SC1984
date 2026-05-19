@@ -18,7 +18,7 @@ type Customer = {
 type Employee = { id: string; name: string; user_id: string; job_title: string };
 type Tag = { id: string; name: string; custom_data: any };
 type AppUser = { id: string; email: string; display_name: string };
-type RelEntry = { rel_id: string; user_id: string; user_email: string; user_name: string };
+type RelEntry = { rel_id: string; user_id: string; user_name: string };
 type EditType = 'hq' | 'branch';
 
 const INVOICE_FORMATS = ['紙本', '電子'];
@@ -197,7 +197,6 @@ export default function CustomersPage() {
         return {
           rel_id: String(r.id),
           user_id: String(r.custom_app_user_id),
-          user_email: u?.email || '(未知)',
           user_name: u?.display_name || '(未知)',
         };
       });
@@ -217,7 +216,6 @@ export default function CustomersPage() {
       const newEntry: RelEntry = {
         rel_id: String(created.id),
         user_id: pickUserId,
-        user_email: u?.email || '',
         user_name: u?.display_name || '',
       };
       setBranchRels(prev => [...prev, newEntry]);
@@ -721,7 +719,6 @@ export default function CustomersPage() {
                           <div key={r.rel_id} className="flex items-center justify-between bg-gray-50 rounded-lg px-3 py-2">
                             <div className="text-sm">
                               <span className="font-medium text-gray-800">{r.user_name || '(未填名)'}</span>
-                              <span className="text-gray-400 ml-2 text-xs">{r.user_email}</span>
                             </div>
                             <button
                               type="button" disabled={relBusy}
