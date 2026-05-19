@@ -1,3 +1,26 @@
+# ── 統編驗證共用邏輯 ──
+# 注意：AI GO action 無跨檔 import，update_customer.py 須持一份完全一致的副本。
+_VAT_WEIGHTS = [1, 2, 1, 2, 1, 2, 4, 1]
+
+
+def _validate_vat_format(vat):
+    """台灣統一編號格式 + 檢查碼驗證。回傳 (ok: bool, err: str)。"""
+    v = (vat or "").strip()
+    if not v:
+        return False, "統編為必填"
+    if len(v) != 8 or not v.isdigit():
+        return False, f"統編須為 8 位數字（收到「{vat}」）"
+    total = 0
+    for i in range(8):
+        product = int(v[i]) * _VAT_WEIGHTS[i]
+        total += product // 10 + product % 10
+    if total % 5 == 0:
+        return True, ""
+    if v[6] == "7" and (total + 1) % 5 == 0:
+        return True, ""
+    return False, f"「{v}」不是有效的統一編號（檢查碼不符）"
+
+
 def execute(ctx):
     import uuid, re
     p = ctx.params
